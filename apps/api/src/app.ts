@@ -11,6 +11,7 @@ import { authMiddleware, type AuthDeps } from './middleware/auth.js';
 import { MemoryRateLimitStore, type RateLimitStore } from './middleware/rate-limit.js';
 import { trace } from './middleware/trace.js';
 import type { Registrar } from './register.js';
+import { landingHtml } from './landing.js';
 import type { AppEnv } from './types.js';
 import { mountRoutes } from './routes/index.js';
 import { mountTracking } from './routes/tracking.js';
@@ -100,8 +101,8 @@ export function createApp(deps: AppDeps) {
       return next();
     });
     app.get('/app', (c) => c.redirect('/app/', 302));
-    app.get('/', (c) => c.redirect('/app/', 302));
   }
+  app.get('/', (c) => c.html(landingHtml({ publicUrl, release: 'https://github.com/walter-grace/cooks/releases/latest/download/cooks-mcp.tgz' })));
 
   // Authenticated API surface. Everything under /v1 except /v1/public-ip-list.
   const verifyJwt =

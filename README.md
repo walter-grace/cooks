@@ -12,6 +12,8 @@ Sales engagement platforms charge per seat for what is mostly a scheduler, a mai
 queue and a CRM sync. Cooks gives you those parts under MIT, self-hosted on one Postgres, with
 the AI brought by whatever model you already pay for.
 
+![Tasks](docs/screenshots/tasks.png)
+
 ## Status
 
 | Milestone | State |
@@ -99,7 +101,7 @@ packages/jobs pg-boss adapter behind the JobsPort interface.
 packages/agent Hosted AI: provider abstraction, structured contracts, run ledger, draft/classify/research jobs.
 packages/core/crm HubSpot client + connector (sync, auto-enroll rules, write-back).
 spec/         Vendored upstream OpenAPI document and lock file.
-docs/         Research notes and, later, self-host / MCP / webhook guides.
+docs/         auth, mcp, self-host, ai, crm, webhooks, api-compat, conformance + research notes.
 ```
 
 The enrollment engine is a small state machine. An enrollment points at its current step,
