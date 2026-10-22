@@ -13,8 +13,9 @@ import { mountTags } from './tags.js';
 import { mountTasks } from './tasks.js';
 import { mountUsers } from './users.js';
 import { mountWebhooks } from './webhooks.js';
+import { mountWorkspace } from './workspace.js';
 
-export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: string; fetchImpl?: typeof fetch }) {
+export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: string; fetchImpl?: typeof fetch; keyPrefix?: 'cooks' | 'nooks' }) {
   mountMe(reg, opts);
   mountUsers(reg);
   mountAccounts(reg);
@@ -29,4 +30,5 @@ export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: s
   mountMailboxes(reg, { kek: opts.kek });
   mountCalls(reg);
   mountWebhooks(reg, { kek: opts.kek, fetchImpl: opts.fetchImpl });
+  mountWorkspace(reg, { keyPrefix: opts.keyPrefix ?? 'cooks' });
 }

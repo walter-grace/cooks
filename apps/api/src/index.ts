@@ -16,6 +16,7 @@ const { app, registry } = createApp({
   rateLimitStore: new PgRateLimitStore(handle.db),
   publicUrl: env.COOKS_PUBLIC_URL,
   kek: env.COOKS_KEK,
+  keyPrefix: env.COOKS_API_KEY_PREFIX,
   acceptNooksPrefix: env.COOKS_ACCEPT_NOOKS_PREFIX,
   publicIps: env.COOKS_PUBLIC_IPS.split(',').map((s) => s.trim()).filter(Boolean),
 });

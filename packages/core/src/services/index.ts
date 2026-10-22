@@ -16,3 +16,4 @@ export * from './mailboxes.js';
 export * from './calls.js';
 export * from './tracking.js';
 export * from './webhooks.js';
+export * from './workspace.js';

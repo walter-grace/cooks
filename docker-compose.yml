@@ -1,0 +1,71 @@
+# Self-host Cooks with Docker. `docker compose up -d` then `docker compose run --rm api pnpm bootstrap --email you@example.com --workspace "My Team"`.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cooks
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cooks}
+      POSTGRES_DB: cooks
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U cooks -d cooks']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - '127.0.0.1:5432:5432'
+
+  api:
+    build: { context: ., dockerfile: docker/app.Dockerfile }
+    command: ['pnpm', '--filter', '@cooks/api', 'start']
+    environment: &app_env
+      DATABASE_URL: postgres://cooks:${POSTGRES_PASSWORD:-cooks}@postgres:5432/cooks
+      COOKS_PUBLIC_URL: ${COOKS_PUBLIC_URL:-http://localhost:8080}
+      COOKS_MCP_PUBLIC_URL: ${COOKS_MCP_PUBLIC_URL:-http://localhost:8081}
+      COOKS_KEK: ${COOKS_KEK:-}
+      COOKS_AUTO_MIGRATE: 'true'
+      SMTP_URL: ${SMTP_URL:-smtp://mailpit:1025}
+      COOKS_MAIL_FROM: ${COOKS_MAIL_FROM:-Cooks <no-reply@localhost>}
+      COOKS_PUBLIC_IPS: ${COOKS_PUBLIC_IPS:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      PORT: '8080'
+      MCP_PORT: '8081'
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports:
+      - '8080:8080'
+
+  worker:
+    build: { context: ., dockerfile: docker/app.Dockerfile }
+    command: ['pnpm', '--filter', '@cooks/worker', 'start']
+    environment:
+      <<: *app_env
+      COOKS_AUTO_MIGRATE: 'false'
+    depends_on:
+      postgres: { condition: service_healthy }
+      api: { condition: service_started }
+
+  mcp:
+    build: { context: ., dockerfile: docker/app.Dockerfile }
+    command: ['pnpm', '--filter', 'cooks-mcp', 'start']
+    environment:
+      <<: *app_env
+      COOKS_API_URL: http://api:8080
+    depends_on:
+      api: { condition: service_started }
+    ports:
+      - '8081:8081'
+
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: ['dev']
+    ports:
+      - '127.0.0.1:1025:1025'
+      - '127.0.0.1:8025:8025'
+
+volumes:
+  pgdata:

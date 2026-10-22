@@ -19,9 +19,9 @@ the AI brought by whatever model you already pay for.
 | M0 scaffold, schema, PGlite tests | done |
 | M1 API keys, users, accounts, prospects, tags, notes, rate limits, OpenAPI | done |
 | M2 sequences, steps, enrollments, tasks, templates, enrollment engine | done |
-| M3 email transport (SMTP now; Gmail, Microsoft Graph, inbound reply detection next) | in progress |
-| M4 OAuth 2.1 + MCP server + hosted agents | next |
-| M5 webhooks (`call.logged` compatible + Cooks events) | planned |
+| M3 email transport: SMTP send, tracking, unsubscribe (Gmail, Microsoft Graph, inbound reply detection next) | mostly done |
+| M4 MCP server (32 tools, stdio + HTTP) | done; OAuth 2.1 in progress |
+| M5 webhooks (`call.logged` compatible + Cooks events, signed, retried) | done |
 | Later: dialer (Twilio Voice), CRM connectors, signals, coaching, web UI | planned |
 
 ## Run it locally
@@ -43,6 +43,14 @@ Then:
 ```bash
 export KEY=cooks-api-...
 curl -H "Authorization: Bearer $KEY" localhost:8080/v1/me
+```
+
+## Docker
+
+```bash
+export COOKS_KEK=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
+docker compose --profile dev up -d          # postgres, api :8080, worker, mcp :8081, mailpit :8025
+docker compose run --rm api pnpm bootstrap --email you@example.com --workspace "My Team"
 ```
 
 ## API compatibility
