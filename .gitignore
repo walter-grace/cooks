@@ -7,3 +7,4 @@ coverage/
 .DS_Store
 .pglite/
 apps/web/dist/
+apps/mcp/dist/
