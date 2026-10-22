@@ -26,6 +26,8 @@ export interface AppDeps {
   version?: string;
   /** Encrypts mailbox credentials and signs tracking tokens. */
   kek?: string;
+  /** Outbound HTTP for webhook pings (injectable for tests). */
+  fetchImpl?: typeof fetch;
 }
 
 export function createApp(deps: AppDeps) {
@@ -74,7 +76,7 @@ export function createApp(deps: AppDeps) {
   });
 
   const reg: Registrar = { app, store, now: () => clock.now(), registry: [] };
-  mountRoutes(reg, { publicIps: deps.publicIps ?? [], kek: deps.kek });
+  mountRoutes(reg, { publicIps: deps.publicIps ?? [], kek: deps.kek, fetchImpl: deps.fetchImpl });
   mountTracking(app, { db: deps.db, secret: deps.kek ?? 'cooks-dev', clock, jobs, publicUrl });
 
   // OpenAPI document, served at the same paths as upstream (/openapi.yml) plus JSON and docs.

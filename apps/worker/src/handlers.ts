@@ -1,6 +1,8 @@
 import type { PgBoss } from 'pg-boss';
 import {
   advanceEnrollment,
+  deliverWebhook,
+  publishOutbox,
   executeStep,
   sendQueuedEmail,
   startPendingEnrollments,
@@ -74,9 +76,30 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
     }),
     1,
   );
+  void work<{ deliveryId: string }>('webhook.deliver', (job) => deliverWebhook({ db: deps.db, jobs: deps.jobs, kek: deps.kek }, job.data.deliveryId), 5);
+  void work<Record<string, never>>('outbox.publish', async () => ({ published: await publishOutbox(deps.db, deps.jobs) }), 1);
   void work<Record<string, never>>('enrollment.start_pending', async () => ({ promoted: await startPendingEnrollments(mkCtx(deps, 'system')) }), 1);
 }
 
 export async function registerSchedules(boss: PgBoss) {
   await boss.schedule('enrollment.start_pending', '* * * * *', {}, { tz: 'UTC' });
+  await boss.schedule('outbox.publish', '* * * * *', {}, { tz: 'UTC' });
+}
+
+/** Low-latency outbox drain between the cron ticks. Safe with several workers (SKIP LOCKED). */
+export function startOutboxLoop(deps: WorkerDeps, intervalMs = 2000): () => void {
+  let running = false;
+  const timer = setInterval(async () => {
+    if (running) return;
+    running = true;
+    try {
+      const n = await publishOutbox(deps.db, deps.jobs);
+      if (n > 0) deps.log('outbox.publish', { published: n });
+    } catch (e) {
+      deps.log('outbox.publish failed', { error: (e as Error).message });
+    } finally {
+      running = false;
+    }
+  }, intervalMs);
+  return () => clearInterval(timer);
 }

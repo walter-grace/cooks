@@ -12,8 +12,9 @@ import { mountSequences } from './sequences.js';
 import { mountTags } from './tags.js';
 import { mountTasks } from './tasks.js';
 import { mountUsers } from './users.js';
+import { mountWebhooks } from './webhooks.js';
 
-export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: string }) {
+export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: string; fetchImpl?: typeof fetch }) {
   mountMe(reg, opts);
   mountUsers(reg);
   mountAccounts(reg);
@@ -27,4 +28,5 @@ export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: s
   mountEmails(reg);
   mountMailboxes(reg, { kek: opts.kek });
   mountCalls(reg);
+  mountWebhooks(reg, { kek: opts.kek, fetchImpl: opts.fetchImpl });
 }

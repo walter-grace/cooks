@@ -16,7 +16,7 @@ export function fakeClock(start = new Date('2026-03-02T15:00:00Z')): FakeClock {
   return { now: () => t, set: (d) => (t = d), advance: (ms) => (t = new Date(t.getTime() + ms)) };
 }
 
-export async function createTestApp() {
+export async function createTestApp(opts: { fetchImpl?: typeof fetch } = {}) {
   const t = await createTestDb();
   const [ws] = await t.db.insert(workspaces).values({ name: 'Acme', slug: 'acme' }).returning();
   const [owner] = await t.db.insert(users).values({ email: 'owner@acme.test', name: 'Olive Owner' }).returning();
@@ -28,7 +28,7 @@ export async function createTestApp() {
   const key = await createApiKey(t.db, { workspaceId: ws!.id, name: 'test' });
   const jobs = new MemoryJobs();
   const clock = fakeClock();
-  const { app, registry } = createApp({ db: t.db, jobs, clock, rateLimitStore: new MemoryRateLimitStore(), publicIps: ['203.0.113.7'] });
+  const { app, registry } = createApp({ db: t.db, jobs, clock, rateLimitStore: new MemoryRateLimitStore(), publicIps: ['203.0.113.7'], fetchImpl: opts.fetchImpl });
 
   const request = async (path: string, init: RequestInit & { json?: unknown; token?: string | null } = {}) => {
     const headers = new Headers(init.headers);

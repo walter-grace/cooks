@@ -2,7 +2,7 @@ import { loadEnv } from '@cooks/config';
 import { createDb, runMigrations } from '@cooks/db';
 import { createBoss, PgBossJobs } from '@cooks/jobs';
 import { MemoryMailProvider, SmtpProvider } from '@cooks/core';
-import { registerHandlers, registerSchedules } from './handlers.js';
+import { registerHandlers, registerSchedules, startOutboxLoop } from './handlers.js';
 
 const env = loadEnv();
 const handle = createDb(env.DATABASE_URL, { max: 5 });
@@ -14,7 +14,7 @@ const dryRun = process.env.COOKS_MAIL_DRY_RUN === 'true';
 const mailProvider = dryRun ? new MemoryMailProvider() : new SmtpProvider(env.SMTP_URL);
 if (!dryRun) await (mailProvider as SmtpProvider).verify().catch((e: Error) => console.warn(`[worker] SMTP not reachable at ${env.SMTP_URL}: ${e.message}`));
 
-registerHandlers(boss, {
+const workerDeps = {
   db: handle.db,
   jobs,
   publicUrl: env.COOKS_PUBLIC_URL,
@@ -22,12 +22,15 @@ registerHandlers(boss, {
   fallbackFrom: process.env.COOKS_MAIL_FROM ?? 'Cooks <no-reply@cooks.local>',
   trackingSecret: env.COOKS_KEK ?? 'cooks-dev',
   kek: env.COOKS_KEK,
-  log: (msg, data) => console.log(`[worker] ${msg}`, data ? JSON.stringify(data) : ''),
-});
+  log: (msg: string, data?: Record<string, unknown>) => console.log(`[worker] ${msg}`, data ? JSON.stringify(data) : ''),
+};
+registerHandlers(boss, workerDeps);
 await registerSchedules(boss);
+const stopOutbox = startOutboxLoop(workerDeps);
 console.log(`cooks worker running (mail: ${dryRun ? 'dry-run' : env.SMTP_URL})`);
 
 const shutdown = async () => {
+  stopOutbox();
   await boss.stop();
   await handle.close();
   process.exit(0);
