@@ -39,6 +39,10 @@ pnpm --filter cooks-mcp start       # :8081, optional
 
 Migrations run on boot (`COOKS_AUTO_MIGRATE=true`) under an advisory lock, so API and worker can start together.
 
+## Web UI
+
+`pnpm web:build` writes `apps/web/dist`; the API serves it at `/app` (set `COOKS_WEB_DIR` to point elsewhere). Users sign in with email + password (set with `pnpm bootstrap --password` or by an admin) and get a 1-hour browser token scoped to their workspace role. During development run `pnpm --filter @cooks/web dev` for hot reload on :5173 with a proxy to the API.
+
 ## Process management
 
 Run each process under systemd, pm2 or your platform's supervisor. The worker is safe to run with several replicas: every job is idempotent and step executions are unique per enrollment. The API is stateless; put it behind any reverse proxy with TLS.

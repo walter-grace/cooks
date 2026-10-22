@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { loadSession } from '../api.js';
+import { loadSession, type Session } from '../api.js';
 import { navigate } from '../router.js';
 
-export function Login() {
+export function Login({ onLogin }: { onLogin: (s: Session) => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -17,9 +17,12 @@ export function Login() {
       setBusy(false);
       return;
     }
-    const s = await loadSession();
+    const s = await loadSession(undefined, true);
     setBusy(false);
-    if (s) navigate('/');
+    if (s) {
+      onLogin(s);
+      navigate('/');
+    }
     else setErr('Signed in, but no workspace membership was found.');
   };
   return (

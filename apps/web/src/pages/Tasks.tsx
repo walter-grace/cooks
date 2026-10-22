@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { api, fmtDate, q } from '../api.js';
 import { useApi, useToast } from '../hooks.js';
 import { Link } from '../router.js';
 
 export function Tasks() {
   const [scope, setScope] = useState<'due' | 'open' | 'done'>('due');
-  const now = new Date().toISOString();
+  const now = useMemo(() => new Date().toISOString(), [scope]);
   const path = `/v1/tasks${q({ 'filter[completed]': scope === 'done' ? 'true' : 'false', 'filter[dueAt][lte]': scope === 'due' ? now : undefined, 'filter[status]': scope === 'open' ? 'ready' : undefined, include: 'prospect', 'page[size]': 100 })}`;
   const { data, error, loading, reload } = useApi<{ data: any[] }>(path, [scope]);
   const { msg, toast } = useToast();

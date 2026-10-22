@@ -31,7 +31,7 @@ export function App() {
     if (session && path === '/login') navigate('/');
   }, [session, path]);
   if (session === undefined) return <main className="muted">Loading…</main>;
-  if (!session || path === '/login') return <Login />;
+  if (!session || path === '/login') return <Login onLogin={setSession} />;
 
   let page: React.ReactNode;
   let p: Record<string, string> | null;

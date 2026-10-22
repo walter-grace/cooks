@@ -11,9 +11,9 @@ let session: Session | null = null;
 let expiresAt = 0;
 let pending: Promise<Session | null> | null = null;
 
-export async function loadSession(workspaceId?: string): Promise<Session | null> {
-  if (session && Date.now() < expiresAt - 60_000 && !workspaceId) return session;
-  if (pending && !workspaceId) return pending;
+export async function loadSession(workspaceId?: string, force = false): Promise<Session | null> {
+  if (!force && session && Date.now() < expiresAt - 60_000 && !workspaceId) return session;
+  if (pending && !workspaceId && !force) return pending;
   pending = (async () => {
     const res = await fetch('/auth/session-token', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(workspaceId ? { workspaceId } : {}), credentials: 'same-origin' });
     if (!res.ok) {
