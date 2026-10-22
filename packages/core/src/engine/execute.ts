@@ -91,6 +91,9 @@ export async function executeStep(ctx: Ctx, stateId: string, stepId: string): Pr
     .returning({ id: tasks.id });
   await ctx.db.update(stepExecutions).set({ status: 'task_created', taskId: task!.id }).where(eq(stepExecutions.id, execution.id));
   await ctx.db.update(sequenceStates).set({ stepPhase: 'awaiting_task' }).where(eq(sequenceStates.id, stateId));
+  if (step.aiEmail && step.action.includes('email')) {
+    await ctx.jobs.send('ai.draft_email', { taskId: task!.id, workspaceId: state.workspaceId }, { singletonKey: `draft:${task!.id}` });
+  }
   await emitEvent(ctx.db, {
     workspaceId: state.workspaceId,
     type: 'task.created',

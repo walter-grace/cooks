@@ -22,7 +22,7 @@ the AI brought by whatever model you already pay for.
 | M3 email transport: SMTP send, open/click tracking, one-click unsubscribe | done (Gmail, Microsoft Graph, inbound reply detection next) |
 | M4 OAuth 2.1 (PKCE, DCR, rotating refresh, ES256 JWT) + MCP server (32 tools, stdio + HTTP) | done |
 | M5 webhooks (`call.logged` compatible + Cooks events, signed, retried) | done |
-| Hosted AI agents (draft, classify replies) | next |
+| Hosted AI agents: AI email drafts on `aiEmail` steps, reply classification, run ledger with cost, per-workspace provider (Anthropic, xAI/Grok, OpenAI, OpenRouter, Ollama) | done |
 | Later: dialer (Twilio Voice), CRM connectors, signals, coaching, web UI | planned |
 
 ## Run it locally
@@ -79,6 +79,7 @@ packages/db   Drizzle schema + migrations. UUIDv7 ids, keyset-cursor indexes, so
 packages/core Domain: services, enrollment engine, scheduling, mail pipeline, error envelope.
 packages/auth API keys (sha256 at rest), passwords (scrypt), sessions, ES256 signing keys, OAuth 2.1 server.
 packages/jobs pg-boss adapter behind the JobsPort interface.
+packages/agent Hosted AI: provider abstraction, structured contracts, run ledger, draft/classify jobs.
 spec/         Vendored upstream OpenAPI document and lock file.
 docs/         Research notes and, later, self-host / MCP / webhook guides.
 ```
@@ -90,6 +91,10 @@ completing or skipping the task advances the enrollment. Automatic email steps q
 which the worker renders (LiquidJS, strict variables) and sends through the owner's mailbox,
 honouring suppression lists, daily caps and spacing. Every step runs at most once per
 enrollment thanks to a unique execution row, so duplicate job deliveries are harmless.
+
+## AI
+
+Two modes, see `docs/ai.md`: bring your own assistant through MCP (Cooks spends no tokens), or configure a provider per workspace and let the worker draft emails for `aiEmail` steps and classify replies, with every run logged with tokens and cost and uncertain output routed to a human.
 
 ## Tests
 

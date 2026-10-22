@@ -12,6 +12,7 @@ import {
   type MailProvider,
 } from '@cooks/core';
 import { mailboxCredentials, type Db } from '@cooks/db';
+import { draftEmailForTask, type EnvKeys } from '@cooks/agent';
 import { eq } from 'drizzle-orm';
 import { SmtpProvider, decrypt } from '@cooks/core';
 
@@ -23,6 +24,7 @@ export interface WorkerDeps {
   fallbackFrom: string | null;
   trackingSecret: string;
   kek?: string;
+  aiEnv: EnvKeys;
   log: (msg: string, data?: Record<string, unknown>) => void;
 }
 
@@ -77,6 +79,7 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
     1,
   );
   void work<{ deliveryId: string }>('webhook.deliver', (job) => deliverWebhook({ db: deps.db, jobs: deps.jobs, kek: deps.kek }, job.data.deliveryId), 5);
+  void work<{ taskId: string; workspaceId: string }>('ai.draft_email', (job) => draftEmailForTask({ db: deps.db, env: deps.aiEnv, now: () => new Date() }, job.data.taskId), 2);
   void work<Record<string, never>>('outbox.publish', async () => ({ published: await publishOutbox(deps.db, deps.jobs) }), 1);
   void work<Record<string, never>>('enrollment.start_pending', async () => ({ promoted: await startPendingEnrollments(mkCtx(deps, 'system')) }), 1);
 }

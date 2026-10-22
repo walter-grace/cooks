@@ -23,8 +23,9 @@ describe('mailboxes', () => {
     expect(dup.status).toBe(409);
     const l = await t.request(`/v1/mailboxes?filter[userId]=${t.ownerId}&include=user`);
     expect(l.json.data[0].user.email).toBe('owner@acme.test');
-    const needsKek = await t.request('/v1/mailboxes', { method: 'POST', json: { data: { email: 'rep@acme.test', userId: t.repId, smtpUrl: 'smtp://x' } } });
-    expect(needsKek.status).toBe(422);
+    const withCreds = await t.request('/v1/mailboxes', { method: 'POST', json: { data: { email: 'rep@acme.test', userId: t.repId, smtpUrl: 'smtp://u:p@relay.test:587' } } });
+    expect(withCreds.status).toBe(201);
+    expect(JSON.stringify(withCreds.json)).not.toContain('relay.test');
   });
 });
 
@@ -58,7 +59,7 @@ describe('emails', () => {
   it('the worker sends the queued email with tracking, and the public endpoints record opens, clicks and unsubscribes', async () => {
     const mail = new MemoryMailProvider();
     t.clock.set(new Date('2026-03-03T15:00:00Z'));
-    const out = await sendQueuedEmail(ctx(), ids.email, { providerFor: async () => mail, trackingSecret: 'cooks-dev' });
+    const out = await sendQueuedEmail(ctx(), ids.email, { providerFor: async () => mail, trackingSecret: t.kek });
     expect(out.status).toBe('sent');
     const html = mail.sent[0]!.html;
     expect(html).toContain('/t/o/');

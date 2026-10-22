@@ -29,8 +29,9 @@ export async function createTestApp(opts: { fetchImpl?: typeof fetch } = {}) {
   const apiKey = await createApiKey(t.db, { workspaceId: ws!.id, name: 'test' });
   const jobs = new MemoryJobs();
   const clock = fakeClock();
+  const kek = Buffer.alloc(32, 9).toString('base64');
   const key = await ensureSigningKey(t.db, undefined);
-  const { app, registry } = createApp({ db: t.db, jobs, clock, rateLimitStore: new MemoryRateLimitStore(), publicIps: ['203.0.113.7'], fetchImpl: opts.fetchImpl, publicUrl: 'http://localhost', oauth: { key, secureCookies: false, mcpPublicUrl: 'http://mcp.localhost' } });
+  const { app, registry } = createApp({ db: t.db, jobs, clock, rateLimitStore: new MemoryRateLimitStore(), publicIps: ['203.0.113.7'], fetchImpl: opts.fetchImpl, publicUrl: 'http://localhost', kek, oauth: { key, secureCookies: false, mcpPublicUrl: 'http://mcp.localhost' } });
 
   const request = async (path: string, init: RequestInit & { json?: unknown; token?: string | null } = {}) => {
     const headers = new Headers(init.headers);
@@ -58,6 +59,7 @@ export async function createTestApp(opts: { fetchImpl?: typeof fetch } = {}) {
     jobs,
     clock,
     token: apiKey.token,
+    kek,
     password: 'hunter22',
     workspaceId: ws!.id,
     ownerId: owner!.id,

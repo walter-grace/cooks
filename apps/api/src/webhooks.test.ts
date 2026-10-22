@@ -40,7 +40,7 @@ describe('webhooks API', () => {
     expect(await publishOutbox(t.db, t.jobs, { now: t.clock.now() })).toBeGreaterThan(0);
     const deliver = t.jobs.sent.filter((j) => j.name === 'webhook.deliver');
     expect(deliver).toHaveLength(1); // only the subscribed event type
-    const out = await deliverWebhook({ db: t.db, jobs: t.jobs, fetchImpl, now: () => t.clock.now() }, deliver[0]!.data.deliveryId as string);
+    const out = await deliverWebhook({ db: t.db, jobs: t.jobs, fetchImpl, kek: t.kek, now: () => t.clock.now() }, deliver[0]!.data.deliveryId as string);
     expect(out.status).toBe('succeeded');
     expect(JSON.parse(hits[0]!.body)).toMatchObject({ event: 'prospect.created', data: { prospectId: expect.any(String) } });
     expect(verifyWebhookSignature(hits[0]!.sig, hits[0]!.body, secret, { now: t.clock.now().getTime() })).toBe(true);

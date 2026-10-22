@@ -22,6 +22,7 @@ const workerDeps = {
   fallbackFrom: process.env.COOKS_MAIL_FROM ?? 'Cooks <no-reply@cooks.local>',
   trackingSecret: env.COOKS_KEK ?? 'cooks-dev',
   kek: env.COOKS_KEK,
+  aiEnv: { ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY, OPENAI_API_KEY: env.OPENAI_API_KEY, XAI_API_KEY: env.XAI_API_KEY, OPENROUTER_API_KEY: env.OPENROUTER_API_KEY, OLLAMA_BASE_URL: env.OLLAMA_BASE_URL, COOKS_KEK: env.COOKS_KEK },
   log: (msg: string, data?: Record<string, unknown>) => console.log(`[worker] ${msg}`, data ? JSON.stringify(data) : ''),
 };
 registerHandlers(boss, workerDeps);

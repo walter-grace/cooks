@@ -1,5 +1,6 @@
 import type { Registrar } from '../register.js';
 import { mountAccounts } from './accounts.js';
+import { mountAi } from './ai.js';
 import { mountCalls } from './calls.js';
 import { mountEmails } from './emails.js';
 import { mountMailboxes } from './mailboxes.js';
@@ -31,4 +32,5 @@ export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: s
   mountCalls(reg);
   mountWebhooks(reg, { kek: opts.kek, fetchImpl: opts.fetchImpl });
   mountWorkspace(reg, { keyPrefix: opts.keyPrefix ?? 'cooks' });
+  mountAi(reg, { kek: opts.kek });
 }

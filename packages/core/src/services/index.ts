@@ -17,3 +17,4 @@ export * from './calls.js';
 export * from './tracking.js';
 export * from './webhooks.js';
 export * from './workspace.js';
+export * from './ai.js';

@@ -19,6 +19,7 @@
     "hono": "^4.13.0",
     "yaml": "^2.7.0",
     "zod": "^4.6.0",
-    "@cooks/jobs": "workspace:*"
+    "@cooks/jobs": "workspace:*",
+    "@cooks/agent": "workspace:*"
   }
 }
