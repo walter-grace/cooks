@@ -9,5 +9,8 @@
     "packages/*/src",
     "scripts",
     "vitest.config.ts"
+  ],
+  "exclude": [
+    "apps/web"
   ]
 }

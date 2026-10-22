@@ -60,6 +60,18 @@ Stored as JSON on `workspaces.settings` until the settings API lands:
 
 Prospect, account and owner time zones take precedence over the workspace zone when scheduling.
 
+## Mailbox connectors
+
+Three ways to connect a rep's mailbox:
+
+| Provider | Sending | Reading replies and bounces | Setup |
+| --- | --- | --- | --- |
+| SMTP + IMAP | `smtpUrl` on `POST /v1/mailboxes` (or the server `SMTP_URL` relay) | `imapUrl` (`imaps://user:pass@host:993`), polled every 2 minutes | Any mail host; app passwords work |
+| Gmail | Gmail API, keeps Cooks' Message-ID | Gmail history API | Create an OAuth client in Google Cloud with scopes `gmail.send`, `gmail.readonly`; set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`; redirect URI `$COOKS_PUBLIC_URL/connect/google/callback`; reps visit `/connect/google/start` |
+| Microsoft 365 | Graph `/me/messages` draft then send | Graph inbox delta | App registration with delegated `Mail.Send`, `Mail.Read`, `User.Read`, `offline_access`; set `MS_CLIENT_ID` / `MS_CLIENT_SECRET` (and `MS_TENANT` for single-tenant); redirect URI `$COOKS_PUBLIC_URL/connect/microsoft/callback`; reps visit `/connect/microsoft/start` |
+
+Tokens are encrypted with `COOKS_KEK`. Replies finish or pause the enrollment according to the workspace `replyBehavior` and create a high-priority task; hard bounces suppress the address; out-of-office replies push the next step past the stated return date.
+
 ## Mailboxes
 
 Each rep needs a mailbox row (`POST /v1/mailboxes`, a Cooks extension). With no per-mailbox credentials, the worker sends through `SMTP_URL` using the mailbox address as the sender; supply `smtpUrl` to send through the rep's own relay. Daily caps (`dailySendLimit`, default 50) and spacing (`minGapSeconds`, default 60) are per mailbox.

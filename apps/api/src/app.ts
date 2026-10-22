@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { extname, join } from 'node:path';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
@@ -38,6 +40,8 @@ export interface AppDeps {
   /** Gmail / Microsoft 365 OAuth apps for mailbox connectors. */
   connectorApps?: ConnectorApps;
   msTenant?: string;
+  /** Directory with the built web UI (apps/web/dist). Served at /app with SPA fallback. */
+  webDir?: string;
 }
 
 export function createApp(deps: AppDeps) {
@@ -75,6 +79,23 @@ export function createApp(deps: AppDeps) {
   app.notFound((c) => c.json(new CooksError(404, 'NOT_FOUND', `No route for ${c.req.method} ${c.req.path}`).toBody(c.get('traceId') ?? ''), 404));
 
   app.get('/health', (c) => c.json({ ok: true, time: clock.now().toISOString() }));
+  if (deps.webDir) {
+    const dir = deps.webDir;
+    app.get('/app/*', async (c, next) => {
+      const rel = c.req.path.replace(/^\/app\/?/, '');
+      const file = rel && !rel.includes('..') ? join(dir, rel) : '';
+      if (file && existsSync(file) && statSync(file).isFile()) {
+        const ext = extname(file);
+        const type = { '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.map': 'application/json', '.woff2': 'font/woff2' }[ext] ?? 'application/octet-stream';
+        return c.body(readFileSync(file), 200, { 'content-type': type, 'cache-control': rel.startsWith('assets/') ? 'public, max-age=31536000, immutable' : 'no-cache' });
+      }
+      const index = join(dir, 'index.html');
+      if (existsSync(index)) return c.html(readFileSync(index, 'utf8'));
+      return next();
+    });
+    app.get('/app', (c) => c.redirect('/app/', 302));
+    app.get('/', (c) => c.redirect('/app/', 302));
+  }
 
   // Authenticated API surface. Everything under /v1 except /v1/public-ip-list.
   const verifyJwt =

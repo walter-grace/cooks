@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { serve } from '@hono/node-server';
 import { loadEnv } from '@cooks/config';
 import { createDb, runMigrations } from '@cooks/db';
@@ -25,6 +28,7 @@ const { app, registry } = createApp({
     ...(env.MS_CLIENT_ID && env.MS_CLIENT_SECRET ? { microsoft: { clientId: env.MS_CLIENT_ID, clientSecret: env.MS_CLIENT_SECRET } } : {}),
   },
   msTenant: env.MS_TENANT,
+  webDir: [join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist'), process.env.COOKS_WEB_DIR ?? ''].find((d) => d && existsSync(join(d, 'index.html'))),
   acceptNooksPrefix: env.COOKS_ACCEPT_NOOKS_PREFIX,
   publicIps: env.COOKS_PUBLIC_IPS.split(',').map((s) => s.trim()).filter(Boolean),
 });

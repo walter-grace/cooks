@@ -18,7 +18,9 @@
     "db:migrate": "pnpm --filter @cooks/db migrate",
     "bootstrap": "tsx scripts/bootstrap.ts",
     "spec:fetch": "tsx scripts/fetch-upstream-spec.ts",
-    "conformance": "tsx scripts/conformance.ts"
+    "conformance": "tsx scripts/conformance.ts",
+    "seed": "tsx scripts/seed.ts",
+    "web:build": "pnpm --filter @cooks/web build"
   },
   "devDependencies": {
     "@cooks/auth": "workspace:*",
