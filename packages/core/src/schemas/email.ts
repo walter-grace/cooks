@@ -54,6 +54,7 @@ export const CreateMailboxBody = z.object({
     dailySendLimit: z.number().int().min(1).max(2000).optional(),
     minGapSeconds: z.number().int().min(0).max(3600).optional(),
     smtpUrl: z.string().optional().describe('smtp://user:pass@host:port; omit to use the server default relay'),
+    imapUrl: z.string().optional().describe('imaps://user:pass@host:993 to read replies and bounces'),
     signatureHtml: z.string().max(20_000).optional(),
   }),
 });

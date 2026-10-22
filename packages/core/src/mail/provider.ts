@@ -15,8 +15,34 @@ export interface OutboundMessage {
 export interface SendResult {
   providerMessageId: string | null;
   threadId?: string | null;
+  /** Providers that assign their own Message-ID (Microsoft Graph) report it here so replies can be matched. */
+  messageId?: string | null;
   accepted: string[];
   rejected: string[];
+}
+
+export interface InboundMessage {
+  providerId: string;
+  messageId: string | null;
+  inReplyTo: string | null;
+  references: string[];
+  threadId?: string | null;
+  from: string;
+  to: string[];
+  date: Date;
+  subject: string;
+  text: string;
+  html: string | null;
+  headers: Record<string, string>;
+  autoSubmitted: boolean;
+  dsn: { action: string; status: string; recipient: string | null; originalMessageId: string | null; diagnostic: string | null } | null;
+}
+
+export type SyncCursor = Record<string, unknown>;
+
+export interface InboundProvider {
+  /** Fetch messages newer than the cursor. Returns the messages and the cursor to persist. */
+  sync(cursor: SyncCursor | null): Promise<{ messages: InboundMessage[]; cursor: SyncCursor }>;
 }
 
 export interface MailProvider {

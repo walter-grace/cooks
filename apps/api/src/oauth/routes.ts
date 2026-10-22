@@ -44,6 +44,21 @@ async function formOrJson(c: { req: { header: (n: string) => string | undefined;
 
 const safeNext = (n: string | undefined) => (n && n.startsWith('/') && !n.startsWith('//') ? n : '/docs');
 
+/** First-party browser token: issuer-signed JWT with every scope, no refresh token, no client. */
+async function issueSessionAccessToken(d: OAuthDeps, a: { userId: string; workspaceId: string; role: string }) {
+  const { SignJWT } = await import('jose');
+  const now = Math.floor(d.clock.now().getTime() / 1000);
+  const access_token = await new SignJWT({ ws: a.workspaceId, cid: 'cooks-web', scope: SCOPES.join(' '), role: a.role, jti: Math.random().toString(36).slice(2) })
+    .setProtectedHeader({ alg: 'ES256', kid: d.key.kid, typ: 'at+jwt' })
+    .setIssuer(d.issuer)
+    .setSubject(a.userId)
+    .setAudience('cooks-api')
+    .setIssuedAt(now)
+    .setExpirationTime(now + 3600)
+    .sign(d.key.privateKey);
+  return { access_token, token_type: 'Bearer' as const, expires_in: 3600 };
+}
+
 export function mountOAuth(app: OpenAPIHono<AppEnv>, d: OAuthDeps) {
   const roleOf = (ws: string, uid: string) => memberRole(d.db, ws, uid);
   const cookieOpts = { httpOnly: true, sameSite: 'Lax' as const, secure: d.secureCookies, path: '/' };
@@ -63,6 +78,26 @@ export function mountOAuth(app: OpenAPIHono<AppEnv>, d: OAuthDeps) {
     const s = await createSession(d.db, u.id, d.clock.now());
     setCookie(c, SESSION_COOKIE, s.token, { ...cookieOpts, expires: s.expiresAt });
     return c.redirect(next, 303);
+  });
+  // Web UI: exchange the session cookie for a 1 h access token (all scopes, the user's role).
+  app.post('/auth/session-token', async (c) => {
+    const user = await getSessionUser(d.db, getCookie(c, SESSION_COOKIE), d.clock.now());
+    if (!user) return c.json({ error: 'unauthorized', error_description: 'Sign in first' }, 401);
+    const body = (await c.req.json().catch(() => ({}))) as { workspaceId?: string };
+    const memberships = await d.db
+      .select({ id: workspaces.id, name: workspaces.name, role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
+      .where(eq(workspaceMembers.userId, user.id));
+    const ws = memberships.find((m) => m.id === body.workspaceId) ?? memberships[0];
+    if (!ws) return c.json({ error: 'no_workspace', error_description: 'Not a member of any workspace' }, 403);
+    const tokens = await issueSessionAccessToken(d, { userId: user.id, workspaceId: ws.id, role: ws.role });
+    return c.json({ ...tokens, workspace: { id: ws.id, name: ws.name, role: ws.role }, user: { id: user.id, email: user.email, name: user.name }, workspaces: memberships }, 200, { 'cache-control': 'no-store' });
+  });
+  app.get('/auth/me', async (c) => {
+    const user = await getSessionUser(d.db, getCookie(c, SESSION_COOKIE), d.clock.now());
+    if (!user) return c.json({ authenticated: false }, 200);
+    return c.json({ authenticated: true, user: { id: user.id, email: user.email, name: user.name } });
   });
   app.post('/auth/logout', async (c) => {
     await destroySession(d.db, getCookie(c, SESSION_COOKIE));

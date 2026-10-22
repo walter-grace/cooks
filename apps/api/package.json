@@ -8,18 +8,19 @@
     "start": "tsx src/index.ts"
   },
   "dependencies": {
+    "@cooks/agent": "workspace:*",
     "@cooks/auth": "workspace:*",
     "@cooks/config": "workspace:*",
     "@cooks/core": "workspace:*",
     "@cooks/db": "workspace:*",
+    "@cooks/jobs": "workspace:*",
     "@hono/node-server": "^2.1.0",
     "@hono/zod-openapi": "^1.6.0",
     "@scalar/hono-api-reference": "^0.12.0",
     "drizzle-orm": "^0.45.0",
     "hono": "^4.13.0",
+    "jose": "^6.0.0",
     "yaml": "^2.7.0",
-    "zod": "^4.6.0",
-    "@cooks/jobs": "workspace:*",
-    "@cooks/agent": "workspace:*"
+    "zod": "^4.6.0"
   }
 }

@@ -20,6 +20,11 @@ const { app, registry } = createApp({
   kek: env.COOKS_KEK,
   keyPrefix: env.COOKS_API_KEY_PREFIX,
   oauth: { key: signingKey, dcrEnabled: env.COOKS_OAUTH_DCR, mcpPublicUrl: env.COOKS_MCP_PUBLIC_URL },
+  connectorApps: {
+    ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } } : {}),
+    ...(env.MS_CLIENT_ID && env.MS_CLIENT_SECRET ? { microsoft: { clientId: env.MS_CLIENT_ID, clientSecret: env.MS_CLIENT_SECRET } } : {}),
+  },
+  msTenant: env.MS_TENANT,
   acceptNooksPrefix: env.COOKS_ACCEPT_NOOKS_PREFIX,
   publicIps: env.COOKS_PUBLIC_IPS.split(',').map((s) => s.trim()).filter(Boolean),
 });

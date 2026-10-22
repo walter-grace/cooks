@@ -64,6 +64,7 @@ export interface CreateMailboxInput {
   dailySendLimit?: number;
   minGapSeconds?: number;
   smtpUrl?: string;
+  imapUrl?: string;
   signatureHtml?: string;
 }
 
@@ -71,7 +72,7 @@ export interface CreateMailboxInput {
 export async function createMailbox(ctx: Ctx, input: CreateMailboxInput, kek: string | undefined) {
   const userId = await requireMember(ctx, input.userId ?? ctx.principal.userId, 'userId');
   if (!isManagerOrAdmin(ctx.principal) && ctx.principal.userId !== userId) throw unprocessable('Users can only connect their own mailboxes', { field: 'userId' });
-  if (input.smtpUrl && !kek) throw unprocessable('Set COOKS_KEK on the server before storing mailbox credentials');
+  if ((input.smtpUrl || input.imapUrl) && !kek) throw unprocessable('Set COOKS_KEK on the server before storing mailbox credentials');
   try {
     const [row] = await ctx.db
       .insert(mailboxes)
@@ -92,8 +93,8 @@ export async function createMailbox(ctx: Ctx, input: CreateMailboxInput, kek: st
         .set({ isDefault: false })
         .where(and(eq(mailboxes.userId, userId), eq(mailboxes.workspaceId, ctx.principal.workspaceId), eq(mailboxes.isDefault, true), ne(mailboxes.id, row!.id)));
     }
-    if (input.smtpUrl && kek) {
-      await ctx.db.insert(mailboxCredentials).values({ mailboxId: row!.id, encrypted: encrypt(JSON.stringify({ smtpUrl: input.smtpUrl }), kek) });
+    if ((input.smtpUrl || input.imapUrl) && kek) {
+      await ctx.db.insert(mailboxCredentials).values({ mailboxId: row!.id, encrypted: encrypt(JSON.stringify({ smtpUrl: input.smtpUrl, imapUrl: input.imapUrl }), kek) });
     }
     return serializeMailbox(row!);
   } catch (e) {
