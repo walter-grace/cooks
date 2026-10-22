@@ -23,20 +23,20 @@ export type JobName =
 
 export interface JobsPort {
   send(name: JobName, data: Record<string, unknown>, opts?: JobOptions): Promise<string | null>;
-  cancel?(jobId: string): Promise<void>;
+  cancel?(name: JobName, jobId: string): Promise<void>;
 }
 
 export class MemoryJobs implements JobsPort {
   public sent: Array<{ name: JobName; data: Record<string, unknown>; opts?: JobOptions; id: string }> = [];
-  public cancelled: string[] = [];
+  public cancelled: Array<{ name: JobName; id: string }> = [];
   private n = 0;
   async send(name: JobName, data: Record<string, unknown>, opts?: JobOptions) {
     const id = `job_${++this.n}`;
     this.sent.push({ name, data, opts, id });
     return id;
   }
-  async cancel(jobId: string) {
-    this.cancelled.push(jobId);
+  async cancel(name: JobName, jobId: string) {
+    this.cancelled.push({ name, id: jobId });
   }
   clear() {
     this.sent = [];

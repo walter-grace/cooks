@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { sequenceStates, stepExecutions, tasks } from '@cooks/db';
 import type { Ctx } from '../context.js';
 import { emitEvent } from '../events.js';
@@ -6,7 +6,7 @@ import { emitEvent } from '../events.js';
 export type FinishReason = 'completed' | 'replied' | 'unsubscribed' | 'bounced' | 'manual' | 'removed' | 'prospect_deleted' | 'error';
 
 async function cancelPending(ctx: Ctx, jobId: string | null) {
-  if (jobId && ctx.jobs.cancel) await ctx.jobs.cancel(jobId).catch(() => {});
+  if (jobId && ctx.jobs.cancel) await ctx.jobs.cancel('step.execute', jobId).catch(() => {});
 }
 
 async function openTaskIds(ctx: Ctx, stateId: string) {
@@ -144,8 +144,15 @@ export async function startPendingEnrollments(ctx: Ctx, limit = 200): Promise<nu
       and(
         eq(sequenceStates.state, 'pending_start'),
         isNull(sequenceStates.deletedAt),
-        sql`${sequenceStates.scheduledAt} IS NULL OR ${sequenceStates.scheduledAt} <= ${now}`,
-        sql`${sequenceStates.id} IN (SELECT id FROM sequence_states WHERE state = 'pending_start' AND deleted_at IS NULL AND (scheduled_at IS NULL OR scheduled_at <= ${now}) LIMIT ${limit})`,
+        or(isNull(sequenceStates.scheduledAt), lte(sequenceStates.scheduledAt, now)),
+        inArray(
+          sequenceStates.id,
+          ctx.db
+            .select({ id: sequenceStates.id })
+            .from(sequenceStates)
+            .where(and(eq(sequenceStates.state, 'pending_start'), isNull(sequenceStates.deletedAt), or(isNull(sequenceStates.scheduledAt), lte(sequenceStates.scheduledAt, now))))
+            .limit(limit),
+        ),
       ),
     )
     .returning({ id: sequenceStates.id, workspaceId: sequenceStates.workspaceId });

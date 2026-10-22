@@ -15,10 +15,13 @@
     "@hono/zod-openapi": "^1.6.0",
     "drizzle-orm": "^0.45.0",
     "hono": "^4.13.0",
+    "liquidjs": "^10.30.0",
     "luxon": "^3.7.0",
+    "nodemailer": "^10.2.0",
     "zod": "^4.6.0"
   },
   "devDependencies": {
-    "@types/luxon": "^3.4.0"
+    "@types/luxon": "^3.4.0",
+    "@types/nodemailer": "^6.4.0"
   }
 }

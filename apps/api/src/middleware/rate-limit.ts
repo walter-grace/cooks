@@ -37,9 +37,10 @@ export class MemoryRateLimitStore implements RateLimitStore {
 export class PgRateLimitStore implements RateLimitStore {
   constructor(private db: Db) {}
   async hit(workspaceId: string, bucket: string, windowStart: Date) {
+    // Raw-SQL params are not type-inferred by the driver: send timestamps as ISO strings.
     const rows = (await this.db.execute(sql`
       INSERT INTO rate_limit_buckets (workspace_id, bucket, window_start, count)
-      VALUES (${workspaceId}, ${bucket}, ${windowStart}, 1)
+      VALUES (${workspaceId}::uuid, ${bucket}, ${windowStart.toISOString()}::timestamptz, 1)
       ON CONFLICT (workspace_id, bucket, window_start)
       DO UPDATE SET count = rate_limit_buckets.count + 1
       RETURNING count
@@ -48,7 +49,7 @@ export class PgRateLimitStore implements RateLimitStore {
     return Number(list[0]?.count ?? 1);
   }
   async sweep(olderThan: Date) {
-    await this.db.execute(sql`DELETE FROM rate_limit_buckets WHERE window_start < ${olderThan}`);
+    await this.db.execute(sql`DELETE FROM rate_limit_buckets WHERE window_start < ${olderThan.toISOString()}::timestamptz`);
   }
 }
 

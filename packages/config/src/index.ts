@@ -47,3 +47,16 @@ export function loadEnv(overrides: Partial<Record<keyof Env, string>> = {}): Env
 export function resetEnvCache(): void {
   cached = undefined;
 }
+
+import { userInfo } from 'node:os';
+
+/** node-postgres (used by pg-boss) does not default the user to the OS account like psql does. */
+export function withDefaultUser(databaseUrl: string): string {
+  try {
+    const u = new URL(databaseUrl);
+    if (!u.username) u.username = process.env.PGUSER ?? userInfo().username;
+    return u.toString();
+  } catch {
+    return databaseUrl;
+  }
+}

@@ -1,7 +1,9 @@
+import { sql } from 'drizzle-orm';
 import { timestamp, uuid } from 'drizzle-orm/pg-core';
 import { uuidv7 } from '../ids.js';
 
-export const id = () => uuid('id').primaryKey().$defaultFn(uuidv7);
+/** App generates UUIDv7 (time-ordered); the DB default covers raw SQL inserts. */
+export const id = () => uuid('id').primaryKey().default(sql`gen_random_uuid()`).$defaultFn(uuidv7);
 export const workspaceId = () => uuid('workspace_id').notNull();
 
 export const timestamps = {

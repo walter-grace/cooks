@@ -28,7 +28,7 @@ CREATE TYPE "public"."run_kind" AS ENUM('draft_email', 'classify_reply', 'resear
 CREATE TYPE "public"."run_status" AS ENUM('queued', 'running', 'succeeded', 'failed', 'cancelled', 'needs_review');--> statement-breakpoint
 CREATE TYPE "public"."delivery_status" AS ENUM('pending', 'succeeded', 'failed', 'exhausted');--> statement-breakpoint
 CREATE TABLE "api_keys" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"key_id" text NOT NULL,
 	"secret_hash" text NOT NULL,
@@ -58,7 +58,7 @@ CREATE TABLE "oauth_authorization_codes" (
 );
 --> statement-breakpoint
 CREATE TABLE "oauth_clients" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" text,
 	"client_id" text NOT NULL,
 	"client_secret_hash" text,
@@ -74,7 +74,7 @@ CREATE TABLE "oauth_clients" (
 );
 --> statement-breakpoint
 CREATE TABLE "oauth_consents" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"client_id" text NOT NULL,
 	"workspace_id" uuid NOT NULL,
@@ -83,7 +83,7 @@ CREATE TABLE "oauth_consents" (
 );
 --> statement-breakpoint
 CREATE TABLE "oauth_refresh_tokens" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"family_id" text NOT NULL,
 	"token_hash" text NOT NULL,
 	"client_id" text NOT NULL,
@@ -99,7 +99,7 @@ CREATE TABLE "oauth_refresh_tokens" (
 );
 --> statement-breakpoint
 CREATE TABLE "sessions" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"token_hash" text NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
@@ -117,7 +117,7 @@ CREATE TABLE "signing_keys" (
 );
 --> statement-breakpoint
 CREATE TABLE "users" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"email" text NOT NULL,
 	"name" text NOT NULL,
 	"crm_id" text,
@@ -132,7 +132,7 @@ CREATE TABLE "users" (
 );
 --> statement-breakpoint
 CREATE TABLE "workspace_members" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
 	"role" "member_role" DEFAULT 'user' NOT NULL,
@@ -141,7 +141,7 @@ CREATE TABLE "workspace_members" (
 );
 --> statement-breakpoint
 CREATE TABLE "workspaces" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
 	"slug" text NOT NULL,
 	"settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -151,7 +151,7 @@ CREATE TABLE "workspaces" (
 );
 --> statement-breakpoint
 CREATE TABLE "accounts" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -171,7 +171,7 @@ CREATE TABLE "accounts" (
 );
 --> statement-breakpoint
 CREATE TABLE "crm_connections" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"type" "crm_type" DEFAULT 'none' NOT NULL,
 	"status" text DEFAULT 'disconnected' NOT NULL,
@@ -182,7 +182,7 @@ CREATE TABLE "crm_connections" (
 );
 --> statement-breakpoint
 CREATE TABLE "notes" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -200,7 +200,7 @@ CREATE TABLE "notes" (
 );
 --> statement-breakpoint
 CREATE TABLE "opportunities" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -216,7 +216,7 @@ CREATE TABLE "opportunities" (
 );
 --> statement-breakpoint
 CREATE TABLE "prospect_contact_points" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"prospect_id" uuid NOT NULL,
 	"kind" "contact_point_kind" NOT NULL,
@@ -228,7 +228,7 @@ CREATE TABLE "prospect_contact_points" (
 );
 --> statement-breakpoint
 CREATE TABLE "prospects" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -255,7 +255,7 @@ CREATE TABLE "prospects" (
 );
 --> statement-breakpoint
 CREATE TABLE "tags" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -273,7 +273,7 @@ CREATE TABLE "analytics_counters" (
 );
 --> statement-breakpoint
 CREATE TABLE "email_templates" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -290,7 +290,7 @@ CREATE TABLE "email_templates" (
 );
 --> statement-breakpoint
 CREATE TABLE "sequence_states" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -318,7 +318,7 @@ CREATE TABLE "sequence_states" (
 );
 --> statement-breakpoint
 CREATE TABLE "sequence_step_variants" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"step_id" uuid NOT NULL,
 	"email_template_id" uuid NOT NULL,
@@ -328,7 +328,7 @@ CREATE TABLE "sequence_step_variants" (
 );
 --> statement-breakpoint
 CREATE TABLE "sequence_steps" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -351,7 +351,7 @@ CREATE TABLE "sequence_tags" (
 );
 --> statement-breakpoint
 CREATE TABLE "sequences" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -367,7 +367,7 @@ CREATE TABLE "sequences" (
 );
 --> statement-breakpoint
 CREATE TABLE "step_executions" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"sequence_state_id" uuid NOT NULL,
 	"sequence_step_id" uuid NOT NULL,
@@ -383,7 +383,7 @@ CREATE TABLE "step_executions" (
 );
 --> statement-breakpoint
 CREATE TABLE "tasks" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -406,7 +406,7 @@ CREATE TABLE "tasks" (
 );
 --> statement-breakpoint
 CREATE TABLE "email_events" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"email_id" uuid NOT NULL,
 	"kind" "email_event_kind" NOT NULL,
@@ -416,7 +416,7 @@ CREATE TABLE "email_events" (
 );
 --> statement-breakpoint
 CREATE TABLE "emails" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -476,7 +476,7 @@ CREATE TABLE "mailbox_send_state" (
 );
 --> statement-breakpoint
 CREATE TABLE "mailboxes" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -493,7 +493,7 @@ CREATE TABLE "mailboxes" (
 );
 --> statement-breakpoint
 CREATE TABLE "suppressions" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"email_lower" text,
 	"domain" text,
@@ -503,7 +503,7 @@ CREATE TABLE "suppressions" (
 );
 --> statement-breakpoint
 CREATE TABLE "tracking_links" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"email_id" uuid NOT NULL,
 	"token" text NOT NULL,
@@ -513,7 +513,7 @@ CREATE TABLE "tracking_links" (
 );
 --> statement-breakpoint
 CREATE TABLE "call_dispositions" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -524,7 +524,7 @@ CREATE TABLE "call_dispositions" (
 );
 --> statement-breakpoint
 CREATE TABLE "call_recordings" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"call_id" uuid NOT NULL,
 	"url" text,
@@ -536,7 +536,7 @@ CREATE TABLE "call_recordings" (
 );
 --> statement-breakpoint
 CREATE TABLE "call_transcripts" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"call_id" uuid NOT NULL,
 	"provider" text,
@@ -548,7 +548,7 @@ CREATE TABLE "call_transcripts" (
 );
 --> statement-breakpoint
 CREATE TABLE "calls" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -577,7 +577,7 @@ CREATE TABLE "calls" (
 );
 --> statement-breakpoint
 CREATE TABLE "coaching_scores" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"call_id" uuid NOT NULL,
 	"rubric" text NOT NULL,
@@ -589,7 +589,7 @@ CREATE TABLE "coaching_scores" (
 );
 --> statement-breakpoint
 CREATE TABLE "signals" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"prospect_id" uuid,
 	"account_id" uuid,
@@ -614,7 +614,7 @@ CREATE TABLE "agent_run_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "agent_runs" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"agent_id" uuid,
 	"kind" "run_kind" NOT NULL,
@@ -641,7 +641,7 @@ CREATE TABLE "agent_runs" (
 );
 --> statement-breakpoint
 CREATE TABLE "ai_agents" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -690,7 +690,7 @@ CREATE TABLE "workspace_ai_settings" (
 );
 --> statement-breakpoint
 CREATE TABLE "audit_log" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"actor_type" text NOT NULL,
 	"actor_id" text,
@@ -713,7 +713,7 @@ CREATE TABLE "idempotency_keys" (
 );
 --> statement-breakpoint
 CREATE TABLE "outbox_events" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"event_type" text NOT NULL,
 	"aggregate_type" text NOT NULL,
@@ -733,7 +733,7 @@ CREATE TABLE "rate_limit_buckets" (
 );
 --> statement-breakpoint
 CREATE TABLE "webhook_deliveries" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"endpoint_id" uuid NOT NULL,
 	"event_id" uuid NOT NULL,
@@ -752,7 +752,7 @@ CREATE TABLE "webhook_deliveries" (
 );
 --> statement-breakpoint
 CREATE TABLE "webhook_endpoints" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
