@@ -16,8 +16,20 @@ export type InboundOutcome =
 
 const normId = (id: string | null | undefined) => (id ? id.trim() : null);
 
+/**
+ * What the inbound pipeline needs to know about the receiving mailbox. A synced mailbox row
+ * satisfies it; an import from outside Cooks passes a virtual one with `id: null`.
+ */
+export interface InboundMailbox {
+  id: string | null;
+  workspaceId: string;
+  userId: string;
+  provider: string;
+  email: string;
+}
+
 /** Find the outbound email a message answers: Message-ID chain, then thread, then sender + recent outbound. */
-async function matchOutbound(ctx: Ctx, mailbox: typeof mailboxes.$inferSelect, msg: InboundMessage) {
+async function matchOutbound(ctx: Ctx, mailbox: InboundMailbox, msg: InboundMessage) {
   const ws = mailbox.workspaceId;
   const candidates = [normId(msg.inReplyTo), ...msg.references.map(normId)].filter((x): x is string => !!x);
   if (candidates.length) {
@@ -42,13 +54,13 @@ async function matchOutbound(ctx: Ctx, mailbox: typeof mailboxes.$inferSelect, m
   const [row] = await ctx.db
     .select()
     .from(emails)
-    .where(and(eq(emails.workspaceId, ws), eq(emails.direction, 'outbound'), eq(emails.status, 'sent'), eq(emails.mailboxId, mailbox.id), sql`lower(${emails.toAddr}) = ${msg.from.toLowerCase()}`, gte(emails.date, since)))
+    .where(and(eq(emails.workspaceId, ws), eq(emails.direction, 'outbound'), eq(emails.status, 'sent'), ...(mailbox.id ? [eq(emails.mailboxId, mailbox.id)] : []), sql`lower(${emails.toAddr}) = ${msg.from.toLowerCase()}`, gte(emails.date, since)))
     .orderBy(desc(emails.date))
     .limit(1);
   return row ?? null;
 }
 
-async function storeInbound(ctx: Ctx, mailbox: typeof mailboxes.$inferSelect, msg: InboundMessage, outbound: typeof emails.$inferSelect | null, prospectId: string | null, autoSubmitted: boolean) {
+async function storeInbound(ctx: Ctx, mailbox: InboundMailbox, msg: InboundMessage, outbound: typeof emails.$inferSelect | null, prospectId: string | null, autoSubmitted: boolean) {
   const [row] = await ctx.db
     .insert(emails)
     .values({
@@ -86,14 +98,14 @@ async function storeInbound(ctx: Ctx, mailbox: typeof mailboxes.$inferSelect, ms
  * return date); real replies mark the outbound replied, apply the workspace reply policy,
  * create a follow-up task and (optionally) queue classification.
  */
-export async function processInbound(ctx: Ctx, mailbox: typeof mailboxes.$inferSelect, msg: InboundMessage, opts: { classify?: boolean } = {}): Promise<InboundOutcome> {
+export async function processInbound(ctx: Ctx, mailbox: InboundMailbox, msg: InboundMessage, opts: { classify?: boolean } = {}): Promise<InboundOutcome> {
   const now = ctx.clock.now();
   const ws = mailbox.workspaceId;
   const dupWhere = [eq(emails.providerMessageId, msg.providerId), ...(msg.messageId ? [eq(emails.messageId, msg.messageId)] : [])];
   const [dup] = await ctx.db
     .select({ id: emails.id })
     .from(emails)
-    .where(and(eq(emails.workspaceId, ws), eq(emails.direction, 'inbound'), eq(emails.mailboxId, mailbox.id), or(...dupWhere)))
+    .where(and(eq(emails.workspaceId, ws), eq(emails.direction, 'inbound'), ...(mailbox.id ? [eq(emails.mailboxId, mailbox.id)] : []), or(...dupWhere)))
     .limit(1);
   if (dup) return { kind: 'duplicate' };
 
@@ -172,15 +184,18 @@ export async function processInbound(ctx: Ctx, mailbox: typeof mailboxes.$inferS
   }
   let action: 'finish' | 'pause' | 'continue' | 'none' = 'none';
   const stateId = outbound?.sequenceStateId;
-  if (stateId) {
-    const [st] = await ctx.db.select().from(sequenceStates).where(eq(sequenceStates.id, stateId)).limit(1);
-    const [w] = await ctx.db.select({ settings: workspaces.settings }).from(workspaces).where(eq(workspaces.id, ws)).limit(1);
-    const policy = st?.replyBehavior ?? w?.settings.replyBehavior ?? 'finish';
-    if (st && st.state !== 'finished') {
-      action = policy;
-      if (policy === 'finish') await finishEnrollment(ctx, st.id, 'replied');
-      else if (policy === 'pause') await pauseEnrollment(ctx, st.id);
-    }
+  const [w] = await ctx.db.select({ settings: workspaces.settings }).from(workspaces).where(eq(workspaces.id, ws)).limit(1);
+  const affected = stateId
+    ? await ctx.db.select().from(sequenceStates).where(eq(sequenceStates.id, stateId)).limit(1)
+    : prospectId
+      ? await ctx.db.select().from(sequenceStates).where(and(eq(sequenceStates.workspaceId, ws), eq(sequenceStates.prospectId, prospectId), isNull(sequenceStates.deletedAt), sql`${sequenceStates.state} <> 'finished'`))
+      : [];
+  for (const st of affected) {
+    const policy = st.replyBehavior ?? w?.settings.replyBehavior ?? 'finish';
+    if (st.state === 'finished') continue;
+    action = policy;
+    if (policy === 'finish') await finishEnrollment(ctx, st.id, 'replied');
+    else if (policy === 'pause') await pauseEnrollment(ctx, st.id);
   }
   if (prospectId) {
     const ownerId = outbound?.ownerId ?? mailbox.userId;

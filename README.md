@@ -29,7 +29,7 @@
 
 Cooks is the sales engagement stack a team would build for itself if it had the time: a sequencing engine with real send windows and reply detection, a Twilio dialer with recordings, a feed of buying signals, and an AI coach that scores every recorded call. It runs on your own server under the MIT license, and it speaks the same REST contract as the commercial platform it mirrors, so existing clients and docs carry over by changing a base URL.
 
-The part that makes it different is the brain. Cooks ships an MCP server with 50 tools, so Claude, Grok, Cursor or any MCP-capable assistant can work your pipeline directly: research an account, enroll the prospect, draft the email, place the call, log the outcome. In that mode Cooks spends no tokens of its own.
+The part that makes it different is the brain. Cooks ships an MCP server with 53 tools, so Claude, Grok, Cursor or any MCP-capable assistant can work your pipeline directly: research an account, enroll the prospect, draft the email, place the call, log the outcome. In that mode Cooks spends no tokens of its own.
 
 ## What you get
 

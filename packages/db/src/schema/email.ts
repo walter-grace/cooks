@@ -106,6 +106,8 @@ export const emails = pgTable(
     clickCount: integer('click_count').notNull().default(0),
     rejectReason: text('reject_reason'),
     error: text('error'),
+    /** delivery attempts so far; transient provider errors requeue until MAX_SEND_ATTEMPTS */
+    sendAttempts: integer('send_attempts').notNull().default(0),
     variantId: uuid('variant_id'),
     autoSubmitted: boolean('auto_submitted').notNull().default(false),
   },

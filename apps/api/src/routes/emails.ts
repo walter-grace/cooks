@@ -1,5 +1,5 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import { CreateEmailBody, Email, IdParam, PageParams, UpdatedAtLt, createEmail, dataOf, errorResponses, getEmail, jsonBody, jsonResponse, listEmails, listOf } from '@cooks/core';
+import { CreateEmailBody, Email, IdParam, ImportEmailBody, ImportEmailResponse, PageParams, UpdatedAtLt, createEmail, dataOf, errorResponses, getEmail, importEmail, jsonBody, jsonResponse, listEmails, listOf } from '@cooks/core';
 import { register, type Registrar } from '../register.js';
 import { listArgs } from './_util.js';
 
@@ -42,6 +42,25 @@ export function mountEmails(reg: Registrar) {
     }),
     { scope: 'emails:write', rateClass: 'write' },
     async (c) => c.json({ data: await createEmail(c.get('ctx'), c.req.valid('json').data) }, 201),
+  );
+  register(
+    reg,
+    createRoute({
+      method: 'post',
+      path: '/v1/emails/import',
+      operationId: 'importEmail',
+      tags: ['Emails'],
+      summary: 'Record an email sent or received outside Cooks',
+      description:
+        'Outbound imports become sent emails linked to the prospect\'s active enrollment, so a later reply matched by Message-ID or thread closes it. Inbound imports run the same pipeline as synced mail: reply or out-of-office detection, the workspace reply policy (finish or pause the enrollment), a high-priority reply task, reply statistics and signals. Repeated imports of the same messageId or externalId return the existing row with 200.',
+      request: { body: jsonBody(ImportEmailBody) },
+      responses: { 201: jsonResponse(ImportEmailResponse, 'Imported'), 200: jsonResponse(ImportEmailResponse, 'Already recorded'), ...errorResponses },
+    }),
+    { scope: 'emails:write', rateClass: 'write', extension: true },
+    async (c) => {
+      const r = await importEmail(c.get('ctx'), c.req.valid('json').data);
+      return c.json({ data: r.email, meta: { created: r.created, outcome: r.outcome } }, r.created ? 201 : 200);
+    },
   );
   register(
     reg,

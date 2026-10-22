@@ -44,7 +44,7 @@ const EnvSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
-  SMTP_URL: z.string().default('smtp://localhost:1025'),
+  SMTP_URL: z.string().default('smtp://127.0.0.1:1025'),
   ANTHROPIC_API_KEY: z.string().optional(),
   XAI_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),

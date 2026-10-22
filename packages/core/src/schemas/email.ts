@@ -25,8 +25,43 @@ export const Email = z
     openCount: z.number().int().nullable(),
     clickCount: z.number().int().nullable(),
     ...Timestamps,
+    direction: z.enum(['outbound', 'inbound']).optional().openapi({ description: 'Cooks extension' }),
+    messageId: z.string().nullable().optional().openapi({ description: 'Cooks extension: RFC 5322 Message-ID' }),
+    threadId: z.string().nullable().optional().openapi({ description: 'Cooks extension' }),
+    inReplyTo: z.string().nullable().optional().openapi({ description: 'Cooks extension' }),
+    sendAttempts: z.number().int().optional().openapi({ description: 'Cooks extension: delivery attempts so far' }),
+    error: z.string().nullable().optional().openapi({ description: 'Cooks extension: last provider error' }),
   })
   .openapi('Email');
+
+export const ImportEmailBody = z.object({
+  data: z.object({
+    prospectId: z.string().uuid(),
+    direction: z.enum(['inbound', 'outbound']),
+    subject: z.string().max(998).optional(),
+    bodyText: z.string().max(200_000).optional(),
+    bodyHtml: z.string().max(500_000).optional(),
+    messageId: z.string().max(998).optional().describe('RFC 5322 Message-ID as the provider holds it, with or without angle brackets. Replies are matched on it.'),
+    threadId: z.string().max(998).optional().describe('Provider thread id (Gmail threadId, Graph conversationId)'),
+    inReplyTo: z.string().max(998).optional().describe('Message-ID this message answers'),
+    externalId: z.string().max(512).optional().describe('Provider-side id used to dedupe repeated imports'),
+    sentAt: z.string().datetime({ offset: true }).optional().describe('When it was sent or received; defaults to now'),
+    provider: z.enum(['gmail', 'outlook', 'smtp', 'other']).optional(),
+    from: z.string().email().optional().describe('Defaults to the mailbox address (outbound) or the prospect email (inbound)'),
+    to: z.string().email().optional(),
+    ownerId: z.string().optional().describe('Rep who owns the thread; defaults to the prospect owner, then the caller'),
+    mailboxId: z.string().optional(),
+    autoSubmitted: z.boolean().optional().describe('Mark an inbound message as an auto-reply / out-of-office; detected from the subject when omitted'),
+  }),
+});
+
+export const ImportEmailResponse = z.object({
+  data: Email,
+  meta: z.object({
+    created: z.boolean(),
+    outcome: z.object({ kind: z.string(), action: z.string().optional(), outboundId: z.string().nullable().optional() }),
+  }),
+});
 
 export const CreateEmailBody = z.object({
   data: z.object({

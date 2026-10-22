@@ -76,6 +76,21 @@ Three ways to connect a rep's mailbox:
 
 Tokens are encrypted with `COOKS_KEK`. Replies finish or pause the enrollment according to the workspace `replyBehavior` and create a high-priority task; hard bounces suppress the address; out-of-office replies push the next step past the stated return date.
 
+## Email that happens outside Cooks
+
+Reps send and receive mail in their own clients, and other tools log activity in the CRM. `POST /v1/emails/import` (MCP: `cooks_import_email`) records those messages so the engine can act on them:
+
+- `direction: outbound` stores a `sent` email linked to the prospect's active enrollment. Pass the provider's `messageId` (and `threadId` if you have it) so a later reply can be matched.
+- `direction: inbound` runs the same pipeline as synced mail. The reply finishes or pauses the enrollment according to `replyBehavior`, creates a high-priority reply task, counts in reply statistics and raises an `email.replied` signal. Out-of-office messages are detected from the subject or forced with `autoSubmitted: true` and never finish an enrollment.
+
+Repeated imports with the same `messageId` or `externalId` return the existing row with status 200.
+
+## Delivery retries
+
+A send that fails on a transient error (connection refused or reset, DNS, timeouts, SMTP 4xx, HTTP 429 or 5xx) stays `queued` and is retried after 1, 5, 15 and then 60 minutes, up to five attempts. A permanent error (SMTP 5xx, other HTTP 4xx) or the last failed attempt marks the email `failed`, opens a high-priority task for the owner when the email belongs to a sequence step, and emits `email.failed`. The `sendAttempts` and `error` fields on the email show what happened.
+
+In development, point `SMTP_URL` at `smtp://127.0.0.1:1025`, not `localhost`: Node resolves `localhost` to IPv6 first and Mailpit listens on IPv4 only. Cooks rewrites `localhost` to `127.0.0.1` anyway, but the explicit address keeps other tools honest.
+
 ## Mailboxes
 
 Each rep needs a mailbox row (`POST /v1/mailboxes`, a Cooks extension). With no per-mailbox credentials, the worker sends through `SMTP_URL` using the mailbox address as the sender; supply `smtpUrl` to send through the rep's own relay. Daily caps (`dailySendLimit`, default 50) and spacing (`minGapSeconds`, default 60) are per mailbox.

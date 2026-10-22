@@ -9,6 +9,7 @@ export type EventType =
   | 'email.clicked'
   | 'email.replied'
   | 'email.bounced'
+  | 'email.failed'
   | 'prospect.created'
   | 'prospect.updated'
   | 'prospect.unsubscribed'

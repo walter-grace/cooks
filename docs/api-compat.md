@@ -23,8 +23,8 @@ value goes missing.
 ## Extensions
 
 Operations tagged `Cooks extensions` in `/docs` are additive and never change an upstream
-response. They cover prospect and account writes, enrollment pause/resume, email sending,
-mailboxes and connectors, webhooks management, API keys, hosted AI, research, HubSpot, signals,
+response. They cover prospect and account writes, enrollment pause/resume, email sending and
+importing mail from outside Cooks, mailboxes and connectors, webhooks management, API keys, hosted AI, research, HubSpot, signals,
 the dialer and coaching. Extension scopes: `webhooks:write`, `api-keys:write`, `agents:run`,
 `emails:send`.
 

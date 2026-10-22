@@ -135,4 +135,27 @@ describe('processInbound', () => {
     const out = await processInbound(ctx, mailbox, inbound({ from: 'stranger@elsewhere.test', subject: 'newsletter' }));
     expect(out.kind).toBe('unmatched');
   });
+
+  it('a reply from a known prospect with no matching outbound still applies the reply policy to their active enrollments', async () => {
+    const [p] = await db.insert(prospects).values({ workspaceId: ids.ws, firstName: 'eve', name: 'eve', primaryEmail: 'eve@globex.test' }).returning();
+    const [st] = await db.insert(sequenceStates).values({ workspaceId: ids.ws, sequenceId: ids.seq, prospectId: p!.id, ownerId: ids.owner, mailboxId: ids.mailbox }).returning();
+    const out = await processInbound(ctx, mailbox, inbound({ from: 'eve@globex.test', subject: 'Saw your post', text: 'Can we talk?' }));
+    expect(out).toMatchObject({ kind: 'reply', outboundId: null, action: 'finish' });
+    const [s] = await db.select().from(sequenceStates).where(eq(sequenceStates.id, st!.id));
+    expect(s).toMatchObject({ state: 'finished', finishReason: 'replied' });
+    const ts = await db.select().from(tasks).where(eq(tasks.prospectId, p!.id));
+    expect(ts.some((t) => t.action === 'manual_email_reply')).toBe(true);
+  });
+
+  it('works with a virtual mailbox (import from outside Cooks): no mailbox id, dedupe by workspace', async () => {
+    const { outbound, state } = await sendTo('fay@globex.test');
+    const virtual = { id: null, workspaceId: ids.ws, userId: ids.owner, provider: 'gmail', email: 'olive@acme.test' };
+    const out = await processInbound(ctx, virtual, inbound({ providerId: 'gmail-1', from: 'fay@globex.test', inReplyTo: outbound.messageId!, text: 'yes' }));
+    expect(out).toMatchObject({ kind: 'reply', outboundId: outbound.id, action: 'finish' });
+    const [row] = await db.select().from(emails).where(eq(emails.id, (out as { emailId: string }).emailId));
+    expect(row).toMatchObject({ mailboxId: null, type: 'gmail', direction: 'inbound' });
+    const [s] = await db.select().from(sequenceStates).where(eq(sequenceStates.id, state.id));
+    expect(s!.state).toBe('finished');
+    expect((await processInbound(ctx, virtual, inbound({ providerId: 'gmail-1', from: 'fay@globex.test' }))).kind).toBe('duplicate');
+  });
 });

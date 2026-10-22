@@ -31,6 +31,33 @@ export type SendOutcome =
   | { status: 'skipped'; reason: string }
   | { status: 'failed'; error: string };
 
+/** Attempts before a transient provider error becomes a permanent failure. */
+export const MAX_SEND_ATTEMPTS = 5;
+/** Backoff between attempts: 1 min, 5 min, 15 min, then hourly. */
+const RETRY_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000];
+export const retryDelayMs = (attempt: number) => RETRY_DELAYS_MS[Math.min(Math.max(attempt, 1), RETRY_DELAYS_MS.length) - 1]!;
+
+const TRANSIENT_CODES = new Set(['ECONNECTION', 'ETIMEDOUT', 'ESOCKET', 'EDNS', 'ECONNREFUSED', 'ECONNRESET', 'EAI_AGAIN', 'ENOTFOUND', 'EPIPE', 'EHOSTUNREACH', 'ENETUNREACH', 'ETLS', 'ECONNABORTED', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET']);
+const TRANSIENT_TEXT = /timed? ?out|timeout|connection (refused|reset|closed)|socket hang up|temporar|try again|rate.?limit|too many|service unavailable|greeting never received/i;
+
+/**
+ * Decide whether a provider error is worth another attempt. Network and DNS failures, SMTP
+ * 4xx and HTTP 429/5xx are transient; SMTP 5xx and other HTTP 4xx are permanent. Unknown
+ * errors count as transient, bounded by MAX_SEND_ATTEMPTS.
+ */
+export function classifyMailError(e: unknown): { transient: boolean; message: string } {
+  const err = (e ?? {}) as { message?: unknown; code?: unknown; responseCode?: unknown; status?: unknown; statusCode?: unknown; response?: unknown };
+  const message = (typeof err.message === 'string' && err.message) || String(e);
+  const fromResponse = typeof err.response === 'string' ? /^(\d{3})[ -]/.exec(err.response)?.[1] : undefined;
+  const smtp = typeof err.responseCode === 'number' ? err.responseCode : fromResponse ? Number(fromResponse) : undefined;
+  if (smtp !== undefined) return { transient: smtp >= 400 && smtp < 500, message };
+  const http = typeof err.status === 'number' ? err.status : typeof err.statusCode === 'number' ? err.statusCode : undefined;
+  if (http !== undefined) return { transient: http === 408 || http === 429 || http >= 500, message };
+  if (typeof err.code === 'string' && TRANSIENT_CODES.has(err.code)) return { transient: true, message };
+  if (typeof err.code === 'string' && /^E[A-Z]+$/.test(err.code) && !TRANSIENT_TEXT.test(message)) return { transient: false, message };
+  return { transient: TRANSIENT_TEXT.test(message) || typeof err.code !== 'string', message };
+}
+
 export interface SendDeps {
   providerFor: (mailbox: typeof mailboxes.$inferSelect | null) => Promise<MailProvider>;
   /** From address when no mailbox is connected (dev / SMTP relay). */
@@ -62,8 +89,8 @@ export async function sendQueuedEmail(ctx: Ctx, emailId: string, deps: SendDeps)
   const [step] = email.sequenceStepId ? await ctx.db.select().from(sequenceSteps).where(eq(sequenceSteps.id, email.sequenceStepId)).limit(1) : [];
   const [seq] = email.sequenceId ? await ctx.db.select().from(sequences).where(eq(sequences.id, email.sequenceId)).limit(1) : [];
 
-  const reject = async (reason: string): Promise<SendOutcome> => {
-    await ctx.db.update(emails).set({ status: 'rejected', rejectReason: reason }).where(eq(emails.id, emailId));
+  /** Block the enrollment on a human: a task the owner must resolve, which then advances. */
+  const blockOnTask = async (note: string) => {
     if (state && step) {
       // Block the enrollment on a human: a task the owner must resolve, which then advances.
       const [t] = await ctx.db
@@ -77,7 +104,7 @@ export async function sendQueuedEmail(ctx: Ctx, emailId: string, deps: SendDeps)
           status: 'ready',
           priority: 'high',
           dueAt: now,
-          note: `Automatic email could not be sent: ${reason}. Send manually or skip.`,
+          note,
           sequenceId: state.sequenceId,
           sequenceStateId: state.id,
           sequenceStepId: step.id,
@@ -90,6 +117,10 @@ export async function sendQueuedEmail(ctx: Ctx, emailId: string, deps: SendDeps)
         .where(and(eq(stepExecutions.sequenceStateId, state.id), eq(stepExecutions.sequenceStepId, step.id)));
       await ctx.db.update(sequenceStates).set({ stepPhase: 'awaiting_task' }).where(eq(sequenceStates.id, state.id));
     }
+  };
+  const reject = async (reason: string): Promise<SendOutcome> => {
+    await ctx.db.update(emails).set({ status: 'rejected', rejectReason: reason }).where(eq(emails.id, emailId));
+    await blockOnTask(`Automatic email could not be sent: ${reason}. Send manually or skip.`);
     return { status: 'rejected', reason };
   };
 
@@ -249,9 +280,20 @@ export async function sendQueuedEmail(ctx: Ctx, emailId: string, deps: SendDeps)
       })
       .where(eq(emails.id, emailId));
   } catch (e) {
-    const msg = (e as Error).message ?? String(e);
-    await ctx.db.update(emails).set({ status: 'failed', error: msg }).where(eq(emails.id, emailId));
-    throw e; // let the queue retry with backoff
+    const { transient, message } = classifyMailError(e);
+    const attempts = email.sendAttempts + 1;
+    if (transient && attempts < MAX_SEND_ATTEMPTS) {
+      // Back to the queue with backoff. The row stays `queued` so the next attempt is not skipped.
+      const until = new Date(now.getTime() + retryDelayMs(attempts));
+      await ctx.db.update(emails).set({ status: 'queued', sendAttempts: attempts, error: message, sendStartedAt: null }).where(eq(emails.id, emailId));
+      await ctx.jobs.send('email.send', { emailId, workspaceId: email.workspaceId }, { startAfter: until, singletonKey: `email:${emailId}:retry${attempts}` });
+      return { status: 'deferred', until, reason: `transient send error, attempt ${attempts} of ${MAX_SEND_ATTEMPTS}: ${message}` };
+    }
+    const why = transient ? `gave up after ${attempts} attempts: ${message}` : message;
+    await ctx.db.update(emails).set({ status: 'failed', sendAttempts: attempts, error: why }).where(eq(emails.id, emailId));
+    await blockOnTask(`Automatic email failed (${why}). Send manually or skip.`);
+    await emitEvent(ctx.db, { workspaceId: email.workspaceId, type: 'email.failed', aggregateType: 'email', aggregateId: emailId, payload: { emailId, prospectId: email.prospectId, sequenceStateId: email.sequenceStateId, attempts, transient, error: why }, dedupeKey: `${emailId}:failed` });
+    return { status: 'failed', error: why };
   }
 
   await ctx.db.insert(emailEvents).values([

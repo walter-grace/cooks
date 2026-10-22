@@ -1,0 +1,1 @@
+ALTER TABLE "emails" ADD COLUMN "send_attempts" integer DEFAULT 0 NOT NULL;

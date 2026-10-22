@@ -22,6 +22,13 @@
       "when": 1792695460580,
       "tag": "0002_phase2",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792710916471,
+      "tag": "0003_email_retry",
+      "breakpoints": true
     }
   ]
 }

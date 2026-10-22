@@ -4,7 +4,8 @@ import { createTestDb } from '@cooks/db/test';
 import { emails, mailboxes, prospects, sequenceStates, sequenceSteps, sequences, suppressions, tasks, users, workspaceMembers, workspaces, type Db } from '@cooks/db';
 import { buildMergeContext, htmlToText, renderTemplate } from './templates.js';
 import { MemoryMailProvider } from './provider.js';
-import { sendQueuedEmail } from './send.js';
+import { MAX_SEND_ATTEMPTS, classifyMailError, retryDelayMs, sendQueuedEmail } from './send.js';
+import { smtpTransportOptions } from './smtp.js';
 import { advanceEnrollment, executeStep } from '../engine/index.js';
 import { MemoryJobs } from '../jobs.js';
 import { systemPrincipal } from '../principal.js';
@@ -132,11 +133,90 @@ describe('sendQueuedEmail on PGlite', () => {
     expect((await sendQueuedEmail(ctx, b.id, deps())).status).toBe('sent');
   });
 
-  it('a provider failure marks the email failed and rethrows so the queue retries', async () => {
+  it('a transient provider failure keeps the email queued, counts the attempt and schedules a retry that then sends', async () => {
     const { email } = await enrollAndQueue('f@globex.test', { [ids.step]: { subject: 's', body: 'b' } });
-    mail.failNext = new Error('smtp down');
-    await expect(sendQueuedEmail(ctx, email.id, deps())).rejects.toThrow('smtp down');
+    jobs.clear();
+    mail.failNext = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:1025'), { code: 'ECONNREFUSED' });
+    const out = await sendQueuedEmail(ctx, email.id, deps());
+    expect(out).toMatchObject({ status: 'deferred', reason: expect.stringMatching(/attempt 1 of 5/) });
+    let [row] = await db.select().from(emails).where(eq(emails.id, email.id));
+    expect(row).toMatchObject({ status: 'queued', sendAttempts: 1, error: 'connect ECONNREFUSED 127.0.0.1:1025' });
+    const retry = jobs.sent.find((j) => j.name === 'email.send');
+    expect(retry?.data).toEqual({ emailId: email.id, workspaceId: ids.ws });
+    expect(retry!.opts!.startAfter!.getTime() - now.getTime()).toBe(60_000);
+    // the retry is not skipped: the row is still queued, so the next run sends
+    const sentBefore = mail.sent.length;
+    expect((await sendQueuedEmail(ctx, email.id, deps())).status).toBe('sent');
+    expect(mail.sent).toHaveLength(sentBefore + 1);
+    [row] = await db.select().from(emails).where(eq(emails.id, email.id));
+    expect(row).toMatchObject({ status: 'sent', sendAttempts: 1 });
+  });
+
+  it('a permanent SMTP 5xx fails immediately and blocks the enrollment on a task', async () => {
+    now = new Date('2026-03-05T15:00:00Z'); // fresh day: the mailbox cap in this suite is 2
+    const { email, state } = await enrollAndQueue('g@globex.test', { [ids.step]: { subject: 's', body: 'b' } });
+    jobs.clear();
+    mail.failNext = Object.assign(new Error('Message rejected: 550 5.1.1 user unknown'), { responseCode: 550 });
+    const out = await sendQueuedEmail(ctx, email.id, deps());
+    expect(out).toMatchObject({ status: 'failed', error: expect.stringMatching(/550/) });
     const [row] = await db.select().from(emails).where(eq(emails.id, email.id));
-    expect(row!.status).toBe('failed');
+    expect(row).toMatchObject({ status: 'failed', sendAttempts: 1 });
+    expect(jobs.sent.some((j) => j.name === 'email.send')).toBe(false);
+    const [t] = await db.select().from(tasks).where(eq(tasks.sequenceStateId, state.id));
+    expect(t).toMatchObject({ action: 'manual_email', draftEmailId: email.id, priority: 'high' });
+    const [s] = await db.select().from(sequenceStates).where(eq(sequenceStates.id, state.id));
+    expect(s!.stepPhase).toBe('awaiting_task');
+    // a failed row is never re-sent by a stray job
+    expect((await sendQueuedEmail(ctx, email.id, deps())).status).toBe('skipped');
+  });
+
+  it('gives up after the last transient attempt', async () => {
+    now = new Date('2026-03-06T15:00:00Z');
+    const { email } = await enrollAndQueue('h@globex.test', { [ids.step]: { subject: 's', body: 'b' } });
+    await db.update(emails).set({ sendAttempts: MAX_SEND_ATTEMPTS - 1 }).where(eq(emails.id, email.id));
+    jobs.clear();
+    mail.failNext = Object.assign(new Error('Greeting never received'), { code: 'ETIMEDOUT' });
+    const out = await sendQueuedEmail(ctx, email.id, deps());
+    expect(out).toMatchObject({ status: 'failed', error: expect.stringMatching(/gave up after 5 attempts/) });
+    const [row] = await db.select().from(emails).where(eq(emails.id, email.id));
+    expect(row).toMatchObject({ status: 'failed', sendAttempts: MAX_SEND_ATTEMPTS });
+    expect(jobs.sent.some((j) => j.name === 'email.send')).toBe(false);
+  });
+});
+
+describe('classifyMailError', () => {
+  const t = (e: unknown) => classifyMailError(e).transient;
+  it('treats network, DNS, timeouts, SMTP 4xx and HTTP 429/5xx as transient', () => {
+    expect(t(Object.assign(new Error('x'), { code: 'ETIMEDOUT' }))).toBe(true);
+    expect(t(Object.assign(new Error('x'), { code: 'ECONNECTION' }))).toBe(true);
+    expect(t(Object.assign(new Error('x'), { code: 'EDNS' }))).toBe(true);
+    expect(t(Object.assign(new Error('421 4.7.0 Try again later'), { responseCode: 421 }))).toBe(true);
+    expect(t(Object.assign(new Error('rate limited'), { status: 429 }))).toBe(true);
+    expect(t(Object.assign(new Error('bad gateway'), { status: 502 }))).toBe(true);
+    expect(t(new Error('Connection timeout'))).toBe(true);
+    expect(t(new Error('something odd'))).toBe(true); // unknown: retry, bounded by MAX_SEND_ATTEMPTS
+  });
+  it('treats SMTP 5xx, HTTP 4xx and auth failures as permanent', () => {
+    expect(t(Object.assign(new Error('550 user unknown'), { responseCode: 550 }))).toBe(false);
+    expect(t(Object.assign(new Error('553 relaying denied'), { response: '553 5.7.1 relaying denied' }))).toBe(false);
+    expect(t(Object.assign(new Error('forbidden'), { status: 403 }))).toBe(false);
+    expect(t(Object.assign(new Error('Invalid login: 535 Authentication failed'), { code: 'EAUTH', responseCode: 535 }))).toBe(false);
+    expect(t(Object.assign(new Error('Invalid login'), { code: 'EAUTH' }))).toBe(false);
+  });
+  it('backs off 1, 5, 15 then 60 minutes', () => {
+    expect([1, 2, 3, 4, 5].map(retryDelayMs)).toEqual([60_000, 300_000, 900_000, 3_600_000, 3_600_000]);
+  });
+});
+
+describe('smtpTransportOptions', () => {
+  it('rewrites localhost to 127.0.0.1 and keeps credentials, port and scheme', () => {
+    const o = smtpTransportOptions('smtp://user:p%40ss@localhost:1025');
+    expect(o.url).toBe('smtp://user:p%40ss@127.0.0.1:1025');
+    expect(o.connectionTimeout).toBeLessThanOrEqual(15_000);
+    expect(smtpTransportOptions('smtps://relay.test:465').url).toBe('smtps://relay.test:465');
+  });
+  it('rejects a malformed URL without echoing credentials', () => {
+    expect(() => smtpTransportOptions('not a url')).toThrow(/not a valid URL/);
+    expect(() => smtpTransportOptions('smtp://u:secret@')).toThrow(/\*\*\*@/);
   });
 });
