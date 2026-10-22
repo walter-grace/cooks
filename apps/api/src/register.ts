@@ -12,6 +12,8 @@ export interface RouteMeta {
 
 export interface Registrar {
   app: OpenAPIHono<AppEnv>;
+  /** KEK, outbound fetch and OAuth apps for CRM calls made from route handlers. */
+  crmDeps: { kek?: string; fetchImpl?: typeof fetch; hubspotApp?: { clientId: string; clientSecret: string } };
   store: RateLimitStore;
   now: () => Date;
   registry: Array<{ method: string; path: string; operationId?: string; meta: RouteMeta }>;

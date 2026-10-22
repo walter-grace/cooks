@@ -24,6 +24,7 @@ import {
   updateProspect,
   getProspectResearch,
   requestResearch,
+  syncHubspotContacts,
 } from '@cooks/core';
 import { register, type Registrar } from '../register.js';
 import { listArgs } from './_util.js';
@@ -116,7 +117,7 @@ export function mountProspects(reg: Registrar) {
     { scope: 'notes:write', rateClass: 'noteWrite' },
     async (c) => {
       const body = c.req.valid('json').data;
-      const note = await createNote(c.get('ctx'), { associatedType: 'prospect', associatedId: c.req.valid('param').id, ...body });
+      const note = await createNote(c.get('ctx'), { associatedType: 'prospect', associatedId: c.req.valid('param').id, ...body }, reg.crmDeps);
       return c.json({ data: note }, 201);
     },
   );
@@ -133,8 +134,9 @@ export function mountProspects(reg: Registrar) {
     }),
     { scope: 'prospects:write', rateClass: 'sync' },
     async (c) => {
-      // CRM connectors arrive in the CRM phase; until then the documented failure mode applies.
-      throw noCrmConnection(c.req.valid('json').data.type);
+      const { type, records } = c.req.valid('json').data;
+      if (type === 'hubspot') return c.json(await syncHubspotContacts(c.get('ctx'), records, reg.crmDeps), 200);
+      throw noCrmConnection(type);
     },
   );
   register(

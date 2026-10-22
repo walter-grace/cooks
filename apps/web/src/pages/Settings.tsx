@@ -9,6 +9,55 @@ export function Settings() {
   const mailboxes = useApi<{ data: any[] }>('/v1/mailboxes?include=user&page[size]=100');
   const hooks = useApi<{ data: any[] }>('/v1/webhooks');
   const stats = useApi<{ data: any }>('/v1/agentRuns/stats?days=30');
+  const crm = useApi<{ data: any }>('/v1/workspace/crm');
+  const seqs = useApi<{ data: any[] }>('/v1/sequences?page[size]=100');
+  const users = useApi<{ data: any[] }>('/v1/users?page[size]=100');
+  const [hsToken, setHsToken] = useState('');
+  const [rule, setRule] = useState({ kind: 'list', listId: '', pipelineId: '', stageId: '', sequenceId: '', ownerId: '' });
+  const [ruleResult, setRuleResult] = useState<string | null>(null);
+  const [syncEmails, setSyncEmails] = useState('');
+  const connectHubspot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api('/v1/workspace/crm/hubspot', { method: 'PUT', json: { data: { accessToken: hsToken.trim() } } });
+      setHsToken('');
+      toast('HubSpot connected');
+      crm.reload();
+    } catch (err: any) {
+      toast(err.message);
+    }
+  };
+  const addRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api('/v1/workspace/crm/rules', { method: 'POST', json: { data: { kind: rule.kind, listId: rule.listId || undefined, pipelineId: rule.pipelineId || undefined, stageId: rule.stageId || undefined, sequenceId: rule.sequenceId, ownerId: rule.ownerId } } });
+      toast('Rule added');
+      crm.reload();
+    } catch (err: any) {
+      toast(err.message);
+    }
+  };
+  const runRule = async (id: string) => {
+    setRuleResult('Running…');
+    try {
+      const r = await api(`/v1/workspace/crm/rules/${id}/actions/run`, { method: 'POST' });
+      setRuleResult(`Synced ${r.data.synced}, enrolled ${r.data.enrolled}, skipped ${r.data.skipped}`);
+      crm.reload();
+    } catch (err: any) {
+      setRuleResult(err.message);
+    }
+  };
+  const importEmails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const emails = syncEmails.split(/[\s,;]+/).filter(Boolean);
+      const r = await api('/v1/integrations/hubspot/import', { method: 'POST', json: { data: { emails } } });
+      toast(`Imported ${r.results.length}, ${r.errors.length} not found`);
+      setSyncEmails('');
+    } catch (err: any) {
+      toast(err.message);
+    }
+  };
   const { msg, toast } = useToast();
   const [newKey, setNewKey] = useState<string | null>(null);
   const [keyName, setKeyName] = useState('');
@@ -105,6 +154,133 @@ export function Settings() {
         </label>
         <button className="primary">Add SMTP mailbox</button>
       </form>
+
+      <h2>CRM</h2>
+      {crm.data && crm.data.data.type !== 'hubspot' && (
+        <div className="card stack" style={{ display: 'grid', gap: '.6rem' }}>
+          <div>
+            Not connected. Connect HubSpot to sync contacts and companies, write notes, log sent emails and calls on the contact timeline, and auto-enroll contacts from lists or deal stages.
+          </div>
+          <div className="row">
+            <a className="btn" href="/connect/hubspot/start">
+              Connect HubSpot (OAuth)
+            </a>
+            <span className="small muted">or paste a private-app access token:</span>
+          </div>
+          <form className="inline" onSubmit={connectHubspot}>
+            <label style={{ flex: 1 }}>
+              HubSpot private app token (Settings → Integrations → Private apps; scopes: contacts, companies, deals, owners, lists)
+              <input type="password" required placeholder="pat-na1-…" value={hsToken} onChange={(e) => setHsToken(e.target.value)} />
+            </label>
+            <button className="primary" disabled={!isAdmin}>
+              Connect with token
+            </button>
+          </form>
+          {connected === 'hubspot' && <div className="small">HubSpot connected via OAuth.</div>}
+        </div>
+      )}
+      {crm.data && crm.data.data.type === 'hubspot' && (
+        <>
+          <div className="card row between">
+            <div>
+              <div>
+                <strong>HubSpot</strong> connected · portal {crm.data.data.hubspot?.portalId ?? '?'} · {crm.data.data.hubspot?.kind === 'oauth' ? 'OAuth' : 'private app'} · token …{crm.data.data.hubspot?.tokenLast4}
+              </div>
+              <div className="small muted">
+                {crm.data.data.settings.ownerMapSize} owners matched to users · logging {crm.data.data.settings.logEmails ? 'emails' : ''} {crm.data.data.settings.logCalls ? 'calls' : ''} · last poll {fmtDate(crm.data.data.settings.lastPollAt) || 'never'}
+              </div>
+            </div>
+            {isAdmin && (
+              <button className="danger" onClick={() => api('/v1/workspace/crm', { method: 'DELETE' }).then(crm.reload)}>
+                Disconnect
+              </button>
+            )}
+          </div>
+          <h2 style={{ fontSize: '.95rem' }}>Import contacts by email</h2>
+          <form className="inline" onSubmit={importEmails}>
+            <label style={{ flex: 1 }}>
+              Emails (comma or space separated)
+              <input value={syncEmails} onChange={(e) => setSyncEmails(e.target.value)} placeholder="ada@globex.com, grace@globex.com" />
+            </label>
+            <button className="primary">Import from HubSpot</button>
+          </form>
+          <h2 style={{ fontSize: '.95rem' }}>Auto-enroll rules</h2>
+          <p className="small muted">Every 5 minutes the worker pulls the HubSpot list or deal stage, syncs the contacts, and enrolls new ones into the sequence.</p>
+          <table>
+            <tbody>
+              {crm.data.data.settings.autoEnroll.map((r: any) => (
+                <tr key={r.id}>
+                  <td>
+                    <span className="pill">{r.kind === 'list' ? `list ${r.listId}` : `deal stage ${r.pipelineId}/${r.stageId}`}</span>
+                  </td>
+                  <td className="small">→ {seqs.data?.data.find((s) => s.id === r.sequenceId)?.name ?? r.sequenceId}</td>
+                  <td className="small muted">owner {users.data?.data.find((u) => u.id === r.ownerId)?.name ?? r.ownerId}</td>
+                  <td className="row" style={{ justifyContent: 'flex-end' }}>
+                    <button onClick={() => runRule(r.id)}>Run now</button>
+                    {isAdmin && (
+                      <button className="danger" onClick={() => api(`/v1/workspace/crm/rules/${r.id}`, { method: 'DELETE' }).then(crm.reload)}>
+                        Remove
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {ruleResult && <div className="small" style={{ margin: '.4rem 0' }}>{ruleResult}</div>}
+          {isAdmin && (
+            <form className="inline card" onSubmit={addRule}>
+              <label>
+                Source
+                <select value={rule.kind} onChange={(e) => setRule({ ...rule, kind: e.target.value })}>
+                  <option value="list">HubSpot list</option>
+                  <option value="dealStage">Deal stage</option>
+                </select>
+              </label>
+              {rule.kind === 'list' ? (
+                <label>
+                  List id
+                  <input required value={rule.listId} onChange={(e) => setRule({ ...rule, listId: e.target.value })} />
+                </label>
+              ) : (
+                <>
+                  <label>
+                    Pipeline id
+                    <input required value={rule.pipelineId} onChange={(e) => setRule({ ...rule, pipelineId: e.target.value })} placeholder="default" />
+                  </label>
+                  <label>
+                    Stage id
+                    <input required value={rule.stageId} onChange={(e) => setRule({ ...rule, stageId: e.target.value })} placeholder="appointmentscheduled" />
+                  </label>
+                </>
+              )}
+              <label>
+                Sequence
+                <select required value={rule.sequenceId} onChange={(e) => setRule({ ...rule, sequenceId: e.target.value })}>
+                  <option value="">choose…</option>
+                  {seqs.data?.data.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Owner
+                <select required value={rule.ownerId} onChange={(e) => setRule({ ...rule, ownerId: e.target.value })}>
+                  <option value="">choose…</option>
+                  {users.data?.data.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="primary">Add rule</button>
+            </form>
+          )}
+        </>
+      )}
 
       <h2>Hosted AI</h2>
       {ai.data && !aiForm && (

@@ -434,6 +434,25 @@ export const TOOLS: ToolDef[] = [
     run: (api, a) => api.call('GET', `/prospects/${a.id}/research`),
   }),
   def({
+    name: 'cooks_crm_status',
+    title: 'CRM connection status',
+    description: 'Whether a CRM (HubSpot) is connected, how owners map, and which auto-enroll rules exist.',
+    input: {},
+    readOnly: true,
+    run: (api) => api.call('GET', '/workspace/crm'),
+  }),
+  def({
+    name: 'cooks_sync_hubspot_contacts',
+    title: 'Sync HubSpot contacts',
+    description: 'Pull contacts (and their companies) from the connected HubSpot into Cooks by HubSpot contact id or by email. Returns created/updated prospect ids and per-record errors.',
+    input: { ids: z.array(z.string()).optional().describe('HubSpot contact ids'), emails: z.array(z.string().email()).optional() },
+    run: async (api, a) => {
+      if (a.emails?.length) return api.call('POST', '/integrations/hubspot/import', { body: { data: { emails: a.emails } } });
+      if (a.ids?.length) return api.call('POST', '/integrations/prospects/sync', { body: { data: { type: 'hubspot', records: a.ids } } });
+      return { error: { code: 'BAD_REQUEST', message: 'Provide ids or emails' } };
+    },
+  }),
+  def({
     name: 'cooks_add_note',
     title: 'Add CRM note',
     description: 'Write a note on a prospect or account into the connected CRM. Fails with NO_CRM_CONNECTION when no CRM is connected.',

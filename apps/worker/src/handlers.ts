@@ -13,7 +13,8 @@ import {
 } from '@cooks/core';
 import { mailboxCredentials, type Db } from '@cooks/db';
 import { classifyReply, draftEmailForTask, researchProspect, type EnvKeys } from '@cooks/agent';
-import { applyClassification, loadCreds, outboundProviderFor, registerOAuthInbound, syncMailbox, syncableMailboxIds, type ConnectorApps } from '@cooks/core';
+import { applyClassification, loadCreds, logCallTaskToHubspot, logEmailToHubspot, outboundProviderFor, registerOAuthInbound, runAutoEnrollRule, syncMailbox, syncableMailboxIds, type ConnectorApps, type CrmSettings } from '@cooks/core';
+import { crmConnections } from '@cooks/db';
 import { emails as emailsTable, prospects as prospectsTable, accounts as accountsTable } from '@cooks/db';
 import { eq } from 'drizzle-orm';
 import { SmtpProvider, decrypt } from '@cooks/core';
@@ -28,6 +29,7 @@ export interface WorkerDeps {
   kek?: string;
   aiEnv: EnvKeys;
   connectorApps: ConnectorApps;
+  hubspotApp?: { clientId: string; clientSecret: string };
   log: (msg: string, data?: Record<string, unknown>) => void;
 }
 
@@ -109,15 +111,46 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
   }, 2);
   void work<{ prospectId: string; workspaceId: string; focus?: string | null; force?: boolean }>('ai.research', (job) => researchProspect({ db: deps.db, env: deps.aiEnv, now: () => new Date() }, job.data.prospectId, { focus: job.data.focus, force: job.data.force }), 2);
   void work<{ taskId: string; workspaceId: string }>('ai.draft_email', (job) => draftEmailForTask({ db: deps.db, env: deps.aiEnv, now: () => new Date() }, job.data.taskId), 2);
-  void work<Record<string, never>>('outbox.publish', async () => ({ published: await publishOutbox(deps.db, deps.jobs) }), 1);
+  void work<Record<string, never>>('outbox.publish', async () => ({ published: await publishOutbox(deps.db, deps.jobs, { onEvent: (ev) => dispatchInternal(deps, ev) }) }), 1);
+  void work<{ workspaceId: string; emailId?: string; taskId?: string }>('crm.sync', async (job) => {
+    const ctx = mkCtx(deps, job.data.workspaceId);
+    const d = { kek: deps.kek, hubspotApp: deps.hubspotApp };
+    if (job.data.emailId) return { email: await logEmailToHubspot(ctx, job.data.emailId, d) };
+    if (job.data.taskId) return { call: await logCallTaskToHubspot(ctx, job.data.taskId, d) };
+    return { skipped: true };
+  }, 3);
+  void work<Record<string, never>>('crm.poll', async () => {
+    const rows = await deps.db.select().from(crmConnections).where(eq(crmConnections.type, 'hubspot'));
+    const out: Record<string, unknown> = {};
+    for (const row of rows) {
+      const s = (row.settings ?? {}) as CrmSettings;
+      for (const rule of s.autoEnroll ?? []) {
+        if (!rule.enabled) continue;
+        try {
+          out[`${row.workspaceId}:${rule.id}`] = await runAutoEnrollRule(mkCtx(deps, row.workspaceId), rule, { kek: deps.kek, hubspotApp: deps.hubspotApp });
+        } catch (e) {
+          out[`${row.workspaceId}:${rule.id}`] = { error: (e as Error).message };
+        }
+      }
+      await deps.db.update(crmConnections).set({ settings: { ...s, lastPollAt: new Date().toISOString() } as Record<string, unknown> }).where(eq(crmConnections.id, row.id));
+    }
+    return out;
+  }, 1);
   void work<Record<string, never>>('enrollment.start_pending', async () => ({ promoted: await startPendingEnrollments(mkCtx(deps, 'system')) }), 1);
 }
 
 const hasAi = (e: EnvKeys) => !!(e.ANTHROPIC_API_KEY || e.XAI_API_KEY || e.OPENAI_API_KEY || e.OPENROUTER_API_KEY || e.OLLAMA_BASE_URL);
 
+/** Outbox events that fan into internal jobs (CRM write-back). Webhooks are handled by publishOutbox itself. */
+async function dispatchInternal(deps: WorkerDeps, ev: { workspaceId: string; eventType: string; payload: Record<string, unknown> }) {
+  if (ev.eventType === 'email.sent' && ev.payload.emailId) await deps.jobs.send('crm.sync', { workspaceId: ev.workspaceId, emailId: ev.payload.emailId }, { singletonKey: `crm:email:${ev.payload.emailId}` });
+  if (ev.eventType === 'task.completed' && ev.payload.taskId) await deps.jobs.send('crm.sync', { workspaceId: ev.workspaceId, taskId: ev.payload.taskId }, { singletonKey: `crm:task:${ev.payload.taskId}` });
+}
+
 export async function registerSchedules(boss: PgBoss) {
   await boss.schedule('enrollment.start_pending', '* * * * *', {}, { tz: 'UTC' });
   await boss.schedule('inbox.sync', '*/2 * * * *', {}, { tz: 'UTC' });
+  await boss.schedule('crm.poll', '*/5 * * * *', {}, { tz: 'UTC' });
   await boss.schedule('outbox.publish', '* * * * *', {}, { tz: 'UTC' });
 }
 
@@ -128,7 +161,7 @@ export function startOutboxLoop(deps: WorkerDeps, intervalMs = 2000): () => void
     if (running) return;
     running = true;
     try {
-      const n = await publishOutbox(deps.db, deps.jobs);
+      const n = await publishOutbox(deps.db, deps.jobs, { onEvent: (ev) => dispatchInternal(deps, ev) });
       if (n > 0) deps.log('outbox.publish', { published: n });
     } catch (e) {
       deps.log('outbox.publish failed', { error: (e as Error).message });

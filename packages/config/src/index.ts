@@ -55,6 +55,8 @@ const EnvSchema = z.object({
   MS_CLIENT_ID: z.string().optional(),
   MS_CLIENT_SECRET: z.string().optional(),
   MS_TENANT: z.string().default('common'),
+  HUBSPOT_CLIENT_ID: z.string().optional(),
+  HUBSPOT_CLIENT_SECRET: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   /** Outbound IPs reported by GET /public-ip-list (comma separated). */
   COOKS_PUBLIC_IPS: z.string().default(''),

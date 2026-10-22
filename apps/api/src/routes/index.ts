@@ -2,6 +2,7 @@ import type { Registrar } from '../register.js';
 import { mountAccounts } from './accounts.js';
 import { mountAi } from './ai.js';
 import { mountCalls } from './calls.js';
+import { mountCrm } from './crm.js';
 import { mountEmails } from './emails.js';
 import { mountMailboxes } from './mailboxes.js';
 import { mountEmailTemplates } from './email-templates.js';
@@ -16,7 +17,7 @@ import { mountUsers } from './users.js';
 import { mountWebhooks } from './webhooks.js';
 import { mountWorkspace } from './workspace.js';
 
-export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: string; fetchImpl?: typeof fetch; keyPrefix?: 'cooks' | 'nooks' }) {
+export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: string; fetchImpl?: typeof fetch; keyPrefix?: 'cooks' | 'nooks'; crm?: Parameters<typeof mountCrm>[1] }) {
   mountMe(reg, opts);
   mountUsers(reg);
   mountAccounts(reg);
@@ -33,4 +34,5 @@ export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: s
   mountWebhooks(reg, { kek: opts.kek, fetchImpl: opts.fetchImpl });
   mountWorkspace(reg, { keyPrefix: opts.keyPrefix ?? 'cooks' });
   mountAi(reg, { kek: opts.kek });
+  if (opts.crm) mountCrm(reg, opts.crm);
 }

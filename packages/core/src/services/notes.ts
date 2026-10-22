@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { crmConnections, notes } from '@cooks/db';
 import type { Ctx } from '../context.js';
 import { noCrmConnection, unprocessable } from '../errors.js';
+import { pushNote, type CrmDeps } from '../crm/connector.js';
 import { emitEvent } from '../events.js';
 import { ref } from '../include.js';
 import { getAccountRow } from './accounts.js';
@@ -36,6 +37,7 @@ export function serializeNote(n: NoteRow) {
 export async function createNote(
   ctx: Ctx,
   args: { associatedType: 'prospect' | 'account'; associatedId: string; text: string; integrationType: 'salesforce' | 'hubspot' },
+  deps: CrmDeps = {},
 ) {
   if (args.associatedType === 'prospect') await getProspectRow(ctx, args.associatedId);
   else await getAccountRow(ctx, args.associatedId);
@@ -50,10 +52,12 @@ export async function createNote(
   if ((type === 'salesforce' || type === 'hubspot') && type !== args.integrationType) {
     throw unprocessable(`integrationType must be ${type} for this workspace`, { field: 'integrationType' });
   }
-  if (type === 'salesforce' || type === 'hubspot') {
-    // Connector stubs: real sync lands in the CRM phase.
-    throw noCrmConnection(args.integrationType);
+  if (type === 'hubspot') {
+    const row = await pushNote(ctx, args, deps);
+    await emitEvent(ctx.db, { workspaceId: ctx.principal.workspaceId, type: 'note.created', aggregateType: 'note', aggregateId: row.id, payload: { noteId: row.id, associatedType: args.associatedType, associatedId: args.associatedId, integrationType: 'hubspot' } });
+    return serializeNote(row);
   }
+  if (type === 'salesforce') throw noCrmConnection(args.integrationType);
   const [row] = await ctx.db
     .insert(notes)
     .values({

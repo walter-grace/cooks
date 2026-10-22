@@ -19,7 +19,9 @@ export type JobName =
   | 'ai.draft_email'
   | 'ai.classify_reply'
   | 'ai.research'
-  | 'ai.nba';
+  | 'ai.nba'
+  | 'crm.sync'
+  | 'crm.poll';
 
 export interface JobsPort {
   send(name: JobName, data: Record<string, unknown>, opts?: JobOptions): Promise<string | null>;

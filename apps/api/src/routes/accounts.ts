@@ -102,7 +102,7 @@ export function mountAccounts(reg: Registrar) {
     { scope: 'notes:write', rateClass: 'noteWrite' },
     async (c) => {
       const body = c.req.valid('json').data;
-      const note = await createNote(c.get('ctx'), { associatedType: 'account', associatedId: c.req.valid('param').id, ...body });
+      const note = await createNote(c.get('ctx'), { associatedType: 'account', associatedId: c.req.valid('param').id, ...body }, reg.crmDeps);
       return c.json({ data: note }, 201);
     },
   );

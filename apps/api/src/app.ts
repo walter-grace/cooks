@@ -40,6 +40,8 @@ export interface AppDeps {
   /** Gmail / Microsoft 365 OAuth apps for mailbox connectors. */
   connectorApps?: ConnectorApps;
   msTenant?: string;
+  /** HubSpot OAuth app (optional; private-app tokens work without it). */
+  hubspotApp?: { clientId: string; clientSecret: string };
   /** Directory with the built web UI (apps/web/dist). Served at /app with SPA fallback. */
   webDir?: string;
 }
@@ -109,8 +111,8 @@ export function createApp(deps: AppDeps) {
     await next();
   });
 
-  const reg: Registrar = { app, store, now: () => clock.now(), registry: [] };
-  mountRoutes(reg, { publicIps: deps.publicIps ?? [], kek: deps.kek, fetchImpl: deps.fetchImpl, keyPrefix: deps.keyPrefix });
+  const reg: Registrar = { app, store, now: () => clock.now(), registry: [], crmDeps: { kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp } };
+  mountRoutes(reg, { publicIps: deps.publicIps ?? [], kek: deps.kek, fetchImpl: deps.fetchImpl, keyPrefix: deps.keyPrefix, crm: { db: deps.db, publicUrl, now: () => clock.now(), kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp } });
   mountTracking(app, { db: deps.db, secret: deps.kek ?? 'cooks-dev', clock, jobs, publicUrl });
   mountConnect(app, { db: deps.db, publicUrl, kek: deps.kek, apps: deps.connectorApps ?? {}, msTenant: deps.msTenant, fetchImpl: deps.fetchImpl, now: () => clock.now() });
   if (deps.oauth) mountOAuth(app, { db: deps.db, issuer: publicUrl, key: deps.oauth.key, clock, dcrEnabled: deps.oauth.dcrEnabled ?? true, secureCookies: deps.oauth.secureCookies ?? publicUrl.startsWith('https') });

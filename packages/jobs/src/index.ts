@@ -18,6 +18,8 @@ export const QUEUES: Record<JobName, { policy?: string; retryLimit?: number; ret
   'ai.classify_reply': { policy: 'standard', retryLimit: 2, retryBackoff: true, expireInSeconds: 180 },
   'ai.research': { policy: 'standard', retryLimit: 1, expireInSeconds: 300 },
   'ai.nba': { policy: 'standard', retryLimit: 1, expireInSeconds: 180 },
+  'crm.sync': { policy: 'standard', retryLimit: 3, retryBackoff: true, expireInSeconds: 120 },
+  'crm.poll': { policy: 'singleton', retryLimit: 0, expireInSeconds: 600 },
 };
 
 export async function createBoss(connectionString: string, opts: { schema?: string } = {}): Promise<PgBoss> {

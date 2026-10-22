@@ -33,7 +33,14 @@ export function envelopeFor(eventType: string, eventId: string, occurredAt: Date
  * Fan unpublished outbox rows out to matching endpoints. Safe with many workers:
  * rows are claimed with FOR UPDATE SKIP LOCKED inside one transaction.
  */
-export async function publishOutbox(db: DbOrTx, jobs: JobsPort, opts: { limit?: number; now?: Date } = {}): Promise<number> {
+export interface OutboxEvent {
+  id: string;
+  workspaceId: string;
+  eventType: string;
+  payload: Record<string, unknown>;
+}
+
+export async function publishOutbox(db: DbOrTx, jobs: JobsPort, opts: { limit?: number; now?: Date; onEvent?: (ev: OutboxEvent) => Promise<void> } = {}): Promise<number> {
   const now = opts.now ?? new Date();
   const limit = opts.limit ?? 200;
   return (db as { transaction: <T>(fn: (tx: DbOrTx) => Promise<T>) => Promise<T> }).transaction(async (tx) => {
@@ -74,6 +81,12 @@ export async function publishOutbox(db: DbOrTx, jobs: JobsPort, opts: { limit?: 
           .onConflictDoNothing()
           .returning({ id: webhookDeliveries.id });
         if (inserted[0]) toEnqueue.push(inserted[0].id);
+      }
+    }
+    if (opts.onEvent) {
+      for (const ev of events) {
+        const payload = typeof ev.payload === 'string' ? (JSON.parse(ev.payload) as Record<string, unknown>) : ev.payload;
+        await opts.onEvent({ id: ev.id, workspaceId: ev.workspace_id, eventType: ev.event_type, payload }).catch(() => {});
       }
     }
     await tx.update(outboxEvents).set({ publishedAt: now }).where(inArray(outboxEvents.id, events.map((e) => e.id)));

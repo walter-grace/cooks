@@ -26,6 +26,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.0
         version: 0.45.4(@electric-sql/pglite@0.5.11)(@opentelemetry/api@1.10.0)(pg@8.23.1)(postgres@3.4.9)
+      playwright-core:
+        specifier: '1.57'
+        version: 1.57.0
       tsx:
         specifier: ^4.19.0
         version: 4.23.15
@@ -2006,6 +2009,11 @@ packages:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
 
+  playwright-core@1.57.0:
+    resolution: {integrity: sha512-agTcKlMw/mjBWOnD6kFZttAAGHgi/Nw0CZ2o6JqWSbMlI219lAFLZZCyqByTsvVAJq5XA5H8cA6PrvBRpBWEuQ==}
+    engines: {node: '>=18'}
+    hasBin: true
+
   postcss@8.5.31:
     resolution: {integrity: sha512-YUbWYCgErwnMAVkjUnYa+KlMBzGpHwiIt/DE7f0G33AuX2LH9UcTk6KgWxd3zRU+pN3u/C+Xl3EnMLM4Hea7Sg==}
     engines: {node: ^10 || ^12 || >=14}
@@ -3788,6 +3796,8 @@ snapshots:
       thread-stream: 4.2.0
 
   pkce-challenge@5.0.1: {}
+
+  playwright-core@1.57.0: {}
 
   postcss@8.5.31:
     dependencies:

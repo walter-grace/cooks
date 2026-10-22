@@ -25,7 +25,9 @@ the AI brought by whatever model you already pay for.
 | Hosted AI agents: AI email drafts on `aiEmail` steps, reply classification, run ledger with cost, per-workspace provider (Anthropic, xAI/Grok, OpenAI, OpenRouter, Ollama) | done |
 | Inbound mail: IMAP / Gmail / Microsoft 365 sync, replies, bounces, out-of-office | done |
 | Web UI at `/app` (tasks, prospects, sequences, emails, settings) | done |
-| Later: dialer (Twilio Voice), HubSpot/Salesforce connectors, signals, coaching | planned |
+| HubSpot: token or OAuth connect, contact/company sync, list and deal-stage auto-enroll, notes + email/call logging | done |
+| Web-grounded prospect research (OpenRouter web search) | done |
+| Later: dialer (Twilio Voice), Salesforce, signals, coaching | planned |
 
 ## Run it locally
 
@@ -84,7 +86,8 @@ packages/db   Drizzle schema + migrations. UUIDv7 ids, keyset-cursor indexes, so
 packages/core Domain: services, enrollment engine, scheduling, mail pipeline, error envelope.
 packages/auth API keys (sha256 at rest), passwords (scrypt), sessions, ES256 signing keys, OAuth 2.1 server.
 packages/jobs pg-boss adapter behind the JobsPort interface.
-packages/agent Hosted AI: provider abstraction, structured contracts, run ledger, draft/classify jobs.
+packages/agent Hosted AI: provider abstraction, structured contracts, run ledger, draft/classify/research jobs.
+packages/core/crm HubSpot client + connector (sync, auto-enroll rules, write-back).
 spec/         Vendored upstream OpenAPI document and lock file.
 docs/         Research notes and, later, self-host / MCP / webhook guides.
 ```

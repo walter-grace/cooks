@@ -22,6 +22,7 @@ const workerDeps = {
   fallbackFrom: process.env.COOKS_MAIL_FROM ?? 'Cooks <no-reply@cooks.local>',
   trackingSecret: env.COOKS_KEK ?? 'cooks-dev',
   kek: env.COOKS_KEK,
+  hubspotApp: env.HUBSPOT_CLIENT_ID && env.HUBSPOT_CLIENT_SECRET ? { clientId: env.HUBSPOT_CLIENT_ID, clientSecret: env.HUBSPOT_CLIENT_SECRET } : undefined,
   connectorApps: {
     ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } } : {}),
     ...(env.MS_CLIENT_ID && env.MS_CLIENT_SECRET ? { microsoft: { clientId: env.MS_CLIENT_ID, clientSecret: env.MS_CLIENT_SECRET } } : {}),
