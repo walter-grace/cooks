@@ -20,10 +20,10 @@ import {
   listOf,
   listProspects,
   noCrmConnection,
+  serializeSequenceStateRow,
   updateProspect,
 } from '@cooks/core';
 import { register, type Registrar } from '../register.js';
-import { serializeSequenceStateRow } from './sequence-states.js';
 import { listArgs } from './_util.js';
 
 export function mountProspects(reg: Registrar) {

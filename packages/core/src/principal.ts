@@ -51,3 +51,8 @@ export function assertCanEditPrivacy(
   if (privacy === 'team_editable') return;
   assertOwnerOrManager(p, ownerId, what);
 }
+
+/** Worker-side principal: acts for a workspace with every scope and no role restrictions. */
+export function systemPrincipal(workspaceId: string): Principal {
+  return { workspaceId, userId: null, role: null, authType: 'apiKey', clientId: null, scopes: ALL_SCOPES, bypassRoleChecks: true, email: null, name: 'system' };
+}

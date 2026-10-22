@@ -18,7 +18,7 @@ export function fullName(first: string | null | undefined, last: string | null |
 
 export function serializeProspect(
   p: ProspectRow,
-  opts: { customFields: boolean; states: Array<{ id: string; [k: string]: unknown }> | string[] },
+  opts: { customFields: boolean; states: Array<string | object> },
 ) {
   return {
     id: p.id,
@@ -30,7 +30,7 @@ export function serializeProspect(
     linkedInUrl: p.linkedInUrl,
     crmId: p.crmId,
     account: refOrNull('accounts', p.accountId),
-    sequenceStates: opts.states.map((s) => (typeof s === 'string' ? ref('sequenceStates', s) : s)),
+    sequenceStates: opts.states.map((s) => (typeof s === 'string' ? ref('sequenceStates', s) : s)) as unknown[],
     crmCustomFields: opts.customFields ? p.crmCustomFields : {},
     createdAt: isoReq(p.createdAt),
     updatedAt: isoReq(p.updatedAt),
@@ -42,9 +42,9 @@ async function statesFor(
   ctx: Ctx,
   prospectIds: string[],
   expand: boolean,
-  serializeState: (row: typeof sequenceStates.$inferSelect) => Record<string, unknown>,
-): Promise<Map<string, Array<string | Record<string, unknown>>>> {
-  const map = new Map<string, Array<string | Record<string, unknown>>>();
+  serializeState: (row: typeof sequenceStates.$inferSelect) => object,
+): Promise<Map<string, Array<string | object>>> {
+  const map = new Map<string, Array<string | object>>();
   if (prospectIds.length === 0) return map;
   const rows = await ctx.db
     .select()
@@ -69,7 +69,7 @@ export interface ProspectListQuery {
 export async function listProspects(
   ctx: Ctx,
   q: ProspectListQuery,
-  serializeState: (row: typeof sequenceStates.$inferSelect) => Record<string, unknown>,
+  serializeState: (row: typeof sequenceStates.$inferSelect) => object,
 ) {
   const f = q.filter ?? {};
   const includes = parseInclude(q.include, PROSPECT_INCLUDES);
@@ -116,7 +116,7 @@ export async function listProspects(
     serializeState,
   );
   return {
-    data: page.data.map((p) => serializeProspect(p, { customFields, states: (states.get(p.id) ?? []) as never })),
+    data: page.data.map((p) => serializeProspect(p, { customFields, states: states.get(p.id) ?? [] })),
     links: page.links,
   };
 }
@@ -136,14 +136,14 @@ export async function getProspect(
   ctx: Ctx,
   id: string,
   q: { include?: unknown; includeCRMCustomFields?: unknown },
-  serializeState: (row: typeof sequenceStates.$inferSelect) => Record<string, unknown>,
+  serializeState: (row: typeof sequenceStates.$inferSelect) => object,
 ) {
   const includes = parseInclude(q.include, PROSPECT_INCLUDES);
   const row = await getProspectRow(ctx, id);
   const states = await statesFor(ctx, [row.id], includes.includes('sequenceStates'), serializeState);
   return serializeProspect(row, {
     customFields: parseBool(q.includeCRMCustomFields, 'includeCRMCustomFields') ?? false,
-    states: (states.get(row.id) ?? []) as never,
+    states: states.get(row.id) ?? [],
   });
 }
 
