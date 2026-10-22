@@ -19,9 +19,10 @@ the AI brought by whatever model you already pay for.
 | M0 scaffold, schema, PGlite tests | done |
 | M1 API keys, users, accounts, prospects, tags, notes, rate limits, OpenAPI | done |
 | M2 sequences, steps, enrollments, tasks, templates, enrollment engine | done |
-| M3 email transport: SMTP send, tracking, unsubscribe (Gmail, Microsoft Graph, inbound reply detection next) | mostly done |
-| M4 MCP server (32 tools, stdio + HTTP) | done; OAuth 2.1 in progress |
+| M3 email transport: SMTP send, open/click tracking, one-click unsubscribe | done (Gmail, Microsoft Graph, inbound reply detection next) |
+| M4 OAuth 2.1 (PKCE, DCR, rotating refresh, ES256 JWT) + MCP server (32 tools, stdio + HTTP) | done |
 | M5 webhooks (`call.logged` compatible + Cooks events, signed, retried) | done |
+| Hosted AI agents (draft, classify replies) | next |
 | Later: dialer (Twilio Voice), CRM connectors, signals, coaching, web UI | planned |
 
 ## Run it locally
@@ -32,7 +33,7 @@ Requirements: Node 22+, pnpm 9, Postgres 15+ (Homebrew works), optional Mailpit 
 pnpm install
 createdb cooks
 cp .env.example .env            # defaults point at postgres://localhost:5432/cooks
-pnpm bootstrap --email you@example.com --workspace "My Team"   # prints an API key once
+pnpm bootstrap --email you@example.com --workspace "My Team" --password 'choose-one'   # prints an API key once
 pnpm --filter @cooks/api dev    # http://localhost:8080, docs at /docs
 pnpm --filter @cooks/worker dev # runs the sequence engine and sends email
 mailpit                         # optional: SMTP on :1025, inbox UI on http://localhost:8025
@@ -71,12 +72,12 @@ connection request per sequence, `role: user` can only delete steps in sequences
 ## Architecture
 
 ```
-apps/api      Hono + zod-openapi. API keys now, OAuth 2.1 in M4. Serves /openapi.yml and /docs.
+apps/api      Hono + zod-openapi. API keys + OAuth 2.1 (PKCE, DCR, JWKS). Serves /openapi.yml and /docs.
 apps/worker   pg-boss consumers: enrollment.advance, step.execute, email.send, start_pending cron.
 apps/mcp      MCP server (M4): stdio for local assistants, streamable HTTP with OAuth for hosted.
 packages/db   Drizzle schema + migrations. UUIDv7 ids, keyset-cursor indexes, soft deletes.
 packages/core Domain: services, enrollment engine, scheduling, mail pipeline, error envelope.
-packages/auth API keys (sha256 at rest, timing-safe compare), OAuth server in M4.
+packages/auth API keys (sha256 at rest), passwords (scrypt), sessions, ES256 signing keys, OAuth 2.1 server.
 packages/jobs pg-boss adapter behind the JobsPort interface.
 spec/         Vendored upstream OpenAPI document and lock file.
 docs/         Research notes and, later, self-host / MCP / webhook guides.

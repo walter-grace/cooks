@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { loadEnv } from '@cooks/config';
 import { createDb, runMigrations } from '@cooks/db';
 import { createBoss, PgBossJobs } from '@cooks/jobs';
+import { ensureSigningKey } from '@cooks/auth';
 import { createApp } from './app.js';
 import { PgRateLimitStore } from './middleware/rate-limit.js';
 
@@ -9,6 +10,7 @@ const env = loadEnv();
 const handle = createDb(env.DATABASE_URL);
 if (env.COOKS_AUTO_MIGRATE) await runMigrations(handle.db, env.DATABASE_URL);
 const boss = await createBoss(env.DATABASE_URL);
+const signingKey = await ensureSigningKey(handle.db, env.COOKS_KEK);
 
 const { app, registry } = createApp({
   db: handle.db,
@@ -17,6 +19,7 @@ const { app, registry } = createApp({
   publicUrl: env.COOKS_PUBLIC_URL,
   kek: env.COOKS_KEK,
   keyPrefix: env.COOKS_API_KEY_PREFIX,
+  oauth: { key: signingKey, dcrEnabled: env.COOKS_OAUTH_DCR, mcpPublicUrl: env.COOKS_MCP_PUBLIC_URL },
   acceptNooksPrefix: env.COOKS_ACCEPT_NOOKS_PREFIX,
   publicIps: env.COOKS_PUBLIC_IPS.split(',').map((s) => s.trim()).filter(Boolean),
 });

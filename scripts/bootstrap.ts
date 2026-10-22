@@ -5,7 +5,7 @@
  */
 import { and, eq } from 'drizzle-orm';
 import { loadEnv } from '@cooks/config';
-import { createApiKey } from '@cooks/auth';
+import { createApiKey, hashPassword } from '@cooks/auth';
 import { createDb, runMigrations, users, workspaceMembers, workspaces } from '@cooks/db';
 
 const args = Object.fromEntries(
@@ -17,7 +17,7 @@ const args = Object.fromEntries(
 const email = args.email;
 const wsName = args.workspace ?? 'My Workspace';
 if (!email) {
-  console.error('usage: pnpm bootstrap --email you@example.com --workspace "My Team" [--name "Your Name"] [--slug my-team]');
+  console.error('usage: pnpm bootstrap --email you@example.com --workspace "My Team" [--name "Your Name"] [--slug my-team] [--password ...]');
   process.exit(1);
 }
 const slug = args.slug ?? wsName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -29,6 +29,7 @@ let [ws] = await h.db.select().from(workspaces).where(eq(workspaces.slug, slug))
 if (!ws) [ws] = await h.db.insert(workspaces).values({ name: wsName, slug }).returning();
 let [user] = await h.db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
 if (!user) [user] = await h.db.insert(users).values({ email: email.toLowerCase(), name: args.name ?? email.split('@')[0]! }).returning();
+if (args.password && args.password !== 'true') await h.db.update(users).set({ passwordHash: await hashPassword(args.password) }).where(eq(users.id, user!.id));
 const [member] = await h.db
   .select()
   .from(workspaceMembers)

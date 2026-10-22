@@ -58,7 +58,16 @@ claude mcp add --transport http cooks http://localhost:8081/mcp --header "Author
 
 Grok: add a custom MCP connector pointing at `https://<your host>/mcp` and supply the bearer token in the connector's auth settings. The exact UI changes often; check xAI's current connector docs.
 
-Unauthenticated requests get a `401` with `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource"`, which is what OAuth-capable clients use to discover the authorization server once M4 OAuth ships.
+### OAuth (per-user access for hosted connectors)
+
+Unauthenticated requests get a `401` with `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource"`. OAuth-capable clients (Claude.ai connectors, Claude Code remote MCP, Cursor) follow that to the API's authorization server and run the standard flow:
+
+1. Dynamic client registration at `POST /oauth/register` (on by default, `COOKS_OAUTH_DCR=false` to disable).
+2. `GET /oauth/authorize` with PKCE S256. The user signs in with email + password (`pnpm bootstrap --password ...` sets one) and approves the requested scopes for one workspace.
+3. `POST /oauth/token` returns a 1-hour ES256 access token plus a 90-day rotating refresh token. Reusing a rotated refresh token revokes the whole family.
+4. Tokens carry the user's role and scopes, so a `user` cannot delete steps in sequences they do not own, and a token without `prospects:write` gets `INSUFFICIENT_SCOPE`.
+
+Discovery: `/.well-known/oauth-authorization-server`, `/.well-known/jwks.json`.
 
 ## Tools
 

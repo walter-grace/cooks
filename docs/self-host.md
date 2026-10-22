@@ -31,7 +31,7 @@ Edit `.env`:
 ## First run
 
 ```bash
-pnpm bootstrap --email you@example.com --workspace "My Team"   # migrates, creates admin + API key
+pnpm bootstrap --email you@example.com --workspace "My Team" --password 'choose-one'   # migrates, creates admin + API key, sets the login password used by OAuth consent
 pnpm --filter @cooks/api start      # :8080
 pnpm --filter @cooks/worker start   # sequence engine + email sender
 pnpm --filter cooks-mcp start       # :8081, optional

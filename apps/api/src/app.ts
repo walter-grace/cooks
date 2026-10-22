@@ -12,6 +12,8 @@ import type { Registrar } from './register.js';
 import type { AppEnv } from './types.js';
 import { mountRoutes } from './routes/index.js';
 import { mountTracking } from './routes/tracking.js';
+import { makeVerifyJwt, mountOAuth } from './oauth/routes.js';
+import type { ActiveKey } from '@cooks/auth';
 import { SCOPES, SCOPE_DESCRIPTIONS } from '@cooks/core';
 
 export interface AppDeps {
@@ -29,6 +31,8 @@ export interface AppDeps {
   /** Outbound HTTP for webhook pings (injectable for tests). */
   fetchImpl?: typeof fetch;
   keyPrefix?: 'cooks' | 'nooks';
+  /** OAuth 2.1 authorization server. Omit to run API-key-only. */
+  oauth?: { key: ActiveKey; dcrEnabled?: boolean; secureCookies?: boolean; mcpPublicUrl?: string };
 }
 
 export function createApp(deps: AppDeps) {
@@ -68,7 +72,10 @@ export function createApp(deps: AppDeps) {
   app.get('/health', (c) => c.json({ ok: true, time: clock.now().toISOString() }));
 
   // Authenticated API surface. Everything under /v1 except /v1/public-ip-list.
-  app.use('/v1/*', authMiddleware({ db: deps.db, acceptNooksPrefix: deps.acceptNooksPrefix ?? true, verifyJwt: deps.verifyJwt }));
+  const verifyJwt =
+    deps.verifyJwt ??
+    (deps.oauth ? makeVerifyJwt({ db: deps.db, issuer: publicUrl, audiences: ['cooks-api', `${deps.oauth.mcpPublicUrl ?? ''}/mcp`].filter((a) => a !== '/mcp'), clock }) : undefined);
+  app.use('/v1/*', authMiddleware({ db: deps.db, acceptNooksPrefix: deps.acceptNooksPrefix ?? true, verifyJwt }));
   app.use('/v1/*', async (c, next) => {
     if (c.req.path === '/v1/public-ip-list') return next();
     const ctx: Ctx = { db: deps.db, principal: c.get('principal'), jobs, clock, traceId: c.get('traceId'), publicUrl };
@@ -79,6 +86,7 @@ export function createApp(deps: AppDeps) {
   const reg: Registrar = { app, store, now: () => clock.now(), registry: [] };
   mountRoutes(reg, { publicIps: deps.publicIps ?? [], kek: deps.kek, fetchImpl: deps.fetchImpl, keyPrefix: deps.keyPrefix });
   mountTracking(app, { db: deps.db, secret: deps.kek ?? 'cooks-dev', clock, jobs, publicUrl });
+  if (deps.oauth) mountOAuth(app, { db: deps.db, issuer: publicUrl, key: deps.oauth.key, clock, dcrEnabled: deps.oauth.dcrEnabled ?? true, secureCookies: deps.oauth.secureCookies ?? publicUrl.startsWith('https') });
 
   // OpenAPI document, served at the same paths as upstream (/openapi.yml) plus JSON and docs.
   app.openAPIRegistry.registerComponent('securitySchemes', 'BearerAuth', {

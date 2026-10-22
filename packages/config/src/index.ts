@@ -13,6 +13,10 @@ const EnvSchema = z.object({
     .default('true')
     .transform((v) => v === 'true'),
   COOKS_API_KEY_PREFIX: z.enum(['cooks', 'nooks']).default('cooks'),
+  COOKS_OAUTH_DCR: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   COOKS_ACCEPT_NOOKS_PREFIX: z
     .enum(['true', 'false'])
     .default('true')
