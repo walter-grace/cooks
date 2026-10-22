@@ -380,7 +380,7 @@ export function Settings() {
       {isAdmin && (
         <>
           <h2>API keys</h2>
-          <p className="small muted">For MCP clients (`npx cooks-mcp`) and integrations. Shown once.</p>
+          <p className="small muted">For MCP clients (Claude Code, Claude Desktop, Cursor, Grok) and integrations. Shown once; the setup command appears after you create a key.</p>
           {newKey && (
             <div className="card">
               <strong>New key</strong> (copy it now)
