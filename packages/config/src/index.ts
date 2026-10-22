@@ -1,4 +1,27 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { z } from 'zod';
+
+/** Fill process.env from the nearest .env (cwd, then up to three parents). Existing variables win. */
+function loadDotenv(): void {
+  let dir = process.cwd();
+  for (let i = 0; i < 4; i++) {
+    const file = join(dir, '.env');
+    if (existsSync(file)) {
+      for (const line of readFileSync(file, 'utf8').split('\n')) {
+        if (line.trim().startsWith('#')) continue;
+        const m = /^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
+        if (!m) continue;
+        const v = m[2]!.replace(/^["']|["']$/g, '');
+        if (process.env[m[1]!] === undefined && v !== '') process.env[m[1]!] = v;
+      }
+      return;
+    }
+    const parent = join(dir, '..');
+    if (parent === dir) return;
+    dir = parent;
+  }
+}
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -44,6 +67,7 @@ let cached: Env | undefined;
 /** Parse and cache process.env. Throws a readable error listing every bad variable. */
 export function loadEnv(overrides: Partial<Record<keyof Env, string>> = {}): Env {
   if (cached && Object.keys(overrides).length === 0) return cached;
+  if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) loadDotenv();
   const parsed = EnvSchema.safeParse({ ...process.env, ...overrides });
   if (!parsed.success) {
     const lines = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`);

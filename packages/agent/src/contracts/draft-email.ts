@@ -11,6 +11,7 @@ export const DraftEmailInput = z.object({
   agent: z.object({ persona: z.string().nullable(), style: z.record(z.string(), z.unknown()), topics: z.array(z.string()), neverMention: z.array(z.string()) }).nullable(),
   promptOverride: z.string().nullable(),
   stepNote: z.string().nullable(),
+  research: z.object({ summary: z.string(), talkingPoints: z.array(z.string()), signals: z.array(z.object({ kind: z.string(), text: z.string(), sourceUrl: z.string().nullable() })) }).nullable(),
   constraints: z.object({ maxWords: z.number(), isReply: z.boolean(), language: z.string() }),
 });
 export type DraftEmailInput = z.infer<typeof DraftEmailInput>;
@@ -33,6 +34,7 @@ Rules:
 - Vary sentence length. No bullet lists in cold emails. No "I hope this finds you well".
 - Reply steps continue the thread; do not restart the pitch.
 - Respect the persona, style, topics and never-mention list when an agent is provided. Follow promptOverride when present.
+- When a research brief is included, prefer its signals (funding, hiring, news) as the opener; they count as facts you may use.
 - Do not include a signature or an unsubscribe line; the system adds them.
 - Set confidence low (< 0.6) when key facts are missing or the ask is unclear, and add riskFlags for anything a manager should review before sending.
 Return JSON only.`;

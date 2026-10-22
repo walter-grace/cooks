@@ -20,10 +20,17 @@ export interface StructuredRequest<T> {
   effort?: 'low' | 'medium' | 'high';
   temperature?: number;
   signal?: AbortSignal;
+  /** Ground the answer in live web search (OpenRouter `web` plugin). Ignored by providers without it. */
+  web?: { maxResults?: number } | boolean;
+}
+
+export interface Citation {
+  url: string;
+  title?: string;
 }
 
 export type StructuredResult<T> =
-  | { kind: 'ok'; value: T; usage: TokenUsage; model: string; latencyMs: number; raw?: unknown }
+  | { kind: 'ok'; value: T; usage: TokenUsage; model: string; latencyMs: number; raw?: unknown; citations?: Citation[] }
   | { kind: 'refusal'; reason: string; usage: TokenUsage; model: string; latencyMs: number }
   | { kind: 'invalid'; error: string; text: string; usage: TokenUsage; model: string; latencyMs: number };
 

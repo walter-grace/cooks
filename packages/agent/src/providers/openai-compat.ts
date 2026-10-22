@@ -1,13 +1,13 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
-import type { LlmProvider, ProviderId, StructuredRequest, StructuredResult, TokenUsage } from './types.js';
+import type { Citation, LlmProvider, ProviderId, StructuredRequest, StructuredResult, TokenUsage } from './types.js';
 import { estimateCostUsd } from './pricing.js';
 
 /** Presets for OpenAI-compatible chat.completions endpoints. xAI is how Grok users bring their own key. */
 export const COMPAT_PRESETS: Record<Exclude<ProviderId, 'anthropic' | 'custom'>, { baseUrl: string; defaultModel: string; keyEnv: string }> = {
   openai: { baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-5', keyEnv: 'OPENAI_API_KEY' },
   xai: { baseUrl: 'https://api.x.ai/v1', defaultModel: 'grok-4.7', keyEnv: 'XAI_API_KEY' },
-  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', defaultModel: 'anthropic/claude-sonnet-5.5', keyEnv: 'OPENROUTER_API_KEY' },
+  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', defaultModel: '~anthropic/claude-sonnet-latest', keyEnv: 'OPENROUTER_API_KEY' },
   ollama: { baseUrl: 'http://localhost:11434/v1', defaultModel: 'llama3.3', keyEnv: 'OLLAMA_API_KEY' },
 };
 
@@ -42,6 +42,7 @@ export class OpenAICompatProvider implements LlmProvider {
         ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
         response_format: { type: 'json_schema', json_schema: { name: req.schemaName, schema: jsonSchema, strict: true } },
         ...(this.id === 'openrouter' ? { usage: { include: true } } : {}),
+        ...(this.id === 'openrouter' && req.web ? { plugins: [{ id: 'web', max_results: typeof req.web === 'object' && req.web.maxResults ? req.web.maxResults : 5 }] } : {}),
       } as Parameters<typeof this.client.chat.completions.create>[0] & { stream?: false },
       { signal: req.signal },
     );
@@ -68,6 +69,8 @@ export class OpenAICompatProvider implements LlmProvider {
     }
     const r = req.schema.safeParse(parsed);
     if (!r.success) return { kind: 'invalid', error: r.error.message, text, usage, model, latencyMs };
-    return { kind: 'ok', value: r.data, usage, model, latencyMs };
+    const annotations = (choice?.message as { annotations?: Array<{ type: string; url_citation?: { url: string; title?: string } }> } | undefined)?.annotations ?? [];
+    const citations: Citation[] = annotations.filter((a) => a.type === 'url_citation' && a.url_citation?.url).map((a) => ({ url: a.url_citation!.url, title: a.url_citation!.title }));
+    return { kind: 'ok', value: r.data, usage, model, latencyMs, ...(citations.length ? { citations } : {}) };
   }
 }

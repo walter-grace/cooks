@@ -100,6 +100,20 @@ export function ProspectDetail({ id }: { id: string }) {
   const emails = useApi<{ data: any[] }>(`/v1/emails${q({ 'filter[prospect][id]': id, 'page[size]': 20 })}`);
   const tasks = useApi<{ data: any[] }>(`/v1/tasks${q({ 'filter[prospect][id]': id, 'page[size]': 20 })}`);
   const seqs = useApi<{ data: any[] }>('/v1/sequences?page[size]=100');
+  const research = useApi<{ data: any }>(`/v1/prospects/${id}/research`);
+  const [researching, setResearching] = useState(false);
+  const runResearch = async () => {
+    setResearching(true);
+    const prev = research.data?.data?.researchedAt;
+    await api(`/v1/prospects/${id}/actions/research`, { method: 'POST', json: { data: { force: true } } });
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const now = await api(`/v1/prospects/${id}/research`);
+      if (now.data.status === 'ready' && now.data.researchedAt !== prev) break;
+    }
+    research.reload();
+    setResearching(false);
+  };
   const { msg, toast } = useToast();
   const [seqId, setSeqId] = useState('');
   const p = data?.data;
@@ -164,6 +178,47 @@ export function ProspectDetail({ id }: { id: string }) {
               Enroll
             </button>
           </div>
+        </div>
+      </div>
+      <h2>Research</h2>
+      <div className="card">
+        {research.data?.data?.status !== 'ready' && <p className="muted small">No brief yet. Research uses the workspace AI provider; with OpenRouter it searches the live web and cites sources.</p>}
+        {research.data?.data?.status === 'ready' && (
+          <>
+            <p style={{ marginTop: 0 }}>{research.data.data.summary}</p>
+            {research.data.data.talkingPoints?.length > 0 && (
+              <ul className="steps">
+                {research.data.data.talkingPoints.map((t: string, i: number) => (
+                  <li key={i}>{t}</li>
+                ))}
+              </ul>
+            )}
+            {research.data.data.signals?.length > 0 && (
+              <table>
+                <tbody>
+                  {research.data.data.signals.map((sg: any) => (
+                    <tr key={sg.id}>
+                      <td>
+                        <span className="pill">{sg.kind}</span>
+                      </td>
+                      <td className="small">{sg.text}</td>
+                      <td className="small muted">{sg.date ?? ''}</td>
+                      <td className="small">{sg.sourceUrl ? <a href={sg.sourceUrl} target="_blank" rel="noreferrer">source</a> : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div className="small muted" style={{ marginTop: '.5rem' }}>
+              confidence {Math.round((research.data.data.confidence ?? 0) * 100)}% · {fmtDate(research.data.data.researchedAt)} · {research.data.data.source}
+              {research.data.data.citations?.length > 0 && <> · sources: {research.data.data.citations.map((c: any, i: number) => <a key={i} href={c.url} target="_blank" rel="noreferrer" style={{ marginRight: 6 }}>{new URL(c.url).hostname}</a>)}</>}
+            </div>
+          </>
+        )}
+        <div style={{ marginTop: '.6rem' }}>
+          <button className="primary" disabled={researching} onClick={runResearch}>
+            {researching ? 'Researching…' : research.data?.data?.status === 'ready' ? 'Refresh research' : 'Research this prospect'}
+          </button>
         </div>
       </div>
       <h2>Emails</h2>

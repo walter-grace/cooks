@@ -409,6 +409,31 @@ export const TOOLS: ToolDef[] = [
     run: (api, a) => api.call('POST', '/tags', { body: { data: a } }),
   }),
   def({
+    name: 'cooks_research_prospect',
+    title: 'Research prospect (web)',
+    description: 'Run a web-grounded research brief on a prospect and their company (recent news, funding, hiring, leadership, tech) with source links. Uses the workspace AI provider; OpenRouter adds live web search. Waits up to ~60 s for the result.',
+    input: { id: uuid, focus: z.string().optional().describe('What you sell or want to learn'), force: z.boolean().optional().describe('Ignore the 7-day cache') },
+    run: async (api, a) => {
+      const before = await api.call<{ data: { researchedAt?: string } }>('GET', `/prospects/${a.id}/research`);
+      const prev = before.data.researchedAt;
+      await api.call('POST', `/prospects/${a.id}/actions/research`, { body: { data: { focus: a.focus, force: a.force } } });
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const now = await api.call<{ data: { status: string; researchedAt?: string } }>('GET', `/prospects/${a.id}/research`);
+        if (now.data.status === 'ready' && now.data.researchedAt !== prev) return now;
+      }
+      return { pending: true, hint: 'Still running; call cooks_get_research in a minute.' };
+    },
+  }),
+  def({
+    name: 'cooks_get_research',
+    title: 'Get research brief',
+    description: 'Fetch the latest stored research brief for a prospect.',
+    input: { id: uuid },
+    readOnly: true,
+    run: (api, a) => api.call('GET', `/prospects/${a.id}/research`),
+  }),
+  def({
     name: 'cooks_add_note',
     title: 'Add CRM note',
     description: 'Write a note on a prospect or account into the connected CRM. Fails with NO_CRM_CONNECTION when no CRM is connected.',

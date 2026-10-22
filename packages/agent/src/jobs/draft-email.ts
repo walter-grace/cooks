@@ -5,6 +5,7 @@ import { providerFor } from '../providers/registry.js';
 import type { LlmProvider } from '../providers/types.js';
 import { DRAFT_EMAIL_SYSTEM, DRAFT_EMAIL_VERSION, DraftEmailOutput, draftEmailUserPrompt, type DraftEmailInput } from '../contracts/draft-email.js';
 import { runStructured } from '../run-structured.js';
+import { latestResearch } from './research.js';
 
 export type DraftOutcome = { status: 'drafted' | 'needs_review'; emailId: string; runId: string } | { status: 'skipped'; reason: string } | { status: 'failed'; reason: string };
 
@@ -42,6 +43,7 @@ export async function draftEmailForTask(
         .limit(3)
     : [];
   const isReply = step.action.includes('reply');
+  const research = await latestResearch(d.db, task.prospectId).catch(() => null);
 
   const input: DraftEmailInput = {
     prospect: { firstName: prospect?.firstName ?? null, lastName: prospect?.lastName ?? null, title: prospect?.title ?? null, email: prospect?.primaryEmail ?? null, linkedInUrl: prospect?.linkedInUrl ?? null, custom: prospect?.crmCustomFields ?? {} },
@@ -52,6 +54,7 @@ export async function draftEmailForTask(
     agent: agent ? { persona: agent.persona ?? agent.systemPrompt ?? null, style: { ...agent.style } as Record<string, unknown>, topics: agent.topics, neverMention: agent.neverMention } : null,
     promptOverride: ai.promptOverride ?? null,
     stepNote: step.note ?? null,
+    research: research ? { summary: research.summary, talkingPoints: research.talkingPoints, signals: research.signals.map((x) => ({ kind: x.kind, text: x.text, sourceUrl: x.sourceUrl })) } : null,
     constraints: { maxWords: Number(agent?.style.lengthWords ?? 120), isReply, language: 'en' },
   };
 

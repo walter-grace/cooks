@@ -18,3 +18,4 @@ export * from './tracking.js';
 export * from './webhooks.js';
 export * from './workspace.js';
 export * from './ai.js';
+export * from './research.js';

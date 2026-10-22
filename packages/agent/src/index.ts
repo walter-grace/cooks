@@ -10,3 +10,5 @@ export * from './runs/store.js';
 export * from './run-structured.js';
 export * from './jobs/draft-email.js';
 export * from './jobs/classify-reply.js';
+export * from './contracts/research.js';
+export * from './jobs/research.js';

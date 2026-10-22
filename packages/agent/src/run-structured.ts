@@ -17,10 +17,13 @@ export interface StructuredJob<I, O> {
   parentType?: string;
   parentId?: string;
   agentId?: string | null;
+  web?: { maxResults?: number } | boolean;
+  /** Subset of the input used for the cache key (e.g. without the current date). */
+  cacheKeyInput?: unknown;
 }
 
 export type StructuredOutcome<O> =
-  | { status: 'ok'; value: O; runId: string; cached: boolean }
+  | { status: 'ok'; value: O; runId: string; cached: boolean; citations?: Array<{ url: string; title?: string }> }
   | { status: 'needs_review'; value: O; runId: string; reason: string }
   | { status: 'refused'; runId: string; reason: string }
   | { status: 'failed'; runId: string; error: string }
@@ -37,7 +40,7 @@ export async function runStructured<I, O>(
 ): Promise<StructuredOutcome<O>> {
   const now = d.now();
   if (d.cfg.monthlyBudgetUsd !== null && (await monthSpendUsd(d.db, d.workspaceId, now)) >= d.cfg.monthlyBudgetUsd) return { status: 'budget_exceeded', runId: null };
-  const hash = inputHash(job.kind, d.provider.model, job.version, job.input);
+  const hash = inputHash(job.kind, d.provider.model, job.version, job.cacheKeyInput ?? job.input);
   const runId = await startRun(d.db, { workspaceId: d.workspaceId, kind: job.kind, agentId: job.agentId, provider: d.provider.id, model: d.provider.model, parentType: job.parentType, parentId: job.parentId, input: job.input, inputHash: hash, logRaw: !!d.logRaw, now });
   if (job.cacheTtlMs !== null) {
     const hit = await cacheGet<O>(d.db, job.kind, d.provider.model, job.version, hash, now);
@@ -48,7 +51,7 @@ export async function runStructured<I, O>(
   }
   let result: StructuredResult<O>;
   try {
-    result = await d.provider.structured<O>({ system: job.system, user: job.userPrompt(job.input), schema: job.schema, schemaName: job.schemaName, effort: job.effort, maxTokens: job.maxTokens });
+    result = await d.provider.structured<O>({ system: job.system, user: job.userPrompt(job.input), schema: job.schema, schemaName: job.schemaName, effort: job.effort, maxTokens: job.maxTokens, web: job.web });
   } catch (e) {
     await finishRun(d.db, runId, { status: 'failed', error: (e as Error).message, now: d.now() });
     return { status: 'failed', runId, error: (e as Error).message };
@@ -62,7 +65,7 @@ export async function runStructured<I, O>(
     return { status: 'failed', runId, error: result.error };
   }
   const reason = judge(result.value);
-  await finishRun(d.db, runId, { status: reason ? 'needs_review' : 'succeeded', output: result.value as object, usage: result.usage, latencyMs: result.latencyMs, model: result.model, now: d.now() });
+  await finishRun(d.db, runId, { status: reason ? 'needs_review' : 'succeeded', output: { ...(result.value as object), ...(result.citations?.length ? { _citations: result.citations } : {}) }, usage: result.usage, latencyMs: result.latencyMs, model: result.model, now: d.now() });
   if (!reason && job.cacheTtlMs !== null && job.cacheTtlMs !== undefined) await cachePut(d.db, job.kind, d.provider.model, job.version, hash, result.value, job.cacheTtlMs, now);
-  return reason ? { status: 'needs_review', value: result.value, runId, reason } : { status: 'ok', value: result.value, runId, cached: false };
+  return reason ? { status: 'needs_review', value: result.value, runId, reason } : { status: 'ok', value: result.value, runId, cached: false, citations: result.citations };
 }

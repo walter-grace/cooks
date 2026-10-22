@@ -22,6 +22,8 @@ import {
   noCrmConnection,
   serializeSequenceStateRow,
   updateProspect,
+  getProspectResearch,
+  requestResearch,
 } from '@cooks/core';
 import { register, type Registrar } from '../register.js';
 import { listArgs } from './_util.js';
@@ -134,5 +136,36 @@ export function mountProspects(reg: Registrar) {
       // CRM connectors arrive in the CRM phase; until then the documented failure mode applies.
       throw noCrmConnection(c.req.valid('json').data.type);
     },
+  );
+  register(
+    reg,
+    createRoute({
+      method: 'post',
+      path: '/v1/prospects/{id}/actions/research',
+      operationId: 'researchProspect',
+      tags: ['Prospects'],
+      summary: 'Queue a web-grounded research brief for this prospect and their company',
+      request: { params: IdParam, body: { content: { 'application/json': { schema: z.object({ data: z.object({ focus: z.string().max(500).optional(), force: z.boolean().optional() }).optional() }) } }, required: false, description: 'Optional focus' } },
+      responses: { 202: jsonResponse(z.object({ queued: z.boolean(), prospectId: z.string() }), 'Queued'), ...errorResponses },
+    }),
+    { scope: 'agents:run', rateClass: 'default', extension: true },
+    async (c) => {
+      const body = (await c.req.json().catch(() => ({}))) as { data?: { focus?: string; force?: boolean } };
+      return c.json(await requestResearch(c.get('ctx'), c.req.valid('param').id, body.data ?? {}), 202);
+    },
+  );
+  register(
+    reg,
+    createRoute({
+      method: 'get',
+      path: '/v1/prospects/{id}/research',
+      operationId: 'getProspectResearch',
+      tags: ['Prospects'],
+      summary: 'Latest research brief with signals and source citations',
+      request: { params: IdParam },
+      responses: { 200: jsonResponse(dataOf(z.record(z.string(), z.unknown())), 'Brief or {status:"none"}'), ...errorResponses },
+    }),
+    { scope: 'prospects:read', rateClass: 'get', extension: true },
+    async (c) => c.json({ data: await getProspectResearch(c.get('ctx'), c.req.valid('param').id) }, 200),
   );
 }

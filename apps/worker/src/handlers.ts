@@ -12,7 +12,7 @@ import {
   type MailProvider,
 } from '@cooks/core';
 import { mailboxCredentials, type Db } from '@cooks/db';
-import { classifyReply, draftEmailForTask, type EnvKeys } from '@cooks/agent';
+import { classifyReply, draftEmailForTask, researchProspect, type EnvKeys } from '@cooks/agent';
 import { applyClassification, loadCreds, outboundProviderFor, registerOAuthInbound, syncMailbox, syncableMailboxIds, type ConnectorApps } from '@cooks/core';
 import { emails as emailsTable, prospects as prospectsTable, accounts as accountsTable } from '@cooks/db';
 import { eq } from 'drizzle-orm';
@@ -107,6 +107,7 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
     if (result.status !== 'ok' && result.status !== 'needs_review') return { skipped: result.status };
     return applyClassification(ctx, { inboundEmailId: inb.id, taskId: job.data.taskId, result: result.value, reviewed: result.status === 'needs_review' });
   }, 2);
+  void work<{ prospectId: string; workspaceId: string; focus?: string | null; force?: boolean }>('ai.research', (job) => researchProspect({ db: deps.db, env: deps.aiEnv, now: () => new Date() }, job.data.prospectId, { focus: job.data.focus, force: job.data.force }), 2);
   void work<{ taskId: string; workspaceId: string }>('ai.draft_email', (job) => draftEmailForTask({ db: deps.db, env: deps.aiEnv, now: () => new Date() }, job.data.taskId), 2);
   void work<Record<string, never>>('outbox.publish', async () => ({ published: await publishOutbox(deps.db, deps.jobs) }), 1);
   void work<Record<string, never>>('enrollment.start_pending', async () => ({ promoted: await startPendingEnrollments(mkCtx(deps, 'system')) }), 1);
