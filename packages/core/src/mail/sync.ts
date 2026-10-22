@@ -6,14 +6,15 @@ import { finishEnrollment, pauseEnrollment } from '../engine/transitions.js';
 import { processInbound, type InboundOutcome } from './inbound.js';
 import { ImapProvider, parseMailUrl } from './imap.js';
 import type { InboundProvider, SyncCursor } from './provider.js';
+import type { OAuthTokens } from './oauth-mail.js';
 import { emitEvent } from '../events.js';
 import { sql } from 'drizzle-orm';
 
 export interface MailboxCreds {
   smtpUrl?: string;
   imapUrl?: string;
-  google?: { refreshToken: string; accessToken?: string; expiresAt?: number; email?: string };
-  microsoft?: { refreshToken: string; accessToken?: string; expiresAt?: number; email?: string };
+  google?: OAuthTokens;
+  microsoft?: OAuthTokens;
 }
 
 export async function loadCreds(ctx: Ctx, mailboxId: string, kek: string | undefined): Promise<MailboxCreds | null> {

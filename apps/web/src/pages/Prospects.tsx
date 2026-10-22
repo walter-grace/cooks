@@ -1,96 +1,145 @@
 import { useState } from 'react';
+import { ExternalLink, Search, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
 import { api, fmtDate, q } from '../api.js';
-import { useApi, useToast } from '../hooks.js';
+import { useApi, toast } from '../hooks.js';
 import { Link, navigate } from '../router.js';
+import { Empty, PageHeader, StateBadge } from '../components/layout.js';
 
 export function Prospects() {
   const [search, setSearch] = useState('');
   const [after, setAfter] = useState<string | undefined>();
   const path = `/v1/prospects${q({ 'filter[primaryEmail]': search.includes('@') ? search : undefined, 'filter[name]': search && !search.includes('@') ? search : undefined, 'page[size]': 50, 'page[after]': after, include: 'sequenceStates' })}`;
-  const { data, error, reload } = useApi<{ data: any[]; links: any }>(path, [search, after]);
-  const { msg, toast } = useToast();
+  const { data, error, loading, reload } = useApi<{ data: any[]; links: any }>(path, [search, after]);
+  const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ firstName: '', lastName: '', title: '', primaryEmail: '', accountName: '' });
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    let accountId: string | undefined;
-    if (form.accountName) {
-      const found = await api<{ data: any[] }>(`/v1/accounts${q({ 'filter[name]': form.accountName })}`);
-      accountId = found.data[0]?.id ?? (await api('/v1/accounts', { method: 'POST', json: { data: { name: form.accountName } } })).data.id;
+    try {
+      let accountId: string | undefined;
+      if (form.accountName) {
+        const found = await api<{ data: any[] }>(`/v1/accounts${q({ 'filter[name]': form.accountName })}`);
+        accountId = found.data[0]?.id ?? (await api('/v1/accounts', { method: 'POST', json: { data: { name: form.accountName } } })).data.id;
+      }
+      await api('/v1/prospects', { method: 'POST', json: { data: { firstName: form.firstName, lastName: form.lastName || undefined, title: form.title || undefined, primaryEmail: form.primaryEmail || undefined, account: accountId ? { id: accountId } : undefined } } });
+      setForm({ firstName: '', lastName: '', title: '', primaryEmail: '', accountName: '' });
+      setOpen(false);
+      toast('Prospect created');
+      reload();
+    } catch (err: any) {
+      toast(err.message, 'error');
     }
-    await api('/v1/prospects', { method: 'POST', json: { data: { firstName: form.firstName, lastName: form.lastName || undefined, title: form.title || undefined, primaryEmail: form.primaryEmail || undefined, account: accountId ? { id: accountId } : undefined } } });
-    setForm({ firstName: '', lastName: '', title: '', primaryEmail: '', accountName: '' });
-    toast('Prospect created');
-    reload();
   };
 
   return (
     <>
-      <div className="row between">
-        <h1>Prospects</h1>
-        <input style={{ width: 280 }} placeholder="Exact name or email" value={search} onChange={(e) => (setAfter(undefined), setSearch(e.target.value))} />
-      </div>
-      <form className="inline card" onSubmit={create}>
-        <label>
-          First name
-          <input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
-        </label>
-        <label>
-          Last name
-          <input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
-        </label>
-        <label>
-          Title
-          <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-        </label>
-        <label>
-          Email
-          <input type="email" value={form.primaryEmail} onChange={(e) => setForm({ ...form, primaryEmail: e.target.value })} />
-        </label>
-        <label>
-          Company
-          <input value={form.accountName} onChange={(e) => setForm({ ...form, accountName: e.target.value })} />
-        </label>
-        <button className="primary">Add</button>
-      </form>
-      {error && <div className="err">{error}</div>}
-      {data && (
-        <>
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Title</th>
-                <th>Email</th>
-                <th>Enrollments</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
+      <PageHeader
+        title="Prospects"
+        description="People you are reaching out to, with their enrollments."
+        actions={
+          <>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+              <Input className="w-64 pl-8" placeholder="Exact name or email" value={search} onChange={(e) => (setAfter(undefined), setSearch(e.target.value))} />
+            </div>
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button data-testid="add-prospect">Add prospect</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>New prospect</DialogTitle>
+                </DialogHeader>
+                <form className="grid gap-3" onSubmit={create} id="prospect-form">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid gap-2">
+                      <Label>First name</Label>
+                      <Input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Last name</Label>
+                      <Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Title</Label>
+                    <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Email</Label>
+                    <Input type="email" value={form.primaryEmail} onChange={(e) => setForm({ ...form, primaryEmail: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Company</Label>
+                    <Input value={form.accountName} onChange={(e) => setForm({ ...form, accountName: e.target.value })} />
+                  </div>
+                </form>
+                <DialogFooter>
+                  <Button type="submit" form="prospect-form">
+                    Create
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </>
+        }
+      />
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      {loading && !data && <Skeleton className="h-48 w-full" />}
+      {data && data.data.length === 0 && <Empty>No prospects match. Add one, import from HubSpot in Settings, or let your assistant create them over MCP.</Empty>}
+      {data && data.data.length > 0 && (
+        <div className="rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Title</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Enrollments</TableHead>
+                <TableHead className="text-right">Created</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {data.data.map((p) => (
-                <tr key={p.id} className="clickable" onClick={() => navigate(`/prospects/${p.id}`)}>
-                  <td>{p.name ?? '—'}</td>
-                  <td className="muted">{p.title}</td>
-                  <td className="small">{p.primaryEmail}</td>
-                  <td>
+                <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/prospects/${p.id}`)} data-testid="prospect-row">
+                  <TableCell className="font-medium">{p.name ?? '—'}</TableCell>
+                  <TableCell className="text-muted-foreground">{p.title}</TableCell>
+                  <TableCell className="text-sm">{p.primaryEmail}</TableCell>
+                  <TableCell className="space-x-1">
                     {p.sequenceStates.map((s: any) => (
-                      <span key={s.id} className={`pill ${s.state === 'active' ? 'ok' : s.state === 'paused' ? 'warn' : ''}`}>
-                        {s.state}
-                      </span>
+                      <StateBadge key={s.id} state={s.state} />
                     ))}
-                  </td>
-                  <td className="small muted">{fmtDate(p.createdAt)}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="text-right text-xs text-muted-foreground">{fmtDate(p.createdAt)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-          <div className="row" style={{ marginTop: '.75rem' }}>
-            {data.links.next && <button onClick={() => setAfter(new URL(data.links.next, location.origin).searchParams.get('page[after]') ?? undefined)}>Next page</button>}
-            {after && <button onClick={() => setAfter(undefined)}>First page</button>}
-          </div>
-        </>
+            </TableBody>
+          </Table>
+        </div>
       )}
-      {msg && <div className="toast">{msg}</div>}
+      {data && (data.links.next || after) && (
+        <div className="mt-3 flex gap-2">
+          {data.links.next && (
+            <Button variant="outline" size="sm" onClick={() => setAfter(new URL(data.links.next, location.origin).searchParams.get('page[after]') ?? undefined)}>
+              Next page
+            </Button>
+          )}
+          {after && (
+            <Button variant="ghost" size="sm" onClick={() => setAfter(undefined)}>
+              First page
+            </Button>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -102,21 +151,9 @@ export function ProspectDetail({ id }: { id: string }) {
   const seqs = useApi<{ data: any[] }>('/v1/sequences?page[size]=100');
   const research = useApi<{ data: any }>(`/v1/prospects/${id}/research`);
   const [researching, setResearching] = useState(false);
-  const runResearch = async () => {
-    setResearching(true);
-    const prev = research.data?.data?.researchedAt;
-    await api(`/v1/prospects/${id}/actions/research`, { method: 'POST', json: { data: { force: true } } });
-    for (let i = 0; i < 40; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
-      const now = await api(`/v1/prospects/${id}/research`);
-      if (now.data.status === 'ready' && now.data.researchedAt !== prev) break;
-    }
-    research.reload();
-    setResearching(false);
-  };
-  const { msg, toast } = useToast();
   const [seqId, setSeqId] = useState('');
   const p = data?.data;
+
   const enroll = async () => {
     const me = await api('/v1/me');
     const owner = me.data.userId ?? (await api('/v1/users?page[size]=1')).data[0]?.id;
@@ -125,137 +162,215 @@ export function ProspectDetail({ id }: { id: string }) {
       toast('Enrolled');
       reload();
     } catch (e: any) {
-      toast(e.message);
+      toast(e.message, 'error');
     }
   };
-  if (error) return <div className="err">{error}</div>;
-  if (!p) return <p className="muted">Loading…</p>;
+  const runResearch = async () => {
+    setResearching(true);
+    const prev = research.data?.data?.researchedAt;
+    try {
+      await api(`/v1/prospects/${id}/actions/research`, { method: 'POST', json: { data: { force: true } } });
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const now = await api(`/v1/prospects/${id}/research`);
+        if (now.data.status === 'ready' && now.data.researchedAt !== prev) break;
+      }
+      research.reload();
+    } catch (e: any) {
+      toast(e.message, 'error');
+    } finally {
+      setResearching(false);
+    }
+  };
+  const transition = async (stateId: string, verb: 'pause' | 'resume' | 'finish') => {
+    await api(`/v1/sequenceStates/${stateId}/actions/${verb}`, { method: 'POST' });
+    reload();
+  };
+
+  if (error) return <p className="text-sm text-destructive">{error}</p>;
+  if (!p) return <Skeleton className="h-48 w-full" />;
+  const r = research.data?.data;
   return (
     <>
-      <p className="small">
-        <Link to="/prospects">← Prospects</Link>
-      </p>
-      <h1>{p.name ?? p.primaryEmail}</h1>
-      <div className="grid">
-        <div className="card">
-          <div className="muted small">Title</div>
-          {p.title ?? '—'}
-          <div className="muted small" style={{ marginTop: '.5rem' }}>Email</div>
-          {p.primaryEmail ?? '—'}
-          <div className="muted small" style={{ marginTop: '.5rem' }}>LinkedIn</div>
-          {p.linkedInUrl ? <a href={p.linkedInUrl}>{p.linkedInUrl}</a> : '—'}
-        </div>
-        <div className="card">
-          <div className="muted small">Enrollments</div>
-          {p.sequenceStates.length === 0 && <div className="muted">None</div>}
-          {p.sequenceStates.map((s: any) => (
-            <div key={s.id} className="row between" style={{ marginTop: '.3rem' }}>
-              <Link to={`/sequences/${s.sequence.id}`}>{s.sequence.id.slice(0, 8)}…</Link>
-              <span className={`pill ${s.state === 'active' ? 'ok' : s.state === 'paused' ? 'warn' : ''}`}>{s.state}</span>
-              {s.state === 'active' && (
-                <button onClick={() => api(`/v1/sequenceStates/${s.id}/actions/pause`, { method: 'POST' }).then(reload)}>Pause</button>
-              )}
-              {s.state === 'paused' && (
-                <button onClick={() => api(`/v1/sequenceStates/${s.id}/actions/resume`, { method: 'POST' }).then(reload)}>Resume</button>
-              )}
-              {s.state !== 'finished' && (
-                <button className="danger" onClick={() => api(`/v1/sequenceStates/${s.id}/actions/finish`, { method: 'POST' }).then(reload)}>
-                  Finish
-                </button>
-              )}
+      <Link to="/prospects" className="text-sm text-muted-foreground hover:underline">
+        ← Prospects
+      </Link>
+      <PageHeader title={p.name ?? p.primaryEmail} description={[p.title, p.primaryEmail].filter(Boolean).join(' · ')} />
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Profile</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2 text-sm">
+            <Row k="Title" v={p.title} />
+            <Row k="Email" v={p.primaryEmail} />
+            <Row k="LinkedIn" v={p.linkedInUrl ? <a className="inline-flex items-center gap-1 hover:underline" href={p.linkedInUrl} target="_blank" rel="noreferrer">profile <ExternalLink className="size-3" /></a> : null} />
+            <Row k="CRM id" v={p.crmId} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Enrollments</CardTitle>
+            <CardDescription>Sequences this prospect is in</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {p.sequenceStates.length === 0 && <p className="text-sm text-muted-foreground">Not enrolled anywhere yet.</p>}
+            {p.sequenceStates.map((s: any) => (
+              <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <Link to={`/sequences/${s.sequence.id}`} className="font-medium hover:underline">
+                  {seqs.data?.data.find((x) => x.id === s.sequence.id)?.name ?? `Sequence ${s.sequence.id.slice(0, 8)}…`}
+                </Link>
+                <div className="flex items-center gap-1">
+                  <StateBadge state={s.state} />
+                  {s.state === 'active' && (
+                    <Button size="sm" variant="outline" onClick={() => transition(s.id, 'pause')}>
+                      Pause
+                    </Button>
+                  )}
+                  {s.state === 'paused' && (
+                    <Button size="sm" variant="outline" onClick={() => transition(s.id, 'resume')}>
+                      Resume
+                    </Button>
+                  )}
+                  {s.state !== 'finished' && (
+                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => transition(s.id, 'finish')}>
+                      Finish
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <Select value={seqId} onValueChange={setSeqId}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Enroll in a sequence…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {seqs.data?.data.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button disabled={!seqId} onClick={enroll}>
+                Enroll
+              </Button>
             </div>
-          ))}
-          <div className="row" style={{ marginTop: '.75rem' }}>
-            <select value={seqId} onChange={(e) => setSeqId(e.target.value)}>
-              <option value="">Enroll in…</option>
-              {seqs.data?.data.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <button className="primary" disabled={!seqId} onClick={enroll}>
-              Enroll
-            </button>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
-      <h2>Research</h2>
-      <div className="card">
-        {research.data?.data?.status !== 'ready' && <p className="muted small">No brief yet. Research uses the workspace AI provider; with OpenRouter it searches the live web and cites sources.</p>}
-        {research.data?.data?.status === 'ready' && (
-          <>
-            <p style={{ marginTop: 0 }}>{research.data.data.summary}</p>
-            {research.data.data.talkingPoints?.length > 0 && (
-              <ul className="steps">
-                {research.data.data.talkingPoints.map((t: string, i: number) => (
+
+      <Card className="mt-4" data-testid="research-card">
+        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="size-4" /> Research
+            </CardTitle>
+            <CardDescription>A web-grounded brief from the workspace AI provider, with sources.</CardDescription>
+          </div>
+          <Button variant={r?.status === 'ready' ? 'outline' : 'default'} disabled={researching} onClick={runResearch}>
+            {researching ? 'Researching…' : r?.status === 'ready' ? 'Refresh' : 'Research this prospect'}
+          </Button>
+        </CardHeader>
+        {r?.status === 'ready' && (
+          <CardContent className="grid gap-3 text-sm">
+            <p>{r.summary}</p>
+            {r.talkingPoints?.length > 0 && (
+              <ul className="list-disc space-y-1 pl-5">
+                {r.talkingPoints.map((t: string, i: number) => (
                   <li key={i}>{t}</li>
                 ))}
               </ul>
             )}
-            {research.data.data.signals?.length > 0 && (
-              <table>
-                <tbody>
-                  {research.data.data.signals.map((sg: any) => (
-                    <tr key={sg.id}>
-                      <td>
-                        <span className="pill">{sg.kind}</span>
-                      </td>
-                      <td className="small">{sg.text}</td>
-                      <td className="small muted">{sg.date ?? ''}</td>
-                      <td className="small">{sg.sourceUrl ? <a href={sg.sourceUrl} target="_blank" rel="noreferrer">source</a> : ''}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {r.signals?.length > 0 && (
+              <div className="rounded-md border">
+                <Table>
+                  <TableBody>
+                    {r.signals.map((sg: any) => (
+                      <TableRow key={sg.id}>
+                        <TableCell className="w-28">
+                          <Badge variant="outline">{sg.kind}</Badge>
+                        </TableCell>
+                        <TableCell>{sg.text}</TableCell>
+                        <TableCell className="w-28 text-xs text-muted-foreground">{sg.date ?? ''}</TableCell>
+                        <TableCell className="w-20 text-right">{sg.sourceUrl && <a className="text-xs hover:underline" href={sg.sourceUrl} target="_blank" rel="noreferrer">source</a>}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
-            <div className="small muted" style={{ marginTop: '.5rem' }}>
-              confidence {Math.round((research.data.data.confidence ?? 0) * 100)}% · {fmtDate(research.data.data.researchedAt)} · {research.data.data.source}
-              {research.data.data.citations?.length > 0 && <> · sources: {research.data.data.citations.map((c: any, i: number) => <a key={i} href={c.url} target="_blank" rel="noreferrer" style={{ marginRight: 6 }}>{new URL(c.url).hostname}</a>)}</>}
+            <div className="text-xs text-muted-foreground">
+              confidence {Math.round((r.confidence ?? 0) * 100)}% · {fmtDate(r.researchedAt)} · {r.source}
+              {r.citations?.length > 0 && (
+                <>
+                  {' '}
+                  · sources:{' '}
+                  {r.citations.map((c: any, i: number) => (
+                    <a key={i} href={c.url} target="_blank" rel="noreferrer" className="mr-1 hover:underline">
+                      {new URL(c.url).hostname}
+                    </a>
+                  ))}
+                </>
+              )}
             </div>
-          </>
+          </CardContent>
         )}
-        <div style={{ marginTop: '.6rem' }}>
-          <button className="primary" disabled={researching} onClick={runResearch}>
-            {researching ? 'Researching…' : research.data?.data?.status === 'ready' ? 'Refresh research' : 'Research this prospect'}
-          </button>
-        </div>
+      </Card>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Emails</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2 text-sm">
+            {emails.data?.data.length === 0 && <p className="text-muted-foreground">None yet.</p>}
+            {emails.data?.data.map((e) => (
+              <div key={e.id} className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate">{e.subject || '(no subject)'}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {fmtDate(e.date ?? e.createdAt)} {e.openCount ? `· ${e.openCount} opens` : ''} {e.clickCount ? `· ${e.clickCount} clicks` : ''} {e.repliedAt ? '· replied' : ''}
+                  </div>
+                </div>
+                <StateBadge state={e.status} />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Tasks</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2 text-sm">
+            {tasks.data?.data.length === 0 && <p className="text-muted-foreground">None yet.</p>}
+            {tasks.data?.data.map((t) => (
+              <div key={t.id} className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <Badge variant="outline">{t.action.replace(/_/g, ' ')}</Badge>
+                  <div className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{t.note}</div>
+                </div>
+                <div className="text-right text-xs text-muted-foreground">
+                  {fmtDate(t.dueAt)}
+                  <div>
+                    <StateBadge state={t.status} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
-      <h2>Emails</h2>
-      <table>
-        <tbody>
-          {emails.data?.data.map((e) => (
-            <tr key={e.id}>
-              <td className="small muted">{fmtDate(e.date ?? e.createdAt)}</td>
-              <td>
-                <span className="pill">{e.status}</span>
-              </td>
-              <td>{e.subject}</td>
-              <td className="small muted">{e.openCount ? `${e.openCount} opens` : ''} {e.clickCount ? `· ${e.clickCount} clicks` : ''} {e.repliedAt ? '· replied' : ''}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <h2>Tasks</h2>
-      <table>
-        <tbody>
-          {tasks.data?.data.map((t) => (
-            <tr key={t.id}>
-              <td className="small muted">{fmtDate(t.dueAt)}</td>
-              <td>
-                <span className="pill">{t.action.replace(/_/g, ' ')}</span>
-              </td>
-              <td className="small" style={{ whiteSpace: 'pre-wrap' }}>
-                {t.note}
-              </td>
-              <td>
-                <span className={`pill ${t.completed ? 'ok' : ''}`}>{t.status}</span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {msg && <div className="toast">{msg}</div>}
     </>
+  );
+}
+
+function Row({ k, v }: { k: string; v: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <span className="text-muted-foreground">{k}</span>
+      <span className="text-right">{v || '—'}</span>
+    </div>
   );
 }

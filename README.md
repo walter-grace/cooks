@@ -24,14 +24,15 @@ the AI brought by whatever model you already pay for.
 | M5 webhooks (`call.logged` compatible + Cooks events, signed, retried) | done |
 | Hosted AI agents: AI email drafts on `aiEmail` steps, reply classification, run ledger with cost, per-workspace provider (Anthropic, xAI/Grok, OpenAI, OpenRouter, Ollama) | done |
 | Inbound mail: IMAP / Gmail / Microsoft 365 sync, replies, bounces, out-of-office | done |
-| Web UI at `/app` (tasks, prospects, sequences, emails, settings) | done |
+| Web UI at `/app` built on shadcn/ui (tasks, prospects, sequences, emails, settings) | done |
+| Clerk SSO: organizations become workspaces, Gmail / Microsoft 365 / HubSpot connect with the tokens Clerk holds | done |
 | HubSpot: token or OAuth connect, contact/company sync, list and deal-stage auto-enroll, notes + email/call logging | done |
 | Web-grounded prospect research (OpenRouter web search) | done |
 | Later: dialer (Twilio Voice), Salesforce, signals, coaching | planned |
 
 ## Run it locally
 
-Requirements: Node 22+, pnpm 9, Postgres 15+ (Homebrew works), optional Mailpit for email. Sign in at `/app` with the email and `--password` you gave to `pnpm bootstrap`.
+Requirements: Node 22+, pnpm 9, Postgres 15+ (Homebrew works), optional Mailpit for email. Sign in at `/app` with the email and `--password` you gave to `pnpm bootstrap`, or set `CLERK_SECRET_KEY` and let your team in through Clerk SSO (see `docs/auth.md`).
 
 ```bash
 pnpm install

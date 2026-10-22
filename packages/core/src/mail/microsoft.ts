@@ -30,9 +30,15 @@ export class MicrosoftTokenSource {
     public tokens: OAuthTokens,
     private onRefresh?: (t: OAuthTokens) => Promise<void>,
     private tenant = 'common',
+    private refresher?: () => Promise<OAuthTokens>,
   ) {}
   async token(): Promise<string> {
     if (this.tokens.accessToken && (this.tokens.expiresAt ?? 0) > Date.now() + 60_000) return this.tokens.accessToken;
+    if (this.refresher) {
+      this.tokens = await this.refresher();
+      await this.onRefresh?.(this.tokens);
+      return this.tokens.accessToken!;
+    }
     const t = await postForm(this.fetchImpl, `https://login.microsoftonline.com/${this.tenant}/oauth2/v2.0/token`, { refresh_token: this.tokens.refreshToken, client_id: this.app.clientId, client_secret: this.app.clientSecret, grant_type: 'refresh_token', scope: MS_SCOPES.join(' ') });
     this.tokens = { ...this.tokens, accessToken: String(t.access_token), refreshToken: String(t.refresh_token ?? this.tokens.refreshToken), expiresAt: Date.now() + Number(t.expires_in ?? 3600) * 1000 };
     await this.onRefresh?.(this.tokens);

@@ -30,6 +30,8 @@ export interface WorkerDeps {
   aiEnv: EnvKeys;
   connectorApps: ConnectorApps;
   hubspotApp?: { clientId: string; clientSecret: string };
+  brokerToken?: (userId: string, provider: 'google' | 'microsoft' | 'hubspot') => Promise<{ refreshToken: string; accessToken?: string; expiresAt?: number; viaClerk?: boolean } | null>;
+  brokerHubspotToken?: (clerkUserId: string) => Promise<{ accessToken: string; expiresAt?: number } | null>;
   log: (msg: string, data?: Record<string, unknown>) => void;
 }
 
@@ -63,14 +65,14 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
     advanceEnrollment(mkCtx(deps, job.data.workspaceId), job.data.stateId, job.data.prevDoneAt ? { prevDoneAt: new Date(job.data.prevDoneAt) } : {}),
   );
   void work<{ stateId: string; stepId: string; workspaceId: string }>('step.execute', (job) => executeStep(mkCtx(deps, job.data.workspaceId), job.data.stateId, job.data.stepId));
-  registerOAuthInbound({ db: deps.db, kek: deps.kek, apps: deps.connectorApps });
+  registerOAuthInbound({ db: deps.db, kek: deps.kek, apps: deps.connectorApps, brokerToken: deps.brokerToken });
   const providerCache = new Map<string, MailProvider>();
   const providerFor = async (mailbox: Parameters<typeof outboundProviderFor>[1] | null): Promise<MailProvider> => {
     if (!mailbox) return deps.mailProvider;
     const cached = providerCache.get(mailbox.id);
     if (cached) return cached;
     const creds = await loadCreds(mkCtx(deps, mailbox.workspaceId), mailbox.id, deps.kek);
-    const p = outboundProviderFor({ db: deps.db, kek: deps.kek, apps: deps.connectorApps, fallback: deps.mailProvider }, mailbox, creds);
+    const p = outboundProviderFor({ db: deps.db, kek: deps.kek, apps: deps.connectorApps, fallback: deps.mailProvider, brokerToken: deps.brokerToken }, mailbox, creds);
     providerCache.set(mailbox.id, p);
     return p;
   };
@@ -114,7 +116,7 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
   void work<Record<string, never>>('outbox.publish', async () => ({ published: await publishOutbox(deps.db, deps.jobs, { onEvent: (ev) => dispatchInternal(deps, ev) }) }), 1);
   void work<{ workspaceId: string; emailId?: string; taskId?: string }>('crm.sync', async (job) => {
     const ctx = mkCtx(deps, job.data.workspaceId);
-    const d = { kek: deps.kek, hubspotApp: deps.hubspotApp };
+    const d = { kek: deps.kek, hubspotApp: deps.hubspotApp, brokerHubspotToken: deps.brokerHubspotToken };
     if (job.data.emailId) return { email: await logEmailToHubspot(ctx, job.data.emailId, d) };
     if (job.data.taskId) return { call: await logCallTaskToHubspot(ctx, job.data.taskId, d) };
     return { skipped: true };
@@ -127,7 +129,7 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
       for (const rule of s.autoEnroll ?? []) {
         if (!rule.enabled) continue;
         try {
-          out[`${row.workspaceId}:${rule.id}`] = await runAutoEnrollRule(mkCtx(deps, row.workspaceId), rule, { kek: deps.kek, hubspotApp: deps.hubspotApp });
+          out[`${row.workspaceId}:${rule.id}`] = await runAutoEnrollRule(mkCtx(deps, row.workspaceId), rule, { kek: deps.kek, hubspotApp: deps.hubspotApp, brokerHubspotToken: deps.brokerHubspotToken });
         } catch (e) {
           out[`${row.workspaceId}:${rule.id}`] = { error: (e as Error).message };
         }

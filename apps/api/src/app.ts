@@ -16,6 +16,8 @@ import { mountRoutes } from './routes/index.js';
 import { mountTracking } from './routes/tracking.js';
 import { makeVerifyJwt, mountOAuth } from './oauth/routes.js';
 import { mountConnect } from './routes/connect.js';
+import { clerkBrokers, mountClerkAuth, mountClerkConnectors } from './routes/clerk.js';
+import type { ClerkGateway } from '@cooks/auth';
 import type { ConnectorApps } from '@cooks/core';
 import type { ActiveKey } from '@cooks/auth';
 import { SCOPES, SCOPE_DESCRIPTIONS } from '@cooks/core';
@@ -40,6 +42,8 @@ export interface AppDeps {
   /** Gmail / Microsoft 365 OAuth apps for mailbox connectors. */
   connectorApps?: ConnectorApps;
   msTenant?: string;
+  /** Clerk SSO (optional). With it, sign-in and provider tokens come from Clerk. */
+  clerk?: { gateway: ClerkGateway; publishableKey?: string; defaultWorkspaceSlug?: string };
   /** HubSpot OAuth app (optional; private-app tokens work without it). */
   hubspotApp?: { clientId: string; clientSecret: string };
   /** Directory with the built web UI (apps/web/dist). Served at /app with SPA fallback. */
@@ -111,8 +115,12 @@ export function createApp(deps: AppDeps) {
     await next();
   });
 
-  const reg: Registrar = { app, store, now: () => clock.now(), registry: [], crmDeps: { kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp } };
-  mountRoutes(reg, { publicIps: deps.publicIps ?? [], kek: deps.kek, fetchImpl: deps.fetchImpl, keyPrefix: deps.keyPrefix, crm: { db: deps.db, publicUrl, now: () => clock.now(), kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp } });
+  const brokers = deps.clerk ? clerkBrokers(deps.db, deps.clerk.gateway) : undefined;
+  const reg: Registrar = { app, store, now: () => clock.now(), registry: [], crmDeps: { kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp, brokerHubspotToken: brokers?.brokerHubspotToken } };
+  mountRoutes(reg, { publicIps: deps.publicIps ?? [], kek: deps.kek, fetchImpl: deps.fetchImpl, keyPrefix: deps.keyPrefix, crm: { db: deps.db, publicUrl, now: () => clock.now(), kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp, brokerHubspotToken: brokers?.brokerHubspotToken } });
+  const secureCookies = deps.oauth?.secureCookies ?? publicUrl.startsWith('https');
+  mountClerkAuth(app, deps.clerk ? { gateway: deps.clerk.gateway, publishableKey: deps.clerk.publishableKey, defaultWorkspaceSlug: deps.clerk.defaultWorkspaceSlug, db: deps.db, kek: deps.kek, clock, secureCookies, crm: reg.crmDeps } : null);
+  if (deps.clerk) mountClerkConnectors(reg, { gateway: deps.clerk.gateway, publishableKey: deps.clerk.publishableKey, defaultWorkspaceSlug: deps.clerk.defaultWorkspaceSlug, db: deps.db, kek: deps.kek, clock, secureCookies, crm: reg.crmDeps });
   mountTracking(app, { db: deps.db, secret: deps.kek ?? 'cooks-dev', clock, jobs, publicUrl });
   mountConnect(app, { db: deps.db, publicUrl, kek: deps.kek, apps: deps.connectorApps ?? {}, msTenant: deps.msTenant, fetchImpl: deps.fetchImpl, now: () => clock.now() });
   if (deps.oauth) mountOAuth(app, { db: deps.db, issuer: publicUrl, key: deps.oauth.key, clock, dcrEnabled: deps.oauth.dcrEnabled ?? true, secureCookies: deps.oauth.secureCookies ?? publicUrl.startsWith('https') });

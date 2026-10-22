@@ -75,9 +75,15 @@ export class HubSpotClient {
     private auth: HubSpotAuth,
     private app?: HubSpotApp,
     private onRefresh?: (a: HubSpotAuth) => Promise<void>,
+    private refresher?: () => Promise<HubSpotAuth>,
   ) {}
 
   private async token(): Promise<string> {
+    if (this.refresher && (this.auth.expiresAt ?? Infinity) < Date.now() + 60_000) {
+      this.auth = await this.refresher();
+      await this.onRefresh?.(this.auth);
+      return this.auth.accessToken;
+    }
     if (this.auth.refreshToken && this.app && (this.auth.expiresAt ?? Infinity) < Date.now() + 60_000) {
       const res = await this.fetchImpl(`${API}/oauth/v1/token`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'refresh_token', client_id: this.app.clientId, client_secret: this.app.clientSecret, refresh_token: this.auth.refreshToken }).toString() });
       const j = (await res.json()) as { access_token: string; refresh_token?: string; expires_in: number };

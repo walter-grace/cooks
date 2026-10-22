@@ -5,7 +5,7 @@ import { serve } from '@hono/node-server';
 import { loadEnv } from '@cooks/config';
 import { createDb, runMigrations } from '@cooks/db';
 import { createBoss, PgBossJobs } from '@cooks/jobs';
-import { ensureSigningKey } from '@cooks/auth';
+import { clerkGateway, ensureSigningKey } from '@cooks/auth';
 import { createApp } from './app.js';
 import { PgRateLimitStore } from './middleware/rate-limit.js';
 
@@ -28,6 +28,7 @@ const { app, registry } = createApp({
     ...(env.MS_CLIENT_ID && env.MS_CLIENT_SECRET ? { microsoft: { clientId: env.MS_CLIENT_ID, clientSecret: env.MS_CLIENT_SECRET } } : {}),
   },
   msTenant: env.MS_TENANT,
+  clerk: env.CLERK_SECRET_KEY ? { gateway: clerkGateway(env.CLERK_SECRET_KEY, { publishableKey: env.CLERK_PUBLISHABLE_KEY, jwtKey: env.CLERK_JWT_KEY }), publishableKey: env.CLERK_PUBLISHABLE_KEY, defaultWorkspaceSlug: env.COOKS_CLERK_DEFAULT_WORKSPACE } : undefined,
   hubspotApp: process.env.HUBSPOT_CLIENT_ID && process.env.HUBSPOT_CLIENT_SECRET ? { clientId: process.env.HUBSPOT_CLIENT_ID, clientSecret: process.env.HUBSPOT_CLIENT_SECRET } : undefined,
   webDir: [join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist'), process.env.COOKS_WEB_DIR ?? ''].find((d) => d && existsSync(join(d, 'index.html'))),
   acceptNooksPrefix: env.COOKS_ACCEPT_NOOKS_PREFIX,

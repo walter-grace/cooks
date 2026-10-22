@@ -13,7 +13,7 @@ export type MailboxRow = typeof mailboxes.$inferSelect;
 export const MAILBOX_INCLUDES = ['user'] as const;
 
 export function serializeMailbox(m: MailboxRow, user?: typeof users.$inferSelect) {
-  return { id: m.id, email: m.email, isDefault: m.isDefault, user: user ? serializeUser(user) : ref('users', m.userId), createdAt: isoReq(m.createdAt), updatedAt: isoReq(m.updatedAt) };
+  return { id: m.id, email: m.email, provider: m.provider, isDefault: m.isDefault, user: user ? serializeUser(user) : ref('users', m.userId), createdAt: isoReq(m.createdAt), updatedAt: isoReq(m.updatedAt) };
 }
 
 async function serializeMailboxes(ctx: Ctx, rows: MailboxRow[], includes: string[]) {

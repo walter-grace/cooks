@@ -3,7 +3,9 @@
  * Tokens live in mailbox_credentials (encrypted). Access tokens are refreshed on demand.
  */
 export interface OAuthTokens {
+  /** Empty when the token is managed elsewhere (Clerk) and refreshed through `refresher`. */
   refreshToken: string;
+  viaClerk?: boolean;
   accessToken?: string;
   expiresAt?: number;
   email?: string;

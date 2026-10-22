@@ -55,6 +55,11 @@ const EnvSchema = z.object({
   MS_CLIENT_ID: z.string().optional(),
   MS_CLIENT_SECRET: z.string().optional(),
   MS_TENANT: z.string().default('common'),
+  CLERK_SECRET_KEY: z.string().optional(),
+  CLERK_PUBLISHABLE_KEY: z.string().optional(),
+  CLERK_JWT_KEY: z.string().optional(),
+  /** Workspace slug that Clerk users without an organization join. */
+  COOKS_CLERK_DEFAULT_WORKSPACE: z.string().optional(),
   HUBSPOT_CLIENT_ID: z.string().optional(),
   HUBSPOT_CLIENT_SECRET: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),

@@ -3,6 +3,9 @@ import { createDb, runMigrations } from '@cooks/db';
 import { createBoss, PgBossJobs } from '@cooks/jobs';
 import { MemoryMailProvider, SmtpProvider } from '@cooks/core';
 import { registerHandlers, registerSchedules, startOutboxLoop } from './handlers.js';
+import { clerkGateway } from '@cooks/auth';
+import { eq } from 'drizzle-orm';
+import { users } from '@cooks/db';
 
 const env = loadEnv();
 const handle = createDb(env.DATABASE_URL, { max: 5 });
@@ -14,7 +17,22 @@ const dryRun = process.env.COOKS_MAIL_DRY_RUN === 'true';
 const mailProvider = dryRun ? new MemoryMailProvider() : new SmtpProvider(env.SMTP_URL);
 if (!dryRun) await (mailProvider as SmtpProvider).verify().catch((e: Error) => console.warn(`[worker] SMTP not reachable at ${env.SMTP_URL}: ${e.message}`));
 
+const gateway = env.CLERK_SECRET_KEY ? clerkGateway(env.CLERK_SECRET_KEY, { publishableKey: env.CLERK_PUBLISHABLE_KEY, jwtKey: env.CLERK_JWT_KEY }) : null;
+const clerkIdOf = async (userId: string) => (await handle.db.select({ c: users.clerkUserId }).from(users).where(eq(users.id, userId)).limit(1))[0]?.c ?? null;
 const workerDeps = {
+  brokerToken: gateway
+    ? async (userId: string, provider: 'google' | 'microsoft' | 'hubspot') => {
+        const cid = await clerkIdOf(userId);
+        const t = cid ? await gateway.getProviderToken(cid, provider) : null;
+        return t ? { refreshToken: '', accessToken: t.token, expiresAt: t.expiresAt ?? Date.now() + 50 * 60_000, viaClerk: true } : null;
+      }
+    : undefined,
+  brokerHubspotToken: gateway
+    ? async (clerkUserId: string) => {
+        const t = await gateway.getProviderToken(clerkUserId, 'hubspot');
+        return t ? { accessToken: t.token, expiresAt: t.expiresAt ?? Date.now() + 25 * 60_000 } : null;
+      }
+    : undefined,
   db: handle.db,
   jobs,
   publicUrl: env.COOKS_PUBLIC_URL,

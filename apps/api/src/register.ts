@@ -1,5 +1,5 @@
 import type { OpenAPIHono, RouteConfig, RouteHandler } from '@hono/zod-openapi';
-import { assertScope, type Scope } from '@cooks/core';
+import { assertScope, type CrmDeps, type Scope } from '@cooks/core';
 import { enforceRateLimit, type RateClass, type RateLimitStore } from './middleware/rate-limit.js';
 import type { AppEnv } from './types.js';
 
@@ -12,8 +12,8 @@ export interface RouteMeta {
 
 export interface Registrar {
   app: OpenAPIHono<AppEnv>;
-  /** KEK, outbound fetch and OAuth apps for CRM calls made from route handlers. */
-  crmDeps: { kek?: string; fetchImpl?: typeof fetch; hubspotApp?: { clientId: string; clientSecret: string } };
+  /** KEK, outbound fetch, OAuth apps and token brokers for CRM calls made from route handlers. */
+  crmDeps: CrmDeps;
   store: RateLimitStore;
   now: () => Date;
   registry: Array<{ method: string; path: string; operationId?: string; meta: RouteMeta }>;

@@ -9,6 +9,8 @@ export const workspaces = pgTable('workspaces', {
   id: id(),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
+  /** Clerk organization id when workspaces are provisioned from Clerk SSO. */
+  clerkOrgId: text('clerk_org_id').unique(),
   /** send window, timezone, reply behavior, tracking flags, jitter, caps */
   settings: jsonb('settings').$type<WorkspaceSettings>().notNull().default({}),
   ...timestamps,
@@ -37,6 +39,7 @@ export const users = pgTable(
     calendarUrl: text('calendar_url'),
     signatureHtml: text('signature_html'),
     passwordHash: text('password_hash'),
+    clerkUserId: text('clerk_user_id').unique(),
     ...timestamps,
   },
   (t) => [uniqueIndex('users_email_ci_uq').on(sql`lower(${t.email})`)],

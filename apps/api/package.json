@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts"
   },
   "dependencies": {
+    "@clerk/backend": "^2",
     "@cooks/agent": "workspace:*",
     "@cooks/auth": "workspace:*",
     "@cooks/config": "workspace:*",

@@ -13,6 +13,7 @@
     "@cooks/config": "workspace:*",
     "@cooks/db": "workspace:*",
     "drizzle-orm": "^0.45.0",
-    "jose": "^6.0.0"
+    "jose": "^6.0.0",
+    "@clerk/backend": "^2"
   }
 }

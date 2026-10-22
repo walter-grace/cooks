@@ -8,7 +8,7 @@ import { fullName } from '../services/prospects.js';
 import { HubSpotClient, HubSpotError, type HubSpotApp, type HubSpotAuth } from './hubspot.js';
 
 export interface CrmCredentials {
-  hubspot?: HubSpotAuth & { portalId?: number; kind: 'private_app' | 'oauth' };
+  hubspot?: HubSpotAuth & { portalId?: number; kind: 'private_app' | 'oauth' | 'clerk'; clerkUserId?: string };
 }
 
 export interface AutoEnrollRule {
@@ -35,6 +35,8 @@ export interface CrmDeps {
   kek?: string;
   fetchImpl?: typeof fetch;
   hubspotApp?: HubSpotApp;
+  /** Clerk-managed HubSpot tokens: ask the broker for the connecting user's current token. */
+  brokerHubspotToken?: (clerkUserId: string) => Promise<HubSpotAuth | null>;
 }
 
 export async function getConnection(ctx: Ctx) {
@@ -58,14 +60,22 @@ export async function hubspotFor(ctx: Ctx, d: CrmDeps): Promise<{ client: HubSpo
   const row = await getConnection(ctx);
   const creds = readCreds(row, d.kek);
   if (!row || row.type !== 'hubspot' || !creds?.hubspot) throw noCrmConnection('hubspot');
+  const refresher =
+    creds.hubspot.kind === 'clerk' && creds.hubspot.clerkUserId && d.brokerHubspotToken
+      ? async () => {
+          const t = await d.brokerHubspotToken!(creds.hubspot!.clerkUserId!);
+          if (!t) throw new Error('No HubSpot token available from the identity provider; reconnect HubSpot in Clerk.');
+          return t;
+        }
+      : undefined;
   const client = new HubSpotClient(d.fetchImpl ?? fetch, creds.hubspot, d.hubspotApp, async (a) => {
     await ctx.db.update(crmConnections).set({ credentialsEncrypted: writeCreds({ hubspot: { ...creds.hubspot!, ...a } }, d.kek) }).where(eq(crmConnections.id, row.id));
-  });
+  }, refresher);
   return { client, row, settings: (row.settings ?? {}) as CrmSettings };
 }
 
 /** Connect (or replace) the HubSpot connection; verifies the token first. */
-export async function connectHubspot(ctx: Ctx, auth: HubSpotAuth, kind: 'private_app' | 'oauth', d: CrmDeps) {
+export async function connectHubspot(ctx: Ctx, auth: HubSpotAuth, kind: 'private_app' | 'oauth' | 'clerk', d: CrmDeps, extra: { clerkUserId?: string } = {}) {
   const client = new HubSpotClient(d.fetchImpl ?? fetch, auth, d.hubspotApp);
   let info: { portalId: number };
   try {
@@ -75,7 +85,7 @@ export async function connectHubspot(ctx: Ctx, auth: HubSpotAuth, kind: 'private
     throw e;
   }
   const ownerMap = await learnOwnerMap(ctx, client).catch(() => ({}));
-  const creds = writeCreds({ hubspot: { ...auth, portalId: info.portalId, kind } }, d.kek);
+  const creds = writeCreds({ hubspot: { ...auth, portalId: info.portalId, kind, ...(extra.clerkUserId ? { clerkUserId: extra.clerkUserId } : {}) } }, d.kek);
   const existing = await getConnection(ctx);
   const settings: CrmSettings = { ...((existing?.settings as CrmSettings) ?? {}), ownerMap, logEmails: (existing?.settings as CrmSettings)?.logEmails ?? true, logCalls: (existing?.settings as CrmSettings)?.logCalls ?? true };
   await ctx.db

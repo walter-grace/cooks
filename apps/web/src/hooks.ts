@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { toast as sonner } from 'sonner';
 import { api, ApiError } from './api.js';
 
 export function useApi<T>(path: string | null, deps: unknown[] = []) {
@@ -23,12 +24,15 @@ export function useApi<T>(path: string | null, deps: unknown[] = []) {
   return { data, error, loading, reload };
 }
 
-export function useToast() {
-  const [msg, setMsg] = useState<string | null>(null);
+export const toast = (msg: string, kind: 'success' | 'error' | 'info' = 'success') => (kind === 'error' ? sonner.error(msg) : kind === 'info' ? sonner.info(msg) : sonner.success(msg));
+
+export function useAuthConfig() {
+  const [cfg, setCfg] = useState<{ mode: 'password' | 'clerk'; clerkPublishableKey: string | null } | null>(null);
   useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), 3500);
-    return () => clearTimeout(t);
-  }, [msg]);
-  return { msg, toast: setMsg };
+    fetch('/auth/config')
+      .then((r) => r.json())
+      .then(setCfg)
+      .catch(() => setCfg({ mode: 'password', clerkPublishableKey: null }));
+  }, []);
+  return cfg;
 }
