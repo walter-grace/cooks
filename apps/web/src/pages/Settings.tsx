@@ -385,7 +385,7 @@ export function Settings() {
             <div className="card">
               <strong>New key</strong> (copy it now)
               <pre>{newKey}</pre>
-              <pre>{`claude mcp add cooks -e COOKS_API_URL=${location.origin} -e COOKS_API_KEY=${newKey} -- npx -y cooks-mcp`}</pre>
+              <pre>{`claude mcp add cooks -e COOKS_API_URL=${location.origin} -e COOKS_API_KEY=${newKey} -- npx -y https://github.com/walter-grace/cooks/releases/latest/download/cooks-mcp.tgz`}</pre>
             </div>
           )}
           <table>

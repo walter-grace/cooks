@@ -7,10 +7,13 @@
 import { serve } from '@hono/node-server';
 import { StreamableHTTPTransport } from '@hono/mcp';
 import { Hono } from 'hono';
-import { loadEnv } from '@cooks/config';
 import { createServer, SERVER_VERSION } from './server.js';
 
-const env = loadEnv();
+const env = {
+  COOKS_PUBLIC_URL: process.env.COOKS_PUBLIC_URL ?? 'http://localhost:8080',
+  COOKS_MCP_PUBLIC_URL: process.env.COOKS_MCP_PUBLIC_URL ?? 'http://localhost:8081',
+  MCP_PORT: Number(process.env.MCP_PORT ?? 8081),
+};
 const apiUrl = process.env.COOKS_API_URL ?? env.COOKS_PUBLIC_URL;
 const app = new Hono();
 

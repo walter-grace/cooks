@@ -89,9 +89,6 @@ importers:
 
   apps/mcp:
     dependencies:
-      '@cooks/config':
-        specifier: workspace:*
-        version: link:../../packages/config
       '@hono/mcp':
         specifier: ^0.3.0
         version: 0.3.2(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(hono-rate-limiter@0.5.4(hono@4.13.13))(hono@4.13.13)(zod@4.6.7)
@@ -104,12 +101,16 @@ importers:
       hono:
         specifier: ^4.13.0
         version: 4.13.13
-      tsx:
-        specifier: ^4.19.0
-        version: 4.23.15
       zod:
         specifier: ^4.6.0
         version: 4.6.7
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
 
   apps/web:
     dependencies:

@@ -52,6 +52,15 @@ export KEY=cooks-api-...
 curl -H "Authorization: Bearer $KEY" localhost:8080/v1/me
 ```
 
+## MCP in one line
+
+```bash
+claude mcp add cooks -e COOKS_API_URL=http://localhost:8080 -e COOKS_API_KEY=cooks-api-... \
+  -- npx -y https://github.com/walter-grace/cooks/releases/latest/download/cooks-mcp.tgz
+```
+
+The server ships as a tarball on GitHub Releases (no npm registry involved). Create the key under Settings → API keys.
+
 ## Docker
 
 ```bash

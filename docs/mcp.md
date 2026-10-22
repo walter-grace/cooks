@@ -19,7 +19,7 @@ Claude Code:
 claude mcp add cooks \
   -e COOKS_API_URL=http://localhost:8080 \
   -e COOKS_API_KEY=cooks-api-... \
-  -- npx -y cooks-mcp
+  -- npx -y https://github.com/walter-grace/cooks/releases/latest/download/cooks-mcp.tgz
 ```
 
 Claude Desktop (`claude_desktop_config.json`):
@@ -29,7 +29,7 @@ Claude Desktop (`claude_desktop_config.json`):
   "mcpServers": {
     "cooks": {
       "command": "npx",
-      "args": ["-y", "cooks-mcp"],
+      "args": ["-y", "https://github.com/walter-grace/cooks/releases/latest/download/cooks-mcp.tgz"],
       "env": { "COOKS_API_URL": "http://localhost:8080", "COOKS_API_KEY": "cooks-api-..." }
     }
   }
@@ -38,7 +38,7 @@ Claude Desktop (`claude_desktop_config.json`):
 
 Cursor (`.cursor/mcp.json`) uses the same `command` / `args` / `env` shape.
 
-From a checkout (before the npm package is published):
+Cooks does not publish to the npm registry; the tarball on GitHub Releases is the distribution (`npx` and `npm i -g` accept the URL directly, and `releases/latest/download/cooks-mcp.tgz` always points at the newest tag). From a checkout:
 
 ```bash
 COOKS_API_URL=http://localhost:8080 COOKS_API_KEY=cooks-api-... pnpm --filter cooks-mcp stdio
