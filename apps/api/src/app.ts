@@ -11,6 +11,7 @@ import { trace } from './middleware/trace.js';
 import type { Registrar } from './register.js';
 import type { AppEnv } from './types.js';
 import { mountRoutes } from './routes/index.js';
+import { mountTracking } from './routes/tracking.js';
 import { SCOPES, SCOPE_DESCRIPTIONS } from '@cooks/core';
 
 export interface AppDeps {
@@ -23,6 +24,8 @@ export interface AppDeps {
   publicIps?: string[];
   verifyJwt?: AuthDeps['verifyJwt'];
   version?: string;
+  /** Encrypts mailbox credentials and signs tracking tokens. */
+  kek?: string;
 }
 
 export function createApp(deps: AppDeps) {
@@ -71,7 +74,8 @@ export function createApp(deps: AppDeps) {
   });
 
   const reg: Registrar = { app, store, now: () => clock.now(), registry: [] };
-  mountRoutes(reg, { publicIps: deps.publicIps ?? [] });
+  mountRoutes(reg, { publicIps: deps.publicIps ?? [], kek: deps.kek });
+  mountTracking(app, { db: deps.db, secret: deps.kek ?? 'cooks-dev', clock, jobs, publicUrl });
 
   // OpenAPI document, served at the same paths as upstream (/openapi.yml) plus JSON and docs.
   app.openAPIRegistry.registerComponent('securitySchemes', 'BearerAuth', {

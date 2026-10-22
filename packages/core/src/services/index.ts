@@ -11,3 +11,7 @@ export * from './sequences.js';
 export * from './sequence-steps.js';
 export * from './sequence-states.js';
 export * from './tasks.js';
+export * from './emails.js';
+export * from './mailboxes.js';
+export * from './calls.js';
+export * from './tracking.js';

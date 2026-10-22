@@ -9,7 +9,9 @@ import {
   type JobsPort,
   type MailProvider,
 } from '@cooks/core';
-import type { Db } from '@cooks/db';
+import { mailboxCredentials, type Db } from '@cooks/db';
+import { eq } from 'drizzle-orm';
+import { SmtpProvider, decrypt } from '@cooks/core';
 
 export interface WorkerDeps {
   db: Db;
@@ -18,6 +20,7 @@ export interface WorkerDeps {
   mailProvider: MailProvider;
   fallbackFrom: string | null;
   trackingSecret: string;
+  kek?: string;
   log: (msg: string, data?: Record<string, unknown>) => void;
 }
 
@@ -51,9 +54,21 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
     advanceEnrollment(mkCtx(deps, job.data.workspaceId), job.data.stateId, job.data.prevDoneAt ? { prevDoneAt: new Date(job.data.prevDoneAt) } : {}),
   );
   void work<{ stateId: string; stepId: string; workspaceId: string }>('step.execute', (job) => executeStep(mkCtx(deps, job.data.workspaceId), job.data.stateId, job.data.stepId));
+  const providerCache = new Map<string, MailProvider>();
+  const providerFor = async (mailbox: { id: string } | null): Promise<MailProvider> => {
+    if (!mailbox || !deps.kek) return deps.mailProvider;
+    const cached = providerCache.get(mailbox.id);
+    if (cached) return cached;
+    const [cred] = await deps.db.select().from(mailboxCredentials).where(eq(mailboxCredentials.mailboxId, mailbox.id)).limit(1);
+    if (!cred) return deps.mailProvider;
+    const { smtpUrl } = JSON.parse(decrypt(cred.encrypted, deps.kek)) as { smtpUrl?: string };
+    const p = smtpUrl ? new SmtpProvider(smtpUrl) : deps.mailProvider;
+    providerCache.set(mailbox.id, p);
+    return p;
+  };
   void work<{ emailId: string; workspaceId: string }>('email.send', (job) =>
     sendQueuedEmail(mkCtx(deps, job.data.workspaceId), job.data.emailId, {
-      providerFor: async () => deps.mailProvider,
+      providerFor,
       fallbackFrom: deps.fallbackFrom,
       trackingSecret: deps.trackingSecret,
     }),

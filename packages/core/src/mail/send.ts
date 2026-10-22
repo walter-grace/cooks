@@ -1,5 +1,4 @@
 import { and, eq, isNull, or, sql } from 'drizzle-orm';
-import { createHmac } from 'node:crypto';
 import {
   accounts,
   emailEvents,
@@ -23,6 +22,7 @@ import { bumpCounter } from '../services/analytics.js';
 import { pickZone } from '../engine/scheduling.js';
 import type { MailProvider } from './provider.js';
 import { buildMergeContext, renderTemplate, TemplateError } from './templates.js';
+import { instrumentHtml, unsubToken } from '../services/tracking.js';
 
 export type SendOutcome =
   | { status: 'sent'; messageId: string }
@@ -38,9 +38,6 @@ export interface SendDeps {
   trackingSecret?: string;
 }
 
-export function unsubscribeToken(emailId: string, secret: string): string {
-  return `${emailId}.${createHmac('sha256', secret).update(emailId).digest('base64url').slice(0, 24)}`;
-}
 
 function domainOf(email: string) {
   return email.split('@')[1]?.toLowerCase() ?? '';
@@ -175,7 +172,8 @@ export async function sendQueuedEmail(ctx: Ctx, emailId: string, deps: SendDeps)
   if (!subjectTpl.trim()) return reject('Email has no subject');
 
   const tz = pickZone(prospect?.timezone, account?.timezone, owner?.timezone, ws?.settings.timezone);
-  const unsubscribeUrl = `${ctx.publicUrl}/u/${unsubscribeToken(emailId, deps.trackingSecret ?? 'cooks')}`;
+  const secret = deps.trackingSecret ?? 'cooks';
+  const unsubscribeUrl = `${ctx.publicUrl}/u/${unsubToken(emailId, secret)}`;
   let rendered: { subject: string; html: string; text: string };
   try {
     rendered = await renderTemplate(
@@ -191,6 +189,17 @@ export async function sendQueuedEmail(ctx: Ctx, emailId: string, deps: SendDeps)
     rendered.html += `<p style="font-size:12px;color:#888">Don't want these emails? <a href="${unsubscribeUrl}">Unsubscribe</a></p>`;
     rendered.text += `\n\nDon't want these emails? Unsubscribe: ${unsubscribeUrl}`;
   }
+  const tracking = ws?.settings.tracking ?? { opens: true, clicks: true };
+  rendered.html = await instrumentHtml(ctx.db, {
+    workspaceId: email.workspaceId,
+    emailId,
+    html: rendered.html,
+    publicUrl: ctx.publicUrl,
+    secret,
+    opens: tracking.opens !== false,
+    clicks: tracking.clicks !== false,
+    skipUrls: [unsubscribeUrl, `${ctx.publicUrl}/t/`],
+  });
 
   const messageId = `<${emailId}@${domainOf(mailbox?.email ?? from.replace(/.*<|>.*/g, '')) || 'cooks.local'}>`;
   const claimed = await ctx.db

@@ -1,5 +1,8 @@
 import type { Registrar } from '../register.js';
 import { mountAccounts } from './accounts.js';
+import { mountCalls } from './calls.js';
+import { mountEmails } from './emails.js';
+import { mountMailboxes } from './mailboxes.js';
 import { mountEmailTemplates } from './email-templates.js';
 import { mountMe } from './me.js';
 import { mountProspects } from './prospects.js';
@@ -10,7 +13,7 @@ import { mountTags } from './tags.js';
 import { mountTasks } from './tasks.js';
 import { mountUsers } from './users.js';
 
-export function mountRoutes(reg: Registrar, opts: { publicIps: string[] }) {
+export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: string }) {
   mountMe(reg, opts);
   mountUsers(reg);
   mountAccounts(reg);
@@ -21,4 +24,7 @@ export function mountRoutes(reg: Registrar, opts: { publicIps: string[] }) {
   mountSequenceStates(reg);
   mountTasks(reg);
   mountEmailTemplates(reg);
+  mountEmails(reg);
+  mountMailboxes(reg, { kek: opts.kek });
+  mountCalls(reg);
 }

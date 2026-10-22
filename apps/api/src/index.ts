@@ -15,6 +15,7 @@ const { app, registry } = createApp({
   jobs: new PgBossJobs(boss),
   rateLimitStore: new PgRateLimitStore(handle.db),
   publicUrl: env.COOKS_PUBLIC_URL,
+  kek: env.COOKS_KEK,
   acceptNooksPrefix: env.COOKS_ACCEPT_NOOKS_PREFIX,
   publicIps: env.COOKS_PUBLIC_IPS.split(',').map((s) => s.trim()).filter(Boolean),
 });

@@ -21,6 +21,7 @@ registerHandlers(boss, {
   mailProvider,
   fallbackFrom: process.env.COOKS_MAIL_FROM ?? 'Cooks <no-reply@cooks.local>',
   trackingSecret: env.COOKS_KEK ?? 'cooks-dev',
+  kek: env.COOKS_KEK,
   log: (msg, data) => console.log(`[worker] ${msg}`, data ? JSON.stringify(data) : ''),
 });
 await registerSchedules(boss);
