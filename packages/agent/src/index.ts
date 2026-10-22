@@ -12,3 +12,6 @@ export * from './jobs/draft-email.js';
 export * from './jobs/classify-reply.js';
 export * from './contracts/research.js';
 export * from './jobs/research.js';
+export * from './transcribe.js';
+export * from './contracts/coach-call.js';
+export * from './jobs/coach-call.js';

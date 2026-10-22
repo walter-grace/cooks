@@ -60,6 +60,12 @@ const EnvSchema = z.object({
   CLERK_JWT_KEY: z.string().optional(),
   /** Workspace slug that Clerk users without an organization join. */
   COOKS_CLERK_DEFAULT_WORKSPACE: z.string().optional(),
+  /** Twilio REST base (override for scripts/qa/mock-twilio.mjs). */
+  TWILIO_API_BASE: z.string().optional(),
+  /** OpenAI-compatible speech-to-text for call transcripts (any whisper server). */
+  TRANSCRIBE_API_BASE: z.string().optional(),
+  TRANSCRIBE_API_KEY: z.string().optional(),
+  TRANSCRIBE_MODEL: z.string().default('whisper-1'),
   HUBSPOT_CLIENT_ID: z.string().optional(),
   HUBSPOT_CLIENT_SECRET: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),

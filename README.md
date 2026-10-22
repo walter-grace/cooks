@@ -30,7 +30,10 @@ the AI brought by whatever model you already pay for.
 | Clerk SSO: organizations become workspaces, Gmail / Microsoft 365 / HubSpot connect with the tokens Clerk holds | done |
 | HubSpot: token or OAuth connect, contact/company sync, list and deal-stage auto-enroll, notes + email/call logging | done |
 | Web-grounded prospect research (OpenRouter web search) | done |
-| Later: dialer (Twilio Voice), Salesforce, signals, coaching | planned |
+| Signals: feed, push API for bots, email-engagement and web-scan sources, rules that enroll or create tasks | done |
+| Dialer: Twilio bridge + browser softphone, dual-channel recording, dispositions, upstream `call.logged`, HubSpot call logging | done |
+| Coaching: speaker-split transcripts, talk stats, AI scorecard per call | done |
+| Later: Salesforce connector (today: run the Salesforce MCP next to Cooks MCP in the same bot) | planned |
 
 ## Run it locally
 
@@ -101,7 +104,7 @@ packages/jobs pg-boss adapter behind the JobsPort interface.
 packages/agent Hosted AI: provider abstraction, structured contracts, run ledger, draft/classify/research jobs.
 packages/core/crm HubSpot client + connector (sync, auto-enroll rules, write-back).
 spec/         Vendored upstream OpenAPI document and lock file.
-docs/         auth, mcp, self-host, ai, crm, webhooks, api-compat, conformance + research notes.
+docs/         auth, mcp, self-host, ai, crm, signals, dialer, coaching, webhooks, api-compat, conformance + research notes.
 ```
 
 The enrollment engine is a small state machine. An enrollment points at its current step,

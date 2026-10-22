@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
-import { accounts, crmConnections, emails, notes, prospects, sequenceStates, tasks, users, workspaceMembers } from '@cooks/db';
+import { accounts, callDispositions, calls, crmConnections, emails, notes, prospects, sequenceStates, tasks, users, workspaceMembers } from '@cooks/db';
 import type { Ctx } from '../context.js';
 import { decrypt, encrypt } from '../crypto.js';
 import { noCrmConnection, unprocessable } from '../errors.js';
@@ -274,6 +274,22 @@ export async function logEmailToHubspot(ctx: Ctx, emailId: string, d: CrmDeps): 
 }
 
 /** Log a completed call task on the HubSpot contact timeline. */
+/** Dialer / manual calls: write a call engagement with duration, disposition and notes. */
+export async function logCallToHubspot(ctx: Ctx, callId: string, d: CrmDeps): Promise<'logged' | 'skipped'> {
+  const row = await getConnection(ctx);
+  const s = (row?.settings ?? {}) as CrmSettings;
+  if (!row || row.type !== 'hubspot' || s.logCalls === false) return 'skipped';
+  const [c] = await ctx.db.select().from(calls).where(eq(calls.id, callId)).limit(1);
+  if (!c || !c.prospectId || !c.loggedAt) return 'skipped';
+  const [p] = await ctx.db.select({ crmId: prospects.crmId, name: prospects.name }).from(prospects).where(eq(prospects.id, c.prospectId)).limit(1);
+  if (!p?.crmId) return 'skipped';
+  const [disp] = c.callDispositionId ? await ctx.db.select({ name: callDispositions.name }).from(callDispositions).where(eq(callDispositions.id, c.callDispositionId)).limit(1) : [];
+  const { client, settings } = await hubspotFor(ctx, d);
+  const ownerHs = Object.entries(settings.ownerMap ?? {}).find(([, uid]) => uid === c.ownerId)?.[0];
+  await client.logCall({ title: `${disp?.name ?? 'Call'} with ${p.name ?? 'prospect'}`, body: c.notes, at: c.time, durationMs: c.durationSeconds * 1000, disposition: disp?.name ?? null, contactId: p.crmId, direction: c.direction === 'inbound' ? 'INBOUND' : 'OUTBOUND', ownerId: ownerHs ?? null });
+  return 'logged';
+}
+
 export async function logCallTaskToHubspot(ctx: Ctx, taskId: string, d: CrmDeps): Promise<'logged' | 'skipped'> {
   const row = await getConnection(ctx);
   const s = (row?.settings ?? {}) as CrmSettings;

@@ -1,6 +1,6 @@
 # cooks-mcp
 
-MCP server for [Cooks](https://github.com/walter-grace/cooks), the open-source sales engagement platform. Gives Claude Code, Claude Desktop, Cursor, Grok and any MCP client 35 tools over your prospects, sequences, tasks, emails, research and CRM.
+MCP server for [Cooks](https://github.com/walter-grace/cooks), the open-source sales engagement platform. Gives Claude Code, Claude Desktop, Cursor, Grok and any MCP client 50 tools over your prospects, sequences, tasks, emails, research, CRM, signals, dialer and call coaching.
 
 Install from the GitHub release tarball (no npm registry needed):
 

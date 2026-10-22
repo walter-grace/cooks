@@ -459,4 +459,137 @@ export const TOOLS: ToolDef[] = [
     input: { targetType: z.enum(['prospect', 'account']), targetId: uuid, text: z.string().min(1), integrationType: z.enum(['salesforce', 'hubspot']) },
     run: (api, a) => api.call('POST', `/${a.targetType}s/${a.targetId}/notes`, { body: { data: { text: a.text, integrationType: a.integrationType } } }),
   }),
+  // ---- Signals ----
+  def({
+    name: 'cooks_list_signals',
+    title: 'List buying signals',
+    description: 'Feed of buying signals (web research, email engagement, CRM stage changes, anything pushed in). Filter by kind (exact or prefix like research.*), status (new|acted|dismissed|all), prospect or account.',
+    input: { kind: z.string().optional(), status: z.enum(['new', 'acted', 'dismissed', 'all']).optional(), prospectId: uuid.optional(), accountId: uuid.optional(), since: z.string().optional().describe('ISO date: only signals that occurred at or after'), ...page },
+    readOnly: true,
+    run: (api, a) => api.call('GET', '/signals', { query: { 'filter[kind]': a.kind, 'filter[status]': a.status, 'filter[prospect][id]': a.prospectId, 'filter[account][id]': a.accountId, 'filter[occurredAt][gte]': a.since, include: 'prospect,account', ...pq(a) } }),
+  }),
+  def({
+    name: 'cooks_signal_summary',
+    title: 'Signal summary',
+    description: 'Counts of signals by kind for the last N days plus the catalog of known kinds.',
+    input: { days: z.number().int().min(1).max(90).optional() },
+    readOnly: true,
+    run: (api, a) => api.call('GET', '/signals/summary', { query: { days: a.days } }),
+  }),
+  def({
+    name: 'cooks_push_signal',
+    title: 'Record a buying signal',
+    description: 'Record something you observed (job change, funding, website visit, intent topic, news). kind is category.type, e.g. research.funding, web.visit, custom.event. Attach to a prospect (id or email) or account (id or domain). Use dedupeKey so repeated pushes are idempotent. Signal rules run immediately.',
+    input: { kind: z.string(), title: z.string().optional(), url: z.string().optional(), score: z.number().min(0).max(1).optional(), occurredAt: z.string().optional(), dedupeKey: z.string().optional(), prospectId: uuid.optional(), prospectEmail: z.string().optional(), accountId: uuid.optional(), accountDomain: z.string().optional(), payload: z.record(z.string(), z.unknown()).optional() },
+    idempotent: true,
+    run: (api, a) => api.call('POST', '/signals', { body: { data: { kind: a.kind, title: a.title, url: a.url, score: a.score, occurredAt: a.occurredAt, dedupeKey: a.dedupeKey, payload: a.payload, source: 'mcp', prospect: a.prospectId || a.prospectEmail ? { id: a.prospectId, email: a.prospectEmail } : undefined, account: a.accountId || a.accountDomain ? { id: a.accountId, domain: a.accountDomain } : undefined } } }),
+  }),
+  def({
+    name: 'cooks_act_on_signal',
+    title: 'Act on a signal',
+    description: 'Enroll the signal\'s prospect into a sequence, create a task for a rep, or dismiss the signal.',
+    input: { id: uuid, action: z.enum(['enroll', 'task', 'dismiss']), sequenceId: uuid.optional(), ownerId: z.string().optional(), taskAction: z.string().optional(), note: z.string().optional() },
+    run: (api, a) => (a.action === 'dismiss' ? api.call('POST', `/signals/${a.id}/actions/dismiss`) : api.call('POST', `/signals/${a.id}/actions/act`, { body: { data: a.action === 'enroll' ? { action: 'enroll', sequenceId: a.sequenceId, ownerId: a.ownerId } : { action: 'task', ownerId: a.ownerId, taskAction: a.taskAction, note: a.note } } })),
+  }),
+  def({
+    name: 'cooks_list_signal_rules',
+    title: 'List signal rules',
+    description: 'Rules that turn matching signals into enrollments or tasks automatically.',
+    input: {},
+    readOnly: true,
+    run: (api) => api.call('GET', '/workspace/signalRules'),
+  }),
+  def({
+    name: 'cooks_create_signal_rule',
+    title: 'Create a signal rule',
+    description: 'When a signal matches kindPattern (exact, prefix like research.*, or *) and meets minScore, enroll the prospect in sequenceId or create a task for ownerId. Admins only.',
+    input: { name: z.string().optional(), kindPattern: z.string(), minScore: z.number().min(0).max(1).optional(), action: z.enum(['enroll', 'task']), sequenceId: uuid.optional(), ownerId: z.string(), taskAction: z.string().optional(), taskNote: z.string().optional() },
+    run: (api, a) => api.call('POST', '/workspace/signalRules', { body: { data: a } }),
+  }),
+  def({
+    name: 'cooks_scan_account',
+    title: 'Scan an account for signals (web)',
+    description: 'Web-grounded scan of a company for funding, hiring, leadership changes, launches and expansion. New findings land in the signals feed with sources. Waits up to ~60 s.',
+    input: { accountId: uuid, focus: z.string().optional(), force: z.boolean().optional() },
+    run: async (api, a) => {
+      const before = await api.call<{ data: unknown[] }>('GET', '/signals', { query: { 'filter[account][id]': a.accountId, 'filter[status]': 'all', 'page[size]': 100 } });
+      await api.call('POST', `/accounts/${a.accountId}/actions/scan`, { body: { data: { focus: a.focus, force: a.force } } });
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const now = await api.call<{ data: unknown[] }>('GET', '/signals', { query: { 'filter[account][id]': a.accountId, 'filter[status]': 'all', 'page[size]': 100 } });
+        if (now.data.length !== before.data.length) return { newSignals: now.data.length - before.data.length, signals: now.data.slice(0, 20) };
+      }
+      return { pending: true, hint: 'Scan still running (or found nothing new); call cooks_list_signals with the accountId in a minute.' };
+    },
+  }),
+  // ---- Dialer ----
+  def({
+    name: 'cooks_dialer_status',
+    title: 'Dialer status',
+    description: 'Whether Twilio is connected, which caller ids exist, and whether browser calling is configured.',
+    input: {},
+    readOnly: true,
+    run: (api) => api.call('GET', '/workspace/telephony'),
+  }),
+  def({
+    name: 'cooks_dial',
+    title: 'Call a prospect (bridge)',
+    description: 'Place a call: Twilio rings the rep\'s phone (repPhone or the owner\'s profile phone) and connects the prospect when they answer. Pass taskId for a sequence call step so logging the call completes the task. Returns the call id to log afterwards.',
+    input: { prospectId: uuid.optional(), to: z.string().optional().describe('Phone number when calling someone who is not a prospect'), repPhone: z.string().optional(), fromNumber: z.string().optional(), ownerId: z.string().optional(), taskId: uuid.optional() },
+    run: (api, a) => api.call('POST', '/calls/actions/dial', { body: { data: { ...a, mode: 'bridge' } } }),
+  }),
+  def({
+    name: 'cooks_list_calls',
+    title: 'List calls',
+    description: 'Calls with status, duration, disposition and whether they are logged. Filter by prospect, owner, logged, status or time window.',
+    input: { prospectId: uuid.optional(), ownerId: z.string().optional(), logged: z.boolean().optional(), status: z.string().optional(), since: z.string().optional(), ...page },
+    readOnly: true,
+    run: (api, a) => api.call('GET', '/calls', { query: { 'filter[prospect][id]': a.prospectId, 'filter[owner][id]': a.ownerId, 'filter[logged]': a.logged === undefined ? undefined : String(a.logged), 'filter[status]': a.status, 'filter[time][gte]': a.since, include: 'prospect,callDisposition,owner', ...pq(a) } }),
+  }),
+  def({
+    name: 'cooks_log_call',
+    title: 'Log a call',
+    description: 'Attach a disposition (outcome such as connected, meeting_booked, left_voicemail, no_answer, wrong_number, do_not_call) and notes to a dialer call. Fires the call.logged webhook, closes the linked task and writes to HubSpot when connected.',
+    input: { callId: uuid, outcome: z.enum(['connected', 'not_connected', 'meeting_booked', 'left_voicemail', 'no_answer', 'busy', 'wrong_number', 'do_not_call', 'other']).optional(), dispositionName: z.string().optional(), notes: z.string().optional(), durationSeconds: z.number().int().optional() },
+    run: (api, a) => api.call('POST', `/calls/${a.callId}/actions/log`, { body: { data: { outcome: a.outcome, dispositionName: a.dispositionName, notes: a.notes, durationSeconds: a.durationSeconds } } }),
+  }),
+  def({
+    name: 'cooks_record_call',
+    title: 'Record a call made elsewhere',
+    description: 'Log a call that did not go through the dialer (rep\'s own phone, another tool): prospect, duration, outcome, notes. Completes a linked call task when taskId is given.',
+    input: { prospectId: uuid, outcome: z.enum(['connected', 'not_connected', 'meeting_booked', 'left_voicemail', 'no_answer', 'busy', 'wrong_number', 'do_not_call', 'other']), notes: z.string().optional(), durationSeconds: z.number().int().optional(), direction: z.enum(['inbound', 'outbound']).optional(), time: z.string().optional(), ownerId: z.string().optional(), taskId: uuid.optional() },
+    run: (api, a) => api.call('POST', '/calls', { body: { data: a } }),
+  }),
+  def({
+    name: 'cooks_list_call_dispositions',
+    title: 'List call dispositions',
+    description: 'Disposition names and outcomes available in this workspace.',
+    input: {},
+    readOnly: true,
+    run: (api) => api.call('GET', '/callDispositions', { query: { 'page[size]': 100 } }),
+  }),
+  // ---- Coaching ----
+  def({
+    name: 'cooks_call_insights',
+    title: 'Call transcript and coaching',
+    description: 'Speaker-labelled transcript, talk statistics (talk ratio, questions, monologues, interruptions) and the AI scorecard for a recorded call.',
+    input: { callId: uuid },
+    readOnly: true,
+    run: (api, a) => api.call('GET', `/calls/${a.callId}/insights`),
+  }),
+  def({
+    name: 'cooks_coach_call',
+    title: 'Run coaching on a call',
+    description: 'Transcribe (if needed) and score a recorded call with the workspace AI provider. Waits up to ~90 s for the result.',
+    input: { callId: uuid },
+    run: async (api, a) => {
+      await api.call('POST', `/calls/${a.callId}/actions/coach`);
+      for (let i = 0; i < 45; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const now = await api.call<{ data: { coachingStatus: string; transcriptStatus: string } }>('GET', `/calls/${a.callId}/insights`);
+        if (['ready', 'failed', 'skipped'].includes(now.data.coachingStatus) && now.data.transcriptStatus !== 'running' && now.data.transcriptStatus !== 'queued') return now;
+      }
+      return { pending: true, hint: 'Still processing; call cooks_call_insights in a minute.' };
+    },
+  }),
 ];

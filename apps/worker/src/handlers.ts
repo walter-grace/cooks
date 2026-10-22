@@ -12,8 +12,8 @@ import {
   type MailProvider,
 } from '@cooks/core';
 import { mailboxCredentials, type Db } from '@cooks/db';
-import { accountsDueForScan, classifyReply, draftEmailForTask, researchProspect, scanAccount, type EnvKeys } from '@cooks/agent';
-import { applyClassification, evaluateSignal, signalFromEmailEvent, loadCreds, logCallTaskToHubspot, logEmailToHubspot, outboundProviderFor, registerOAuthInbound, runAutoEnrollRule, syncMailbox, syncableMailboxIds, type ConnectorApps, type CrmSettings } from '@cooks/core';
+import { accountsDueForScan, classifyReply, coachCall, draftEmailForTask, processCallRecording, researchProspect, scanAccount, type EnvKeys, type TranscribeEnv } from '@cooks/agent';
+import { applyClassification, evaluateSignal, signalFromEmailEvent, loadCreds, logCallToHubspot, logCallTaskToHubspot, logEmailToHubspot, outboundProviderFor, registerOAuthInbound, runAutoEnrollRule, syncMailbox, syncableMailboxIds, type ConnectorApps, type CrmSettings } from '@cooks/core';
 import { crmConnections } from '@cooks/db';
 import { emails as emailsTable, prospects as prospectsTable, accounts as accountsTable } from '@cooks/db';
 import { eq } from 'drizzle-orm';
@@ -27,7 +27,9 @@ export interface WorkerDeps {
   fallbackFrom: string | null;
   trackingSecret: string;
   kek?: string;
-  aiEnv: EnvKeys;
+  aiEnv: EnvKeys & TranscribeEnv;
+  /** Twilio REST base override (mock) */
+  telephonyApiBase?: string;
   connectorApps: ConnectorApps;
   hubspotApp?: { clientId: string; clientSecret: string };
   brokerToken?: (userId: string, provider: 'google' | 'microsoft' | 'hubspot') => Promise<{ refreshToken: string; accessToken?: string; expiresAt?: number; viaClerk?: boolean } | null>;
@@ -127,10 +129,11 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
   }, 1);
   void work<{ taskId: string; workspaceId: string }>('ai.draft_email', (job) => draftEmailForTask({ db: deps.db, env: deps.aiEnv, now: () => new Date() }, job.data.taskId), 2);
   void work<Record<string, never>>('outbox.publish', async () => ({ published: await publishOutbox(deps.db, deps.jobs, { onEvent: (ev) => dispatchInternal(deps, ev) }) }), 1);
-  void work<{ workspaceId: string; emailId?: string; taskId?: string }>('crm.sync', async (job) => {
+  void work<{ workspaceId: string; emailId?: string; taskId?: string; callId?: string }>('crm.sync', async (job) => {
     const ctx = mkCtx(deps, job.data.workspaceId);
     const d = { kek: deps.kek, hubspotApp: deps.hubspotApp, brokerHubspotToken: deps.brokerHubspotToken };
     if (job.data.emailId) return { email: await logEmailToHubspot(ctx, job.data.emailId, d) };
+    if (job.data.callId) return { call: await logCallToHubspot(ctx, job.data.callId, d) };
     if (job.data.taskId) return { call: await logCallTaskToHubspot(ctx, job.data.taskId, d) };
     return { skipped: true };
   }, 3);
@@ -151,6 +154,9 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
     }
     return out;
   }, 1);
+  const coachDeps = { db: deps.db, env: deps.aiEnv, now: () => new Date(), publicUrl: deps.publicUrl, telephony: { kek: deps.kek, apiBase: deps.telephonyApiBase }, jobs: deps.jobs };
+  void work<{ callId: string; workspaceId: string; force?: boolean }>('telephony.recording', (job) => processCallRecording(coachDeps, job.data.callId, { force: job.data.force }), 1);
+  void work<{ callId: string; workspaceId: string; force?: boolean }>('ai.coach_call', (job) => coachCall(coachDeps, job.data.callId, { force: job.data.force }), 1);
   void work<Record<string, never>>('enrollment.start_pending', async () => ({ promoted: await startPendingEnrollments(mkCtx(deps, 'system')) }), 1);
 }
 

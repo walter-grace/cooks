@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lte, type SQL } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte, sql, type SQL } from 'drizzle-orm';
 import { callDispositions, calls, prospects, sequenceSteps, sequences } from '@cooks/db';
 import type { Ctx } from '../context.js';
 import { badRequest, notFound } from '../errors.js';
@@ -9,7 +9,7 @@ import { serializeProspect } from './prospects.js';
 import { serializeSequences } from './sequences.js';
 import { serializeStep } from './sequence-steps.js';
 import { serializeUser, usersByIds } from './users.js';
-import { ciEq, idFilter, isUuid, isoReq, paginate, tenantWhere, updatedAtFilter, uuidOr404 } from './_shared.js';
+import { ciEq, idFilter, iso, isUuid, isoReq, paginate, tenantWhere, updatedAtFilter, uuidOr404 } from './_shared.js';
 
 export type CallRow = typeof calls.$inferSelect;
 export type DispositionRow = typeof callDispositions.$inferSelect;
@@ -34,6 +34,18 @@ export function serializeCall(c: CallRow, x: Record<string, unknown> = {}) {
     owner: x.owner ?? refOrNull('users', c.ownerId),
     createdAt: isoReq(c.createdAt),
     updatedAt: isoReq(c.updatedAt),
+    // Cooks extensions
+    status: c.status,
+    notes: c.notes,
+    loggedAt: iso(c.loggedAt),
+    endedAt: iso(c.endedAt),
+    mode: c.mode,
+    account: refOrNull('accounts', c.accountId),
+    taskId: c.taskId,
+    recordingDurationSeconds: c.recordingDurationSeconds,
+    transcriptStatus: c.transcriptStatus,
+    coachingStatus: c.coachingStatus,
+    amdResult: c.amdResult,
   };
 }
 
@@ -82,6 +94,9 @@ export async function listCalls(ctx: Ctx, q: { page: PageArgs; filter?: Record<s
       conds.push(eq(col, v));
     }
   }
+  if (typeof f.status === 'string' && f.status) conds.push(eq(calls.status, f.status));
+  if (f.logged === 'true') conds.push(sql`${calls.loggedAt} is not null`);
+  if (f.logged === 'false') conds.push(sql`${calls.loggedAt} is null`);
   for (const [key, col] of [
     ['time', calls.time],
     ['createdAt', calls.createdAt],

@@ -75,6 +75,17 @@ export const Call = z
     callDisposition: z.unknown(),
     owner: z.unknown(),
     ...Timestamps,
+    status: z.string().optional().describe('Cooks: initiated, ringing_rep, ringing, in_progress, completed, busy, no_answer, failed, canceled, rep_*'),
+    notes: z.string().nullable().optional(),
+    loggedAt: z.string().nullable().optional(),
+    endedAt: z.string().nullable().optional(),
+    mode: z.string().nullable().optional(),
+    account: z.unknown().optional(),
+    taskId: z.string().nullable().optional(),
+    recordingDurationSeconds: z.number().nullable().optional(),
+    transcriptStatus: z.string().optional(),
+    coachingStatus: z.string().optional(),
+    amdResult: z.string().nullable().optional(),
   })
   .openapi('Call');
 
