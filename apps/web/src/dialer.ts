@@ -138,6 +138,7 @@ export const fmtDuration = (s: number | null | undefined) => {
 
 export const STATUS_LABEL: Record<string, string> = {
   initiated: 'Starting',
+  queued: 'Queued at Speko',
   ringing_rep: 'Ringing your phone',
   ringing: 'Ringing prospect',
   in_progress: 'In progress',

@@ -29,6 +29,13 @@
       "when": 1792710916471,
       "tag": "0003_email_retry",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792711855039,
+      "tag": "0004_speko",
+      "breakpoints": true
     }
   ]
 }

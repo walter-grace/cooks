@@ -24,6 +24,8 @@ export interface WorkspaceSettings {
   tracking?: { opens: boolean; clicks: boolean };
   minProspectGapHours?: number;
   requireUnsubscribeLink?: boolean;
+  /** Which connected dialer the Call button uses. AI calls always go through Speko. */
+  dialerProvider?: 'twilio' | 'speko';
 }
 
 export const users = pgTable(

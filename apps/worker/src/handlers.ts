@@ -10,7 +10,7 @@ import {
   type Ctx,
   type JobsPort,
   type MailProvider,
-} from '@cooks/core';
+ pollAiCall } from '@cooks/core';
 import { mailboxCredentials, type Db } from '@cooks/db';
 import { accountsDueForScan, classifyReply, coachCall, draftEmailForTask, processCallRecording, researchProspect, scanAccount, type EnvKeys, type TranscribeEnv } from '@cooks/agent';
 import { applyClassification, evaluateSignal, signalFromEmailEvent, loadCreds, logCallToHubspot, logCallTaskToHubspot, logEmailToHubspot, outboundProviderFor, registerOAuthInbound, runAutoEnrollRule, syncMailbox, syncableMailboxIds, type ConnectorApps, type CrmSettings } from '@cooks/core';
@@ -30,6 +30,9 @@ export interface WorkerDeps {
   aiEnv: EnvKeys & TranscribeEnv;
   /** Twilio REST base override (mock) */
   telephonyApiBase?: string;
+  /** Speko server key + base override (mock) */
+  spekoApiKey?: string;
+  spekoApiBase?: string;
   connectorApps: ConnectorApps;
   hubspotApp?: { clientId: string; clientSecret: string };
   brokerToken?: (userId: string, provider: 'google' | 'microsoft' | 'hubspot') => Promise<{ refreshToken: string; accessToken?: string; expiresAt?: number; viaClerk?: boolean } | null>;
@@ -157,6 +160,13 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
   const coachDeps = { db: deps.db, env: deps.aiEnv, now: () => new Date(), publicUrl: deps.publicUrl, telephony: { kek: deps.kek, apiBase: deps.telephonyApiBase }, jobs: deps.jobs };
   void work<{ callId: string; workspaceId: string; force?: boolean }>('telephony.recording', (job) => processCallRecording(coachDeps, job.data.callId, { force: job.data.force }), 1);
   void work<{ callId: string; workspaceId: string; force?: boolean }>('ai.coach_call', (job) => coachCall(coachDeps, job.data.callId, { force: job.data.force }), 1);
+  const aiCallDeps = { kek: deps.kek, apiBase: deps.telephonyApiBase, speko: { apiKey: deps.spekoApiKey, apiBase: deps.spekoApiBase }, publicUrl: deps.publicUrl };
+  void work<{ callId: string; workspaceId: string; attempt?: number }>('telephony.ai_poll', async (job) => {
+    const attempt = job.data.attempt ?? 1;
+    const r = await pollAiCall(mkCtx(deps, job.data.workspaceId), job.data.callId, aiCallDeps, { attempt });
+    if (!r.done) await deps.jobs.send('telephony.ai_poll', { callId: job.data.callId, workspaceId: job.data.workspaceId, attempt: attempt + 1 }, { startAfter: new Date(Date.now() + (r.nextDelaySeconds ?? 10) * 1000), singletonKey: `aipoll:${job.data.callId}:${attempt + 1}` });
+    return r;
+  }, 5);
   void work<Record<string, never>>('enrollment.start_pending', async () => ({ promoted: await startPendingEnrollments(mkCtx(deps, 'system')) }), 1);
 }
 

@@ -9,11 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { api, fmtDate, q } from '../api.js';
+import { api, currentSession, fmtDate, q } from '../api.js';
 import { useApi, toast } from '../hooks.js';
 import { Link, navigate } from '../router.js';
 import { Empty, PageHeader, StateBadge } from '../components/layout.js';
-import { DialDialog, LogCallDialog } from '../components/dialer.jsx';
+import { AiCallDialog, DialDialog, LogCallDialog } from '../components/dialer.jsx';
+import { fmtDuration } from '../dialer.js';
 
 export function Prospects() {
   const [search, setSearch] = useState('');
@@ -158,8 +159,12 @@ export function ProspectDetail({ id }: { id: string }) {
   const [researching, setResearching] = useState(false);
   const [seqId, setSeqId] = useState('');
   const [dial, setDial] = useState(false);
+  const [aiCall, setAiCall] = useState(false);
   const [logCall, setLogCall] = useState(false);
+  const dialer = useApi<{ data: any }>('/v1/workspace/dialer');
+  const callsList = useApi<{ data: any[] }>(`/v1/calls${q({ 'filter[prospect][id]': id, include: 'callDisposition,owner', 'page[size]': 20 })}`);
   const p = data?.data;
+  const dp = dialer.data?.data;
 
   const enroll = async () => {
     const me = await api('/v1/me');
@@ -210,13 +215,21 @@ export function ProspectDetail({ id }: { id: string }) {
             <Button variant="outline" onClick={() => setLogCall(true)} data-testid="prospect-log-call">
               Log a call
             </Button>
-            <Button onClick={() => setDial(true)} data-testid="prospect-call">
-              <Phone className="size-4" /> Call
-            </Button>
+            {dp?.speko?.status === 'connected' && (
+              <Button variant={dp.provider === 'speko' ? 'default' : 'outline'} onClick={() => setAiCall(true)} data-testid="prospect-ai-call">
+                <Sparkles className="size-4" /> AI call
+              </Button>
+            )}
+            {(dp?.twilio?.status === 'connected' || !dp) && (
+              <Button variant={dp?.provider === 'speko' ? 'outline' : 'default'} onClick={() => setDial(true)} data-testid="prospect-call">
+                <Phone className="size-4" /> Call
+              </Button>
+            )}
           </div>
         }
       />
-      <DialDialog open={dial} onOpenChange={setDial} target={{ prospectId: p.id, name: p.name, phone: p.phone }} onLogged={() => tasks.reload()} />
+      <DialDialog open={dial} onOpenChange={setDial} target={{ prospectId: p.id, name: p.name, phone: p.phone }} onLogged={() => { tasks.reload(); callsList.reload(); }} />
+      <AiCallDialog open={aiCall} onOpenChange={setAiCall} target={{ prospectId: p.id, name: p.name, phone: p.phone }} onDone={() => { tasks.reload(); callsList.reload(); }} />
       <LogCallDialog open={logCall} onOpenChange={setLogCall} prospectId={p.id} onLogged={() => tasks.reload()} />
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -342,6 +355,19 @@ export function ProspectDetail({ id }: { id: string }) {
         )}
       </Card>
 
+      <Card className="mt-4" data-testid="calls-timeline">
+        <CardHeader>
+          <CardTitle className="text-base">Calls</CardTitle>
+          <CardDescription>Dialer and AI calls with outcome, summary, transcript and recording.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 text-sm">
+          {callsList.data?.data.length === 0 && <p className="text-muted-foreground">No calls yet.</p>}
+          {callsList.data?.data.map((c) => (
+            <CallTimelineItem key={c.id} c={c} />
+          ))}
+        </CardContent>
+      </Card>
+
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -386,6 +412,69 @@ export function ProspectDetail({ id }: { id: string }) {
         </Card>
       </div>
     </>
+  );
+}
+
+const OUTCOME: Record<string, string> = { answered: 'Answered', voicemail: 'Voicemail', no_answer: 'No answer', failed: 'Failed' };
+
+function CallTimelineItem({ c }: { c: any }) {
+  const [open, setOpen] = useState(false);
+  const [tx, setTx] = useState<any | null>(null);
+  const [audio, setAudio] = useState<string | null>(null);
+  const expand = async () => {
+    setOpen(!open);
+    if (!tx) setTx((await api(`/v1/calls/${c.id}/transcript`).catch(() => ({ data: null }))).data);
+  };
+  const play = async () => {
+    const s = currentSession();
+    const r = await fetch(`/v1/calls/${c.id}/recording`, { headers: { authorization: `Bearer ${s?.access_token}` } });
+    if (!r.ok) return toast('Recording not available', 'error');
+    setAudio(URL.createObjectURL(await r.blob()));
+  };
+  const live = ['initiated', 'queued', 'ringing', 'in_progress'].includes(c.status);
+  return (
+    <div className="rounded-lg border p-3" data-testid="call-item">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {c.mode === 'ai' ? <Sparkles className="size-4 text-muted-foreground" /> : <Phone className="size-4 text-muted-foreground" />}
+          <span className="font-medium">{c.mode === 'ai' ? 'AI call' : c.mode === 'manual' ? 'Logged call' : 'Call'}</span>
+          <Badge variant={live ? 'default' : 'secondary'} data-testid="call-item-outcome">{c.outcome ? OUTCOME[c.outcome] ?? c.outcome : c.callDisposition?.name ?? c.status.replace(/_/g, ' ')}</Badge>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {fmtDate(c.time)} · {fmtDuration(c.duration)}
+          {c.costUsd !== null && c.costUsd !== undefined ? ` · $${Number(c.costUsd).toFixed(2)}` : ''} {c.owner?.name ? `· ${c.owner.name}` : ''}
+        </div>
+      </div>
+      {c.summary && <p className="mt-2 text-sm">{c.summary}</p>}
+      {!c.summary && c.notes && <p className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">{c.notes}</p>}
+      <div className="mt-2 flex flex-wrap gap-2">
+        {(c.transcriptStatus === 'ready' || c.mode === 'ai') && !live && (
+          <Button size="sm" variant="outline" onClick={expand} data-testid="call-item-transcript">
+            {open ? 'Hide transcript' : 'Transcript'}
+          </Button>
+        )}
+        {c.recordingUrl && !audio && (
+          <Button size="sm" variant="outline" onClick={play} data-testid="call-item-play">
+            Play recording
+          </Button>
+        )}
+        <Link to={`/calls/${c.id}`} className="self-center text-xs text-muted-foreground hover:underline">
+          details →
+        </Link>
+      </div>
+      {audio && <audio controls src={audio} className="mt-2 w-full" />}
+      {open && tx && (
+        <div className="mt-2 grid max-h-64 gap-1 overflow-y-auto border-t pt-2 text-sm" data-testid="call-item-transcript-body">
+          {tx.transcript?.length === 0 && <p className="text-muted-foreground">No transcript.</p>}
+          {tx.transcript?.map((e: any, k: number) => (
+            <div key={k} className={`flex gap-2 ${e.role === 'agent' ? '' : 'text-muted-foreground'}`}>
+              <span className="w-16 shrink-0 font-medium">{e.role === 'agent' ? (c.mode === 'ai' ? 'Agent' : 'Rep') : e.role === 'user' ? 'Prospect' : 'System'}</span>
+              <span>{e.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

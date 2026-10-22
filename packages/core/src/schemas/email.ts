@@ -121,6 +121,12 @@ export const Call = z
     transcriptStatus: z.string().optional(),
     coachingStatus: z.string().optional(),
     amdResult: z.string().nullable().optional(),
+    provider: z.string().nullable().optional().describe('Cooks: twilio | speko | null (manual)'),
+    outcome: z.string().nullable().optional().describe('Cooks: answered | voicemail | no_answer | failed, set when an AI call ends'),
+    summary: z.string().nullable().optional().describe('Cooks: provider call summary (AI calls)'),
+    endReason: z.string().nullable().optional(),
+    costUsd: z.number().nullable().optional(),
+    providerSessionId: z.string().nullable().optional(),
   })
   .openapi('Call');
 

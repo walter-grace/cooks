@@ -62,6 +62,9 @@ const EnvSchema = z.object({
   COOKS_CLERK_DEFAULT_WORKSPACE: z.string().optional(),
   /** Twilio REST base (override for scripts/qa/mock-twilio.mjs). */
   TWILIO_API_BASE: z.string().optional(),
+  /** Server-wide Speko key (workspaces can store their own instead). */
+  SPEKO_API_KEY: z.string().optional(),
+  SPEKO_API_BASE: z.string().optional(),
   /** OpenAI-compatible speech-to-text for call transcripts (any whisper server). */
   TRANSCRIBE_API_BASE: z.string().optional(),
   TRANSCRIBE_API_KEY: z.string().optional(),

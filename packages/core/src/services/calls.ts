@@ -46,6 +46,12 @@ export function serializeCall(c: CallRow, x: Record<string, unknown> = {}) {
     transcriptStatus: c.transcriptStatus,
     coachingStatus: c.coachingStatus,
     amdResult: c.amdResult,
+    provider: c.provider,
+    outcome: c.outcome,
+    summary: c.summary,
+    endReason: c.endReason,
+    costUsd: c.costUsd === null ? null : Number(c.costUsd),
+    providerSessionId: c.spekoSessionId,
   };
 }
 

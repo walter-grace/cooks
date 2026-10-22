@@ -49,7 +49,7 @@ export interface AppDeps {
   /** HubSpot OAuth app (optional; private-app tokens work without it). */
   hubspotApp?: { clientId: string; clientSecret: string };
   /** Twilio: override the API base for mocks; `trustWebhookSignature: false` skips X-Twilio-Signature checks (tests only). */
-  telephony?: { apiBase?: string; trustWebhookSignature?: boolean };
+  telephony?: { apiBase?: string; trustWebhookSignature?: boolean; speko?: { apiKey?: string; apiBase?: string } };
   /** Directory with the built web UI (apps/web/dist). Served at /app with SPA fallback. */
   webDir?: string;
 }
@@ -121,7 +121,7 @@ export function createApp(deps: AppDeps) {
 
   const brokers = deps.clerk ? clerkBrokers(deps.db, deps.clerk.gateway) : undefined;
   const reg: Registrar = { app, store, now: () => clock.now(), registry: [], crmDeps: { kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp, brokerHubspotToken: brokers?.brokerHubspotToken } };
-  const dialer = { kek: deps.kek, fetchImpl: deps.fetchImpl, apiBase: deps.telephony?.apiBase, publicUrl };
+  const dialer = { kek: deps.kek, fetchImpl: deps.fetchImpl, apiBase: deps.telephony?.apiBase, speko: deps.telephony?.speko, publicUrl };
   mountRoutes(reg, { publicIps: deps.publicIps ?? [], kek: deps.kek, fetchImpl: deps.fetchImpl, keyPrefix: deps.keyPrefix, crm: { db: deps.db, publicUrl, now: () => clock.now(), kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp, brokerHubspotToken: brokers?.brokerHubspotToken }, dialer });
   const secureCookies = deps.oauth?.secureCookies ?? publicUrl.startsWith('https');
   mountClerkAuth(app, deps.clerk ? { gateway: deps.clerk.gateway, publishableKey: deps.clerk.publishableKey, defaultWorkspaceSlug: deps.clerk.defaultWorkspaceSlug, db: deps.db, kek: deps.kek, clock, secureCookies, crm: reg.crmDeps } : null);

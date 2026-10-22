@@ -74,6 +74,17 @@ export class TwilioClient {
       Timeout: String(p.timeoutSeconds ?? 25),
     });
   }
+  /** One call leg's current state (status, duration), for the provider abstraction. */
+  async call(sid: string): Promise<{ sid: string; status: string; duration: number | null; answeredBy: string | null }> {
+    const res = await this.f(`${this.base}/2010-04-01/Accounts/${this.auth.accountSid}/Calls/${sid}.json`, { headers: this.headers() });
+    const json = (await res.json().catch(() => ({}))) as { sid?: string; status?: string; duration?: string | null; answered_by?: string | null; message?: string; code?: number };
+    if (!res.ok) throw new TwilioError(res.status, json.code ?? null, json.message ?? `Twilio ${res.status}`);
+    return { sid: json.sid ?? sid, status: json.status ?? 'unknown', duration: json.duration ? Number(json.duration) : null, answeredBy: json.answered_by ?? null };
+  }
+  /** End a live leg. */
+  hangup(sid: string): Promise<{ sid: string; status: string }> {
+    return this.form(`/Calls/${sid}.json`, { Status: 'completed' });
+  }
   /** Download a recording as WAV (dual channel when recorded that way). */
   async recordingWav(recordingSid: string): Promise<Buffer> {
     const res = await this.f(`${this.base}/2010-04-01/Accounts/${this.auth.accountSid}/Recordings/${recordingSid}.wav?RequestedChannels=2`, { headers: this.headers({ accept: 'audio/wav' }) });

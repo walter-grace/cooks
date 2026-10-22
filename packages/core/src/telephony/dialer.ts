@@ -13,6 +13,8 @@ import { serializeCall, type CallRow } from '../services/calls.js';
 import { isUuid, isoReq, memberIds, requireMember, uuidOr404 } from '../services/_shared.js';
 import { requireTelephony, telephonyFor, type TelephonyDeps } from './connection.js';
 import { dialTwiml, hangupTwiml, normalizePhone, voiceAccessToken } from './twilio.js';
+import { DialerError, TwilioProvider } from '../dialer/providers/index.js';
+import { aiRecordingResponse } from './ai-call.js';
 
 export interface DialerDeps extends TelephonyDeps {
   publicUrl: string;
@@ -141,18 +143,22 @@ export async function startCall(ctx: Ctx, input: DialInput, d: DialerDeps) {
     .returning();
   const call = row!;
   if (mode === 'bridge') {
+    const provider = new TwilioProvider(tel.client);
     try {
-      const leg = await tel.client.createCall({
-        to: repPhone!,
+      const leg = await provider.placeCall({
+        callId: call.id,
+        to,
         from,
-        url: callbackUrl(d, 'voice/bridge', ws, call.id),
-        statusCallback: callbackUrl(d, 'status', ws, call.id, { leg: 'rep' }),
-        machineDetection: false,
+        prospectId: p?.id ?? null,
+        repPhone,
+        maxDurationSeconds: 0,
+        callbacks: { voiceUrl: callbackUrl(d, 'voice/bridge', ws, call.id), statusUrl: callbackUrl(d, 'status', ws, call.id, { leg: 'rep' }) },
       });
-      await ctx.db.update(calls).set({ providerCallSid: leg.sid, status: 'ringing_rep' }).where(eq(calls.id, call.id));
+      await ctx.db.update(calls).set({ providerCallSid: leg.providerCallId, status: 'ringing_rep' }).where(eq(calls.id, call.id));
     } catch (e) {
-      await ctx.db.update(calls).set({ status: 'failed', notes: `Twilio: ${(e as Error).message}`, endedAt: ctx.clock.now() }).where(eq(calls.id, call.id));
-      throw unprocessable(`Twilio could not place the call: ${(e as Error).message}`);
+      const msg = e instanceof DialerError ? e.message : `Twilio could not place the call: ${(e as Error).message}`;
+      await ctx.db.update(calls).set({ status: 'failed', notes: msg, endedAt: ctx.clock.now() }).where(eq(calls.id, call.id));
+      throw unprocessable(msg, e instanceof DialerError ? { code: e.code, provider: 'twilio' } : undefined);
     }
   }
   return {
@@ -414,6 +420,12 @@ export async function callInsights(ctx: Ctx, callId: string) {
 /** Re-run transcription/coaching (or run it for the first time) for a recorded call. */
 export async function requestCoaching(ctx: Ctx, callId: string) {
   const row = await callRow(ctx, callId);
+  if (row.provider === 'speko') {
+    if (!row.transcript?.length) throw unprocessable('This call has no transcript to analyse');
+    await ctx.db.update(calls).set({ coachingStatus: 'queued', updatedAt: ctx.clock.now() }).where(eq(calls.id, row.id));
+    const jobId = await ctx.jobs.send('ai.coach_call', { callId: row.id, workspaceId: row.workspaceId, force: true }, { singletonKey: `coach:${row.id}:${Date.now()}` });
+    return { queued: jobId !== null, callId: row.id };
+  }
   if (!row.recordingSid) throw unprocessable('This call has no recording to analyse');
   await ctx.db.update(calls).set({ transcriptStatus: row.transcriptStatus === 'ready' ? row.transcriptStatus : 'queued', coachingStatus: 'queued', updatedAt: ctx.clock.now() }).where(eq(calls.id, row.id));
   const jobId = await ctx.jobs.send('telephony.recording', { callId: row.id, workspaceId: row.workspaceId, force: true }, { singletonKey: `rec:${row.id}:${Date.now()}` });
@@ -423,6 +435,7 @@ export async function requestCoaching(ctx: Ctx, callId: string) {
 /** Proxy the recording from Twilio so the UI can play it without exposing credentials. */
 export async function recordingResponse(ctx: Ctx, callId: string, d: DialerDeps): Promise<Response> {
   const row = await callRow(ctx, callId);
+  if (row.provider === 'speko') return aiRecordingResponse(ctx, row, d);
   if (!row.recordingSid) throw notFound('Recording');
   const tel = await requireTelephony(ctx, d);
   const upstream = await tel.client.recordingStream(row.recordingSid, 'mp3');

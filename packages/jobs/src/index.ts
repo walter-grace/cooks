@@ -24,6 +24,7 @@ export const QUEUES: Record<JobName, { policy?: string; retryLimit?: number; ret
   'signals.scan': { policy: 'standard', retryLimit: 1, expireInSeconds: 300 },
   'signals.scan_due': { policy: 'singleton', retryLimit: 0, expireInSeconds: 300 },
   'telephony.recording': { policy: 'standard', retryLimit: 5, retryDelay: 30, retryBackoff: true, expireInSeconds: 600 },
+  'telephony.ai_poll': { policy: 'standard', retryLimit: 3, retryDelay: 15, retryBackoff: true, expireInSeconds: 120 },
   'ai.coach_call': { policy: 'standard', retryLimit: 2, retryBackoff: true, expireInSeconds: 300 },
 };
 

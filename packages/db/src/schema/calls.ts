@@ -62,11 +62,23 @@ export const calls = pgTable(
     taskId: uuid('task_id'),
     transcriptStatus: text('transcript_status').notNull().default('none'),
     coachingStatus: text('coaching_status').notNull().default('none'),
-    /** 'bridge' (rep's phone first) or 'softphone' (browser). */
+    /** 'bridge' (rep's phone first), 'softphone' (browser), 'ai' (Speko voice agent) or 'manual'. */
     mode: text('mode'),
+    /** Speko session id for AI-voiced calls. */
+    spekoSessionId: text('speko_session_id'),
+    /** answered | voicemail | no_answer | failed, written once the provider reports the call ended. */
+    outcome: text('outcome'),
+    /** Speaker-labelled transcript entries from the provider (AI calls). */
+    transcript: jsonb('transcript').$type<Array<{ index: number; role: 'agent' | 'user' | 'system'; text: string; startedAt: string; endedAt?: string | null }>>(),
+    summary: text('summary'),
+    endReason: text('end_reason'),
+    costUsd: numeric('cost_usd', { precision: 10, scale: 4 }),
+    /** Script and limits the AI call was placed with (never credentials). */
+    aiConfig: jsonb('ai_config').$type<Record<string, unknown>>(),
   },
   (t) => [
     index('calls_ws_created_idx').on(t.workspaceId, t.createdAt, t.id),
+    index('calls_speko_session_idx').on(t.spekoSessionId),
     index('calls_ws_updated_idx').on(t.workspaceId, t.updatedAt),
     index('calls_ws_time_idx').on(t.workspaceId, t.time),
     index('calls_ws_prospect_idx').on(t.workspaceId, t.prospectId),
@@ -181,5 +193,5 @@ export const telephonyConnections = pgTable(
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
     ...timestamps,
   },
-  (t) => [uniqueIndex('telephony_ws_uq').on(t.workspaceId)],
+  (t) => [uniqueIndex('telephony_ws_provider_uq').on(t.workspaceId, t.provider)],
 );

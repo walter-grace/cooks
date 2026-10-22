@@ -10,8 +10,23 @@ import {
   CallDisposition,
   IdParam,
   bridgeTwiml,
+  buySpekoNumber,
   callInsights,
+  callTranscript,
+  connectSpeko,
   connectTelephony,
+  dialerBalance,
+  dialerOverview,
+  disconnectSpeko,
+  handleSpekoWebhook,
+  hangupAiCall,
+  placeAiCall,
+  searchSpekoNumbers,
+  setDialerProvider,
+  spekoFor,
+  spekoNumbers,
+  updateSpekoSettings,
+  verifyStandardWebhook,
   createDisposition,
   createManualCall,
   dataOf,
@@ -165,6 +180,107 @@ export function mountTelephony(reg: Registrar, d: DialerDeps) {
     { scope: 'calls:read', rateClass: 'get', extension: true },
     async (c) => recordingResponse(c.get('ctx'), c.req.valid('param').id, d) as never,
   );
+  /* ---------- Speko: AI-voiced calls ---------- */
+  const SpekoSettingsBody = z.object({
+    fromNumber: z.string().nullable().optional(),
+    fromNumbers: z.array(z.string()).optional(),
+    systemPrompt: z.string().max(8000).optional(),
+    firstMessage: z.string().max(1000).optional(),
+    maxDurationSeconds: z.number().int().min(30).max(14_400).optional().describe('Capped server-side at 600'),
+    dailySpendCapUsd: z.number().min(0).max(10_000).optional(),
+    language: z.string().max(16).optional(),
+    voice: z.string().max(120).nullable().optional(),
+    agentId: z.string().max(120).nullable().optional(),
+    onMachine: z.enum(['hangup', 'leave_message', 'agent_decides']).optional(),
+    voicemailMessage: z.string().max(1000).nullable().optional(),
+    webhookSecret: z.string().max(512).nullable().optional().describe('Standard Webhooks signing secret for /telephony/speko/webhook'),
+    coach: z.boolean().optional(),
+  });
+  const Speko = z.record(z.string(), z.unknown()).openapi('SpekoConnection');
+  register(
+    reg,
+    createRoute({ method: 'get', path: '/v1/workspace/dialer', operationId: 'getDialer', tags: ['Dialer'], summary: 'Both dialer connections and which one the Call button uses', responses: { 200: jsonResponse(dataOf(z.object({ provider: z.string().nullable(), twilio: Telephony, speko: Speko })), 'Dialer'), ...errorResponses } }),
+    { scope: 'calls:read', rateClass: 'get', extension: true },
+    async (c) => c.json({ data: await dialerOverview(c.get('ctx'), d) }, 200),
+  );
+  register(
+    reg,
+    createRoute({ method: 'put', path: '/v1/workspace/dialer/provider', operationId: 'setDialerProvider', tags: ['Dialer'], summary: 'Choose the dialer (admins): twilio for rep calls, speko for AI calls', request: { body: jsonBody(z.object({ data: z.object({ provider: z.enum(['twilio', 'speko']) }) })) }, responses: { 200: jsonResponse(dataOf(z.object({ provider: z.string() })), 'Chosen'), ...errorResponses } }),
+    { scope: 'calls:write', rateClass: 'write', extension: true },
+    async (c) => c.json({ data: { provider: await setDialerProvider(c.get('ctx'), c.req.valid('json').data.provider) } }, 200),
+  );
+  register(
+    reg,
+    createRoute({ method: 'put', path: '/v1/workspace/telephony/speko', operationId: 'connectSpeko', tags: ['Dialer'], summary: 'Connect Speko for AI-voiced calls (admins)', description: 'Paste a Speko API key (sk_live_…), or omit it to use the server\'s SPEKO_API_KEY. The key is verified, encrypted with COOKS_KEK and never returned.', request: { body: jsonBody(z.object({ data: SpekoSettingsBody.extend({ apiKey: z.string().min(8).optional() }) })) }, responses: { 200: jsonResponse(dataOf(Speko), 'Connected'), ...errorResponses } }),
+    { scope: 'calls:write', rateClass: 'write', extension: true },
+    async (c) => c.json({ data: await connectSpeko(c.get('ctx'), c.req.valid('json').data, d) }, 200),
+  );
+  register(
+    reg,
+    createRoute({ method: 'patch', path: '/v1/workspace/telephony/speko', operationId: 'updateSpeko', tags: ['Dialer'], summary: 'Change the AI call script, caller id, duration or daily spend cap', request: { body: jsonBody(z.object({ data: SpekoSettingsBody })) }, responses: { 200: jsonResponse(dataOf(Speko), 'Updated'), ...errorResponses } }),
+    { scope: 'calls:write', rateClass: 'write', extension: true },
+    async (c) => c.json({ data: await updateSpekoSettings(c.get('ctx'), c.req.valid('json').data, d) }, 200),
+  );
+  register(
+    reg,
+    createRoute({ method: 'delete', path: '/v1/workspace/telephony/speko', operationId: 'disconnectSpeko', tags: ['Dialer'], summary: 'Disconnect Speko', responses: { 204: { description: 'Disconnected' }, ...errorResponses } }),
+    { scope: 'calls:write', rateClass: 'write', extension: true },
+    async (c) => {
+      await disconnectSpeko(c.get('ctx'));
+      return c.body(null, 204);
+    },
+  );
+  register(
+    reg,
+    createRoute({ method: 'get', path: '/v1/workspace/telephony/speko/balance', operationId: 'getDialerBalance', tags: ['Dialer'], summary: 'Speko credit balance, today\'s AI call spend and the daily cap', responses: { 200: jsonResponse(dataOf(z.record(z.string(), z.unknown())), 'Balance'), ...errorResponses } }),
+    { scope: 'calls:read', rateClass: 'get', extension: true },
+    async (c) => c.json({ data: await dialerBalance(c.get('ctx'), d) }, 200),
+  );
+  register(
+    reg,
+    createRoute({ method: 'get', path: '/v1/workspace/telephony/speko/numbers', operationId: 'listSpekoNumbers', tags: ['Dialer'], summary: 'Phone numbers owned on Speko', responses: { 200: jsonResponse(z.object({ data: z.array(z.record(z.string(), z.unknown())) }), 'Numbers'), ...errorResponses } }),
+    { scope: 'calls:read', rateClass: 'get', extension: true },
+    async (c) => c.json({ data: await spekoNumbers(c.get('ctx'), d) }, 200),
+  );
+  register(
+    reg,
+    createRoute({ method: 'get', path: '/v1/workspace/telephony/speko/numbers/available', operationId: 'searchSpekoNumbers', tags: ['Dialer'], summary: 'Search numbers available to buy on Speko (shows setup and monthly price)', request: { query: z.object({ country: z.string().optional(), areaCode: z.string().optional(), numberType: z.string().optional(), locality: z.string().optional(), state: z.string().optional(), limit: z.coerce.number().int().min(1).max(50).optional() }) }, responses: { 200: jsonResponse(z.object({ data: z.array(z.record(z.string(), z.unknown())) }), 'Available'), ...errorResponses } }),
+    { scope: 'calls:read', rateClass: 'get', extension: true },
+    async (c) => c.json({ data: await searchSpekoNumbers(c.get('ctx'), d, c.req.valid('query')) }, 200),
+  );
+  register(
+    reg,
+    createRoute({ method: 'post', path: '/v1/workspace/telephony/speko/numbers', operationId: 'buySpekoNumber', tags: ['Dialer'], summary: 'Buy a Speko number (PAID; admins; requires confirm: true)', request: { body: jsonBody(z.object({ data: z.object({ e164: z.string(), confirm: z.boolean().optional(), label: z.string().max(80).optional(), expectedUpfrontCostUsd: z.number().min(0).optional(), expectedMonthlyCostUsd: z.number().min(0).optional(), makeDefault: z.boolean().optional() }) })) }, responses: { 201: jsonResponse(dataOf(z.record(z.string(), z.unknown())), 'Bought'), ...errorResponses } }),
+    { scope: 'calls:write', rateClass: 'write', extension: true },
+    async (c) => c.json({ data: await buySpekoNumber(c.get('ctx'), d, c.req.valid('json').data) }, 201),
+  );
+  register(
+    reg,
+    createRoute({
+      method: 'post',
+      path: '/v1/calls/actions/aiCall',
+      operationId: 'placeAiCall',
+      tags: ['Calls', 'Dialer'],
+      summary: 'Place an AI-voiced call through Speko',
+      description: 'A 2xx means the call is queued, not answered. The worker polls Speko until the call ends, then stores outcome (answered, voicemail, no_answer, failed), transcript, summary, cost and recording, logs a disposition (closing the linked task) and queues coaching. Refused with 422 and a code when the prospect is on the do-not-call list (DO_NOT_CALL), outside 08:00–21:00 local time (QUIET_HOURS), over the daily spend cap (SPEND_CAP), or when Speko rejects it (e.g. INSUFFICIENT_CREDITS).',
+      request: { body: jsonBody(z.object({ data: z.object({ prospectId: z.string().optional(), to: z.string().optional(), taskId: z.string().optional(), ownerId: z.string().optional(), systemPrompt: z.string().max(8000).optional(), firstMessage: z.string().max(1000).optional(), maxDurationSeconds: z.number().int().min(30).max(14_400).optional(), fromNumber: z.string().optional(), language: z.string().max(16).optional(), voice: z.string().max(120).optional(), agentId: z.string().max(120).optional(), onMachine: z.enum(['hangup', 'leave_message', 'agent_decides']).optional(), voicemailMessage: z.string().max(1000).optional() }) })) },
+      responses: { 202: jsonResponse(dataOf(z.object({ call: Call, status: z.literal('queued'), maxDurationSeconds: z.number(), timezone: z.string(), estimatedUsd: z.number() })), 'Queued'), ...errorResponses },
+    }),
+    { scope: 'calls:write', rateClass: 'write', extension: true },
+    async (c) => c.json({ data: await placeAiCall(c.get('ctx'), c.req.valid('json').data, d) }, 202),
+  );
+  register(
+    reg,
+    createRoute({ method: 'post', path: '/v1/calls/{id}/actions/hangup', operationId: 'hangupCall', tags: ['Calls', 'Dialer'], summary: 'End a running AI call', request: { params: IdParam }, responses: { 200: jsonResponse(dataOf(z.object({ callId: z.string(), status: z.string(), ended: z.boolean() })), 'Ending'), ...errorResponses } }),
+    { scope: 'calls:write', rateClass: 'write', extension: true },
+    async (c) => c.json({ data: await hangupAiCall(c.get('ctx'), c.req.valid('param').id, d) }, 200),
+  );
+  register(
+    reg,
+    createRoute({ method: 'get', path: '/v1/calls/{id}/transcript', operationId: 'getCallTranscript', tags: ['Calls', 'Coaching'], summary: 'Transcript, outcome, summary and cost for a call', request: { params: IdParam }, responses: { 200: jsonResponse(dataOf(z.record(z.string(), z.unknown())), 'Transcript'), ...errorResponses } }),
+    { scope: 'calls:read', rateClass: 'get', extension: true },
+    async (c) => c.json({ data: await callTranscript(c.get('ctx'), c.req.valid('param').id) }, 200),
+  );
   register(
     reg,
     createRoute({ method: 'post', path: '/v1/callDispositions', operationId: 'createCallDisposition', tags: ['Call Dispositions'], summary: 'Add a disposition (the default set is created on first use)', request: { body: jsonBody(z.object({ data: z.object({ name: z.string().min(1).max(80), callOutcome: Outcome, order: z.number().int().optional() }) })) }, responses: { 201: jsonResponse(dataOf(CallDisposition), 'Created'), ...errorResponses } }),
@@ -223,5 +339,27 @@ export function mountTelephonyWebhooks(app: OpenAPIHono<AppEnv>, deps: { db: Db;
     if (!r) return c.text('forbidden', 403);
     await handleRecording(r.ctx, r.callId, r.params, deps.dialer).catch(() => undefined);
     return c.body(null, 204);
+  });
+  /** Speko `call.*` events (Standard Webhooks signature when the workspace stored a secret). Only ever triggers a poll. */
+  app.post('/telephony/speko/webhook', async (c) => {
+    const ws = c.req.query('ws') ?? '';
+    const [w] = ws && /^[0-9a-f-]{36}$/i.test(ws) ? await deps.db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, ws)).limit(1) : [];
+    if (!w) return c.text('forbidden', 403);
+    const ctx = ctxFor(ws);
+    const sp = await spekoFor(ctx, deps.dialer);
+    if (!sp) return c.text('forbidden', 403);
+    const raw = await c.req.text();
+    if (sp.webhookSecret && !deps.trustSignature) {
+      const ok = verifyStandardWebhook(sp.webhookSecret, { id: c.req.header('webhook-id'), timestamp: c.req.header('webhook-timestamp'), signature: c.req.header('webhook-signature') }, raw, deps.clock.now());
+      if (!ok) return c.text('forbidden', 403);
+    }
+    let body: Record<string, unknown> = {};
+    try {
+      body = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return c.text('bad request', 400);
+    }
+    const r = await handleSpekoWebhook(ctx, body).catch(() => ({ ignored: 'error' }));
+    return c.json(r, 200);
   });
 }

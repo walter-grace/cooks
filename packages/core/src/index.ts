@@ -14,4 +14,5 @@ export * from './engine/index.js';
 export * from './mail/index.js';
 export * from './webhooks/index.js';
 export * from './crm/index.js';
+export * from './dialer/index.js';
 export * from './telephony/index.js';

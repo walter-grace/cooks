@@ -10,23 +10,34 @@ import { api, currentSession, fmtDate, q } from '../api.js';
 import { toast, useApi } from '../hooks.js';
 import { Link, navigate } from '../router.js';
 import { Empty, PageHeader, StateBadge } from '../components/layout.js';
-import { DialDialog } from '../components/dialer.jsx';
+import { AiCallDialog, DialDialog } from '../components/dialer.jsx';
 import { STATUS_LABEL, fmtDuration } from '../dialer.js';
 
 export function Calls() {
   const [scope, setScope] = useState('all');
   const { data, error, loading, reload } = useApi<{ data: any[] }>(`/v1/calls${q({ 'filter[logged]': scope === 'unlogged' ? 'false' : scope === 'logged' ? 'true' : undefined, include: 'prospect,callDisposition,owner', 'page[size]': 100 })}`, [scope]);
-  const tel = useApi<{ data: any }>('/v1/workspace/telephony');
+  const dialer = useApi<{ data: any }>('/v1/workspace/dialer');
   const [dial, setDial] = useState(false);
+  const [aiCall, setAiCall] = useState(false);
+  const dp = dialer.data?.data;
+  const tw = dp?.twilio;
+  const desc = [tw?.status === 'connected' ? `Twilio · caller id ${tw.fromNumbers[0] ?? 'none'}${tw.softphone ? ' · browser calling on' : ''}` : null, dp?.speko?.status === 'connected' ? `Speko AI calls · ${dp.speko.fromNumbers[0] ?? 'no number'}` : null].filter(Boolean).join('  ·  ');
   return (
     <>
       <PageHeader
         title="Calls"
-        description={tel.data?.data.status === 'connected' ? `Twilio connected · caller id ${tel.data.data.fromNumbers[0] ?? 'none'}${tel.data.data.softphone ? ' · browser calling on' : ''}` : 'Connect Twilio under Settings → Dialer to place calls from here. Calls made elsewhere can still be logged from a prospect.'}
+        description={desc || 'Connect Twilio or Speko under Settings → Dialer to place calls from here. Calls made elsewhere can still be logged from a prospect.'}
         actions={
-          <Button onClick={() => setDial(true)} disabled={tel.data?.data.status !== 'connected'} data-testid="calls-dial">
-            <PhoneOutgoing className="size-4" /> New call
-          </Button>
+          <div className="flex gap-2">
+            {dp?.speko?.status === 'connected' && (
+              <Button variant={dp.provider === 'speko' ? 'default' : 'outline'} onClick={() => setAiCall(true)} data-testid="calls-ai-call">
+                <Sparkles className="size-4" /> AI call
+              </Button>
+            )}
+            <Button variant={dp?.provider === 'speko' ? 'outline' : 'default'} onClick={() => setDial(true)} disabled={tw?.status !== 'connected'} data-testid="calls-dial">
+              <PhoneOutgoing className="size-4" /> New call
+            </Button>
+          </div>
         }
       />
       <Tabs value={scope} onValueChange={setScope} className="mb-3">
@@ -47,6 +58,7 @@ export function Calls() {
                 <TableHead>When</TableHead>
                 <TableHead>Prospect</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Via</TableHead>
                 <TableHead className="text-right">Length</TableHead>
                 <TableHead>Disposition</TableHead>
                 <TableHead>Insights</TableHead>
@@ -59,8 +71,9 @@ export function Calls() {
                   <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{fmtDate(c.time)}</TableCell>
                   <TableCell className="font-medium">{c.prospect?.name ?? c.to ?? c.from}</TableCell>
                   <TableCell>
-                    <StateBadge state={c.status} />
+                    <StateBadge state={c.outcome ?? c.status} />
                   </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{c.mode === 'ai' ? 'AI · Speko' : c.provider === 'twilio' ? `Twilio · ${c.mode}` : 'logged'}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtDuration(c.duration)}</TableCell>
                   <TableCell>{c.callDisposition?.name ? <Badge variant="outline">{c.callDisposition.name}</Badge> : c.loggedAt ? '' : <span className="text-xs text-muted-foreground">not logged</span>}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">
@@ -84,6 +97,7 @@ export function Calls() {
         </div>
       )}
       <DialDialog open={dial} onOpenChange={setDial} target={{}} onLogged={reload} />
+      <AiCallDialog open={aiCall} onOpenChange={setAiCall} target={{}} onDone={reload} />
     </>
   );
 }
@@ -136,7 +150,7 @@ export function CallDetail({ id }: { id: string }) {
                 <Phone className="size-4" /> Call again
               </Button>
             )}
-            {c.recordingUrl && (
+            {(c.recordingUrl || c.transcriptStatus === 'ready') && (
               <Button variant="outline" onClick={coach} data-testid="call-coach">
                 <Sparkles className="size-4" /> {co ? 'Re-run coaching' : 'Coach this call'}
               </Button>
@@ -151,11 +165,16 @@ export function CallDetail({ id }: { id: string }) {
           </CardHeader>
           <CardContent className="grid gap-2 text-sm">
             <Row k="Disposition" v={c.callDisposition?.name ?? (c.loggedAt ? '' : 'not logged')} />
+            {c.outcome && <Row k="Outcome" v={String(c.outcome).replace(/_/g, ' ')} />}
+            {c.provider && <Row k="Via" v={c.mode === 'ai' ? 'Speko AI agent' : `${c.provider} · ${c.mode}`} />}
+            {c.costUsd !== null && c.costUsd !== undefined && <Row k="Cost" v={`$${Number(c.costUsd).toFixed(2)}`} />}
+            {c.endReason && <Row k="End reason" v={c.endReason} />}
             <Row k="Direction" v={c.direction} />
             <Row k="From" v={c.from} />
             <Row k="To" v={c.to} />
             <Row k="Mode" v={c.mode} />
-            {c.notes && <p className="mt-2 whitespace-pre-wrap rounded-md bg-muted p-2 text-sm">{c.notes}</p>}
+            {c.summary && <p className="mt-2 rounded-md bg-muted p-2 text-sm" data-testid="call-summary">{c.summary}</p>}
+            {c.notes && !c.summary && <p className="mt-2 whitespace-pre-wrap rounded-md bg-muted p-2 text-sm">{c.notes}</p>}
           </CardContent>
         </Card>
         <Card>
@@ -177,8 +196,8 @@ export function CallDetail({ id }: { id: string }) {
             <CardTitle className="text-base">Talk stats</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2 text-sm">
-            {!st && <p className="text-muted-foreground">Available once the call is transcribed.</p>}
-            {st && (
+            {!(st && typeof st.talkRatio === 'number') && <p className="text-muted-foreground">Available once the call is transcribed.</p>}
+            {st && typeof st.talkRatio === 'number' && (
               <>
                 <Row k="Rep talk share" v={`${Math.round(st.talkRatio * 100)}%`} />
                 <Row k="Longest rep monologue" v={`${st.longestRepMonologueSeconds}s`} />
@@ -281,7 +300,7 @@ export function CallDetail({ id }: { id: string }) {
             {i.transcript.segments.map((s: any, k: number) => (
               <div key={k} className={`flex gap-3 ${s.speaker === 'rep' ? '' : 'text-muted-foreground'}`}>
                 <span className="w-10 shrink-0 font-mono text-xs text-muted-foreground">{fmtDuration(s.start)}</span>
-                <span className="w-16 shrink-0 font-medium">{s.speaker === 'rep' ? 'Rep' : 'Prospect'}</span>
+                <span className="w-16 shrink-0 font-medium">{s.speaker === 'rep' ? (c.mode === 'ai' ? 'Agent' : 'Rep') : 'Prospect'}</span>
                 <span>{s.text}</span>
               </div>
             ))}

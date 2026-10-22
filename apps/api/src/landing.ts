@@ -36,12 +36,12 @@ export function landingHtml(opts: { publicUrl: string; release: string }) {
 </section>
 <div class="grid">
 <div class="card"><h3>Sequencing <span class="pill ok">live</span></h3><p>Multi-step email, call and social cadences with send windows, merge fields, reply detection, bounce handling and AI drafts routed to a human when unsure.</p></div>
-<div class="card"><h3>Dialer <span class="pill soon">building</span></h3><p>Browser softphone or phone bridge on Twilio Voice, recordings, dispositions, and a byte-compatible <code>call.logged</code> webhook.</p></div>
-<div class="card"><h3>Signals <span class="pill soon">building</span></h3><p>A feed of buying signals from email engagement, web research and anything your bot pushes in, with rules that enroll or create tasks.</p></div>
-<div class="card"><h3>Coaching <span class="pill soon">building</span></h3><p>Transcripts, talk ratio and an AI scorecard for every recorded call, with the provider and model you choose.</p></div>
+<div class="card"><h3>Dialer</h3><p>Browser softphone or phone bridge on Twilio Voice, AI-voiced calls on Speko with outcome and transcript, recordings, dispositions, and a byte-compatible <code>call.logged</code> webhook.</p></div>
+<div class="card"><h3>Signals</h3><p>A feed of buying signals from email engagement, web research and anything your bot pushes in, with rules that enroll or create tasks.</p></div>
+<div class="card"><h3>Coaching</h3><p>Transcripts, talk ratio and an AI scorecard for every recorded call, with the provider and model you choose.</p></div>
 </div>
 <section class="two">
-<div><h2>Your bot is the brain</h2><p class="lead">One command adds 53 tools to Claude Code, Claude Desktop, Cursor or Grok. Cooks spends none of its own tokens in this mode.</p>
+<div><h2>Your bot is the brain</h2><p class="lead">One command adds 57 tools to Claude Code, Claude Desktop, Cursor or Grok. Cooks spends none of its own tokens in this mode.</p>
 <pre>claude mcp add cooks \\
   -e COOKS_API_URL=${publicUrl} \\
   -e COOKS_API_KEY=cooks-api-... \\

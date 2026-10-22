@@ -262,3 +262,166 @@ export function LogCallDialog({ open, onOpenChange, prospectId, taskId, onLogged
     </Dialog>
   );
 }
+
+const OUTCOME_LABEL: Record<string, string> = { answered: 'Answered', voicemail: 'Voicemail', no_answer: 'No answer', failed: 'Failed' };
+
+/**
+ * AI call through Speko: pick the number, tweak the script, place, then watch the call until
+ * the worker writes the outcome, summary and transcript.
+ */
+export function AiCallDialog({ open, onOpenChange, target, onDone }: { open: boolean; onOpenChange: (o: boolean) => void; target: { prospectId?: string; name?: string | null; phone?: string | null; taskId?: string } | null; onDone?: () => void }) {
+  const dialer = useApi<{ data: any }>(open ? '/v1/workspace/dialer' : null, [open]);
+  const sp = dialer.data?.data?.speko;
+  const [to, setTo] = useState('');
+  const [from, setFrom] = useState('');
+  const [firstMessage, setFirstMessage] = useState('');
+  const [systemPrompt, setSystemPrompt] = useState('');
+  const [maxSeconds, setMaxSeconds] = useState(120);
+  const [busy, setBusy] = useState(false);
+  const [call, setCall] = useState<any | null>(null);
+  const [transcript, setTranscript] = useState<any | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!sp) return;
+    setFrom(sp.settings?.fromNumber ?? sp.fromNumbers?.[0] ?? '');
+    setFirstMessage(sp.settings?.firstMessage ?? '');
+    setSystemPrompt(sp.settings?.systemPrompt ?? '');
+    setMaxSeconds(sp.settings?.maxDurationSeconds ?? 120);
+  }, [sp]);
+  useEffect(() => {
+    setTo(target?.phone ?? '');
+    setCall(null);
+    setTranscript(null);
+    setErr(null);
+    // keyed on ids, not the target object: parents re-render (and rebuild `target`) when the call lands
+  }, [target?.prospectId, target?.taskId, open]);
+  const live = call && ['initiated', 'queued', 'ringing', 'in_progress'].includes(call.status);
+  useEffect(() => {
+    if (!live) return;
+    const id = window.setInterval(async () => {
+      try {
+        const r = await api(`/v1/calls/${call.id}`);
+        setCall(r.data);
+        if (!['initiated', 'queued', 'ringing', 'in_progress'].includes(r.data.status)) {
+          setTranscript((await api(`/v1/calls/${call.id}/transcript`)).data);
+          onDone?.();
+        }
+      } catch {
+        /* keep polling */
+      }
+    }, 3000);
+    return () => window.clearInterval(id);
+  }, [live, call?.id]);
+  const place = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api('/v1/calls/actions/aiCall', { method: 'POST', json: { data: { prospectId: target?.prospectId, taskId: target?.taskId, to: target?.prospectId && to === target.phone ? undefined : to || undefined, fromNumber: from || undefined, firstMessage: firstMessage || undefined, systemPrompt: systemPrompt || undefined, maxDurationSeconds: maxSeconds } } });
+      setCall(r.data.call);
+      toast(`Queued · up to ${r.data.maxDurationSeconds}s · about $${r.data.estimatedUsd}`, 'info');
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const hangup = async () => {
+    if (!call) return;
+    await api(`/v1/calls/${call.id}/actions/hangup`, { method: 'POST' }).catch((e: any) => toast(e.message, 'error'));
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg" data-testid="ai-call-dialog">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Phone className="size-4" /> {target?.name ? `AI call to ${target.name}` : 'AI call'}
+          </DialogTitle>
+          <DialogDescription>{sp?.status === 'connected' ? 'A Speko voice agent places the call, follows the script, and reports the outcome and transcript here. Calls only go out 08:00 to 21:00 in the prospect’s time zone.' : 'Connect Speko under Settings → Dialer to place AI calls.'}</DialogDescription>
+        </DialogHeader>
+        {!call && sp?.status === 'connected' && (
+          <div className="grid gap-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-2">
+                <Label>Number to call</Label>
+                <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="+1 555 010 2020" data-testid="ai-call-to" />
+              </div>
+              <div className="grid gap-2">
+                <Label>Caller id</Label>
+                <Select value={from} onValueChange={setFrom}>
+                  <SelectTrigger data-testid="ai-call-from">
+                    <SelectValue placeholder="Speko number" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(sp.fromNumbers as string[]).map((n) => (
+                      <SelectItem key={n} value={n}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Opening line</Label>
+              <Input value={firstMessage} onChange={(e) => setFirstMessage(e.target.value)} data-testid="ai-call-first" />
+            </div>
+            <div className="grid gap-2">
+              <Label>Instructions for the agent</Label>
+              <Textarea rows={5} value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} data-testid="ai-call-prompt" />
+              <p className="text-xs text-muted-foreground">Merge fields: {'{{ prospect.firstName }}'}, {'{{ account.name }}'}, {'{{ owner.name }}'}, {'{{ workspace.name }}'}</p>
+            </div>
+            <div className="grid gap-2">
+              <Label>Maximum length: {maxSeconds}s</Label>
+              <input type="range" min={30} max={sp.settings?.maxAllowedSeconds ?? 600} step={30} value={maxSeconds} onChange={(e) => setMaxSeconds(Number(e.target.value))} />
+            </div>
+            {err && <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive" data-testid="ai-call-error">{err}</p>}
+            <DialogFooter>
+              <Button onClick={place} disabled={busy || !to || !from} data-testid="ai-call-start">
+                {busy ? 'Placing…' : 'Place AI call'}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+        {call && (
+          <div className="grid gap-3" data-testid="ai-call-live">
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <div className="font-medium" data-testid="ai-call-status">
+                  {call.outcome ? OUTCOME_LABEL[call.outcome] ?? call.outcome : STATUS_LABEL[call.status] ?? call.status}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {call.to} · {fmtDuration(call.duration)}
+                  {call.costUsd !== null && call.costUsd !== undefined ? ` · $${Number(call.costUsd).toFixed(2)}` : ''}
+                </div>
+              </div>
+              {live ? (
+                <Button variant="destructive" size="sm" onClick={hangup} data-testid="ai-call-hangup">
+                  <PhoneOff className="size-4" /> Hang up
+                </Button>
+              ) : (
+                <Badge variant="secondary">{call.callDisposition?.name ?? 'logged'}</Badge>
+              )}
+            </div>
+            {live && <p className="text-sm text-muted-foreground">Waiting for the call to finish. You can close this; the result lands on the prospect timeline and the Calls page.</p>}
+            {transcript && (
+              <div className="grid gap-2 text-sm">
+                {transcript.summary && <p className="rounded-md bg-muted p-2" data-testid="ai-call-summary">{transcript.summary}</p>}
+                <div className="grid max-h-56 gap-1 overflow-y-auto">
+                  {transcript.transcript?.map((e: any, k: number) => (
+                    <div key={k} className={`flex gap-2 ${e.role === 'agent' ? '' : 'text-muted-foreground'}`}>
+                      <span className="w-16 shrink-0 font-medium">{e.role === 'agent' ? 'Agent' : e.role === 'user' ? 'Prospect' : 'System'}</span>
+                      <span>{e.text}</span>
+                    </div>
+                  ))}
+                </div>
+                <Link to={`/calls/${call.id}`} className="text-xs hover:underline">
+                  Open the call page for the recording and coaching →
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
