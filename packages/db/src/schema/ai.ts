@@ -3,7 +3,7 @@ import { id, tenant, timestamps, workspaceId } from './_base.js';
 
 export const aiProvider = pgEnum('ai_provider', ['anthropic', 'openai', 'xai', 'openrouter', 'ollama', 'custom']);
 export const agentKind = pgEnum('agent_kind', ['email_writer', 'reply_classifier', 'researcher', 'next_best_action']);
-export const runKind = pgEnum('run_kind', ['draft_email', 'classify_reply', 'research', 'nba', 'agent_loop', 'mcp_tool_call']);
+export const runKind = pgEnum('run_kind', ['draft_email', 'classify_reply', 'research', 'signals.scan', 'coach_call', 'nba', 'agent_loop', 'mcp_tool_call']);
 export const runStatus = pgEnum('run_status', ['queued', 'running', 'succeeded', 'failed', 'cancelled', 'needs_review']);
 
 export const workspaceAiSettings = pgTable('workspace_ai_settings', {

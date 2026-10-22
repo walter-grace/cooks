@@ -21,6 +21,9 @@ export type EventType =
   | 'task.completed'
   | 'task.skipped'
   | 'note.created'
+  | 'signal.created'
+  | 'call.started'
+  | 'call.completed'
   | 'webhook.verification';
 
 export interface EmitArgs {

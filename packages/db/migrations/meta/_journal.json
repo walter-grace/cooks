@@ -15,6 +15,13 @@
       "when": 1792691082544,
       "tag": "0001_clerk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792695460580,
+      "tag": "0002_phase2",
+      "breakpoints": true
     }
   ]
 }

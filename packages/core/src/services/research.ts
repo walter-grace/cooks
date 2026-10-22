@@ -2,6 +2,7 @@ import { and, desc, eq, ne } from 'drizzle-orm';
 import { signals } from '@cooks/db';
 import type { Ctx } from '../context.js';
 import { getProspectRow } from './prospects.js';
+import { getAccountRow } from './accounts.js';
 import { isoReq } from './_shared.js';
 
 export const RESEARCH_SUMMARY_KIND = 'research.summary';
@@ -42,4 +43,11 @@ export async function requestResearch(ctx: Ctx, prospectId: string, opts: { focu
   const p = await getProspectRow(ctx, prospectId);
   const jobId = await ctx.jobs.send('ai.research', { prospectId: p.id, workspaceId: ctx.principal.workspaceId, focus: opts.focus ?? null, force: !!opts.force }, { singletonKey: `research:${p.id}` });
   return { queued: jobId !== null, prospectId: p.id };
+}
+
+/** Queue an account-level signal scan; the worker performs it with the workspace AI provider. */
+export async function requestAccountScan(ctx: Ctx, accountId: string, opts: { focus?: string; force?: boolean } = {}) {
+  const a = await getAccountRow(ctx, accountId);
+  const jobId = await ctx.jobs.send('signals.scan', { accountId: a.id, workspaceId: ctx.principal.workspaceId, focus: opts.focus ?? null, force: !!opts.force }, { singletonKey: `scan:${a.id}` });
+  return { queued: jobId !== null, accountId: a.id };
 }

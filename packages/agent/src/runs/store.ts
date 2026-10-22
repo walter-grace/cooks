@@ -3,7 +3,7 @@ import { and, eq, gte, sql } from 'drizzle-orm';
 import { agentRunLogs, agentRuns, aiCache, type DbOrTx } from '@cooks/db';
 import type { TokenUsage } from '../providers/types.js';
 
-export type RunKind = 'draft_email' | 'classify_reply' | 'research' | 'nba' | 'agent_loop' | 'mcp_tool_call';
+export type RunKind = 'draft_email' | 'classify_reply' | 'research' | 'signals.scan' | 'coach_call' | 'nba' | 'agent_loop' | 'mcp_tool_call';
 export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'needs_review';
 
 export function inputHash(kind: string, model: string, version: number, input: unknown): string {

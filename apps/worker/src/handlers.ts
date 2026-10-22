@@ -12,8 +12,8 @@ import {
   type MailProvider,
 } from '@cooks/core';
 import { mailboxCredentials, type Db } from '@cooks/db';
-import { classifyReply, draftEmailForTask, researchProspect, type EnvKeys } from '@cooks/agent';
-import { applyClassification, loadCreds, logCallTaskToHubspot, logEmailToHubspot, outboundProviderFor, registerOAuthInbound, runAutoEnrollRule, syncMailbox, syncableMailboxIds, type ConnectorApps, type CrmSettings } from '@cooks/core';
+import { accountsDueForScan, classifyReply, draftEmailForTask, researchProspect, scanAccount, type EnvKeys } from '@cooks/agent';
+import { applyClassification, evaluateSignal, signalFromEmailEvent, loadCreds, logCallTaskToHubspot, logEmailToHubspot, outboundProviderFor, registerOAuthInbound, runAutoEnrollRule, syncMailbox, syncableMailboxIds, type ConnectorApps, type CrmSettings } from '@cooks/core';
 import { crmConnections } from '@cooks/db';
 import { emails as emailsTable, prospects as prospectsTable, accounts as accountsTable } from '@cooks/db';
 import { eq } from 'drizzle-orm';
@@ -32,6 +32,10 @@ export interface WorkerDeps {
   hubspotApp?: { clientId: string; clientSecret: string };
   brokerToken?: (userId: string, provider: 'google' | 'microsoft' | 'hubspot') => Promise<{ refreshToken: string; accessToken?: string; expiresAt?: number; viaClerk?: boolean } | null>;
   brokerHubspotToken?: (clerkUserId: string) => Promise<{ accessToken: string; expiresAt?: number } | null>;
+  /** Daily account scans: cadence and per-workspace cap (0 disables). */
+  scanEveryDays?: number;
+  scanPerWorkspace?: number;
+  scanWithoutEnvKeys?: boolean;
   log: (msg: string, data?: Record<string, unknown>) => void;
 }
 
@@ -111,7 +115,16 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
     if (result.status !== 'ok' && result.status !== 'needs_review') return { skipped: result.status };
     return applyClassification(ctx, { inboundEmailId: inb.id, taskId: job.data.taskId, result: result.value, reviewed: result.status === 'needs_review' });
   }, 2);
-  void work<{ prospectId: string; workspaceId: string; focus?: string | null; force?: boolean }>('ai.research', (job) => researchProspect({ db: deps.db, env: deps.aiEnv, now: () => new Date() }, job.data.prospectId, { focus: job.data.focus, force: job.data.force }), 2);
+  const researchDeps = { db: deps.db, env: deps.aiEnv, now: () => new Date(), jobs: deps.jobs };
+  void work<{ prospectId: string; workspaceId: string; focus?: string | null; force?: boolean }>('ai.research', (job) => researchProspect(researchDeps, job.data.prospectId, { focus: job.data.focus, force: job.data.force }), 2);
+  void work<{ signalId: string; workspaceId: string }>('signals.evaluate', (job) => evaluateSignal(mkCtx(deps, job.data.workspaceId), job.data.signalId), 5);
+  void work<{ accountId: string; workspaceId: string; focus?: string | null; force?: boolean }>('signals.scan', (job) => scanAccount(researchDeps, job.data.accountId, { focus: job.data.focus, force: job.data.force }), 1);
+  void work<Record<string, never>>('signals.scan_due', async () => {
+    if (!hasAi(deps.aiEnv) && !deps.scanWithoutEnvKeys) return { skipped: 'no server AI keys; workspaces with their own key still scan on demand' };
+    const due = await accountsDueForScan(deps.db, { everyDays: deps.scanEveryDays ?? 7, perWorkspace: deps.scanPerWorkspace ?? 10, now: new Date() });
+    for (const a of due) await deps.jobs.send('signals.scan', { accountId: a.id, workspaceId: a.workspaceId }, { singletonKey: `scan:${a.id}` });
+    return { queued: due.length };
+  }, 1);
   void work<{ taskId: string; workspaceId: string }>('ai.draft_email', (job) => draftEmailForTask({ db: deps.db, env: deps.aiEnv, now: () => new Date() }, job.data.taskId), 2);
   void work<Record<string, never>>('outbox.publish', async () => ({ published: await publishOutbox(deps.db, deps.jobs, { onEvent: (ev) => dispatchInternal(deps, ev) }) }), 1);
   void work<{ workspaceId: string; emailId?: string; taskId?: string }>('crm.sync', async (job) => {
@@ -147,6 +160,11 @@ const hasAi = (e: EnvKeys) => !!(e.ANTHROPIC_API_KEY || e.XAI_API_KEY || e.OPENA
 async function dispatchInternal(deps: WorkerDeps, ev: { workspaceId: string; eventType: string; payload: Record<string, unknown> }) {
   if (ev.eventType === 'email.sent' && ev.payload.emailId) await deps.jobs.send('crm.sync', { workspaceId: ev.workspaceId, emailId: ev.payload.emailId }, { singletonKey: `crm:email:${ev.payload.emailId}` });
   if (ev.eventType === 'task.completed' && ev.payload.taskId) await deps.jobs.send('crm.sync', { workspaceId: ev.workspaceId, taskId: ev.payload.taskId }, { singletonKey: `crm:task:${ev.payload.taskId}` });
+  if (ev.eventType === 'call.logged' && ev.payload.callId) await deps.jobs.send('crm.sync', { workspaceId: ev.workspaceId, callId: ev.payload.callId }, { singletonKey: `crm:call:${ev.payload.callId}` });
+  if ((ev.eventType === 'email.opened' || ev.eventType === 'email.clicked' || ev.eventType === 'email.replied') && typeof ev.payload.emailId === 'string') {
+    const [em] = await deps.db.select({ id: emailsTable.id, prospectId: emailsTable.prospectId, subject: emailsTable.subject, openCount: emailsTable.openCount }).from(emailsTable).where(eq(emailsTable.id, ev.payload.emailId)).limit(1);
+    await signalFromEmailEvent(mkCtx(deps, ev.workspaceId), ev.eventType, ev.payload, em ?? null).catch((e) => deps.log('signal derive failed', { error: (e as Error).message }));
+  }
 }
 
 export async function registerSchedules(boss: PgBoss) {
@@ -154,6 +172,7 @@ export async function registerSchedules(boss: PgBoss) {
   await boss.schedule('inbox.sync', '*/2 * * * *', {}, { tz: 'UTC' });
   await boss.schedule('crm.poll', '*/5 * * * *', {}, { tz: 'UTC' });
   await boss.schedule('outbox.publish', '* * * * *', {}, { tz: 'UTC' });
+  await boss.schedule('signals.scan_due', '15 6 * * *', {}, { tz: 'UTC' });
 }
 
 /** Low-latency outbox drain between the cron ticks. Safe with several workers (SKIP LOCKED). */

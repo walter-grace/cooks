@@ -11,6 +11,7 @@ import { mountProspects } from './prospects.js';
 import { mountSequenceStates } from './sequence-states.js';
 import { mountSequenceSteps } from './sequence-steps.js';
 import { mountSequences } from './sequences.js';
+import { mountSignals } from './signals.js';
 import { mountTags } from './tags.js';
 import { mountTasks } from './tasks.js';
 import { mountUsers } from './users.js';
@@ -31,6 +32,7 @@ export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: s
   mountEmails(reg);
   mountMailboxes(reg, { kek: opts.kek });
   mountCalls(reg);
+  mountSignals(reg);
   mountWebhooks(reg, { kek: opts.kek, fetchImpl: opts.fetchImpl });
   mountWorkspace(reg, { keyPrefix: opts.keyPrefix ?? 'cooks' });
   mountAi(reg, { kek: opts.kek });

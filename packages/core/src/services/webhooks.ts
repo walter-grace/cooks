@@ -31,6 +31,9 @@ export const WEBHOOK_EVENTS = [
   'task.completed',
   'task.skipped',
   'note.created',
+  'signal.created',
+  'call.started',
+  'call.completed',
 ] as const;
 
 export function serializeEndpoint(e: EndpointRow) {

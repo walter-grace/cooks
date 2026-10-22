@@ -21,7 +21,12 @@ export type JobName =
   | 'ai.research'
   | 'ai.nba'
   | 'crm.sync'
-  | 'crm.poll';
+  | 'crm.poll'
+  | 'signals.evaluate'
+  | 'signals.scan'
+  | 'signals.scan_due'
+  | 'telephony.recording'
+  | 'ai.coach_call';
 
 export interface JobsPort {
   send(name: JobName, data: Record<string, unknown>, opts?: JobOptions): Promise<string | null>;

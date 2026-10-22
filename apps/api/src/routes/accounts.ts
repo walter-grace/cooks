@@ -18,6 +18,7 @@ import {
   listOf,
   updateAccount,
 } from '@cooks/core';
+import { requestAccountScan } from '@cooks/core';
 import { register, type Registrar } from '../register.js';
 import { listArgs } from './_util.js';
 
@@ -104,6 +105,23 @@ export function mountAccounts(reg: Registrar) {
       const body = c.req.valid('json').data;
       const note = await createNote(c.get('ctx'), { associatedType: 'account', associatedId: c.req.valid('param').id, ...body }, reg.crmDeps);
       return c.json({ data: note }, 201);
+    },
+  );
+  register(
+    reg,
+    createRoute({
+      method: 'post',
+      path: '/v1/accounts/{id}/actions/scan',
+      operationId: 'scanAccount',
+      tags: ['Accounts', 'Signals'],
+      summary: 'Queue a web-grounded buying-signal scan for this account',
+      request: { params: IdParam, body: { content: { 'application/json': { schema: z.object({ data: z.object({ focus: z.string().max(500).optional(), force: z.boolean().optional() }).optional() }) } }, required: false, description: 'Optional focus' } },
+      responses: { 202: jsonResponse(z.object({ queued: z.boolean(), accountId: z.string() }), 'Queued'), ...errorResponses },
+    }),
+    { scope: 'agents:run', rateClass: 'default', extension: true },
+    async (c) => {
+      const body = (await c.req.json().catch(() => ({}))) as { data?: { focus?: string; force?: boolean } };
+      return c.json(await requestAccountScan(c.get('ctx'), c.req.valid('param').id, body.data ?? {}), 202);
     },
   );
 }

@@ -20,6 +20,11 @@ export const QUEUES: Record<JobName, { policy?: string; retryLimit?: number; ret
   'ai.nba': { policy: 'standard', retryLimit: 1, expireInSeconds: 180 },
   'crm.sync': { policy: 'standard', retryLimit: 3, retryBackoff: true, expireInSeconds: 120 },
   'crm.poll': { policy: 'singleton', retryLimit: 0, expireInSeconds: 600 },
+  'signals.evaluate': { policy: 'standard', retryLimit: 2, retryBackoff: true, expireInSeconds: 120 },
+  'signals.scan': { policy: 'standard', retryLimit: 1, expireInSeconds: 300 },
+  'signals.scan_due': { policy: 'singleton', retryLimit: 0, expireInSeconds: 300 },
+  'telephony.recording': { policy: 'standard', retryLimit: 5, retryDelay: 30, retryBackoff: true, expireInSeconds: 600 },
+  'ai.coach_call': { policy: 'standard', retryLimit: 2, retryBackoff: true, expireInSeconds: 300 },
 };
 
 export async function createBoss(connectionString: string, opts: { schema?: string } = {}): Promise<PgBoss> {
