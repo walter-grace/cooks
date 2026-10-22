@@ -1,0 +1,18 @@
+{
+  "name": "@cooks/auth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {},
+  "dependencies": {
+    "@cooks/config": "workspace:*",
+    "@cooks/db": "workspace:*",
+    "drizzle-orm": "^0.45.0",
+    "jose": "^6.0.0"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": [
+    "apps/*/src",
+    "packages/*/src",
+    "scripts",
+    "vitest.config.ts"
+  ]
+}

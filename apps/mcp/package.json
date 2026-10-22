@@ -1,0 +1,21 @@
+{
+  "name": "cooks-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Cooks (open-source sales engagement). Works with Claude Code, Claude Desktop, Cursor, Grok.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "cooks-mcp": "./bin/cooks-mcp.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/http.ts",
+    "start": "tsx src/http.ts"
+  },
+  "dependencies": {
+    "@cooks/config": "workspace:*",
+    "@hono/node-server": "^2.1.0",
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "hono": "^4.13.0",
+    "zod": "^4.6.0"
+  }
+}

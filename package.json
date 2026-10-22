@@ -1,0 +1,29 @@
+{
+  "name": "cooks",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cooks: free, open-source sales engagement (Nooks-compatible API + MCP server)",
+  "license": "MIT",
+  "packageManager": "pnpm@9.14.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @cooks/api dev",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "pnpm --filter @cooks/db generate",
+    "db:migrate": "pnpm --filter @cooks/db migrate",
+    "bootstrap": "tsx scripts/bootstrap.ts",
+    "spec:fetch": "tsx scripts/fetch-upstream-spec.ts",
+    "conformance": "tsx scripts/conformance.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.0"
+  }
+}
