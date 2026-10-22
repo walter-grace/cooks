@@ -10,6 +10,8 @@ import { ProspectDetail, Prospects } from './pages/Prospects.js';
 import { SequenceDetail, Sequences } from './pages/Sequences.js';
 import { Emails } from './pages/Emails.js';
 import { Settings } from './pages/Settings.js';
+import { Signals } from './pages/Signals.js';
+import { CallDetail, Calls } from './pages/Calls.js';
 
 export function App() {
   const path = useRoute();
@@ -51,6 +53,9 @@ export function App() {
   else if (path === '/prospects') page = <Prospects />;
   else if (path === '/sequences') page = <Sequences />;
   else if (path === '/emails') page = <Emails />;
+  else if ((p = match(path, '/calls/:id'))) page = <CallDetail id={p.id!} />;
+  else if (path === '/calls') page = <Calls />;
+  else if (path === '/signals') page = <Signals />;
   else if (path === '/settings') page = <Settings authMode={auth.mode} />;
   else page = <Tasks />;
 

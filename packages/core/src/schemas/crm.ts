@@ -27,6 +27,7 @@ export const Prospect = z
     title: z.string().nullable(),
     primaryEmail: z.string().nullable(),
     linkedInUrl: z.string().nullable(),
+    phone: z.string().nullable().optional().describe('Cooks extension: dial target'),
     crmId: z.string().nullable(),
     account: NullableRef,
     sequenceStates: z.array(z.unknown()),

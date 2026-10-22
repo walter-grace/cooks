@@ -14,6 +14,10 @@ the AI brought by whatever model you already pay for.
 
 ![Tasks](docs/screenshots/tasks.png)
 
+| Signals feed | Call coaching |
+| --- | --- |
+| ![Signals](docs/screenshots/signals.png) | ![Coaching](docs/screenshots/call-coaching.png) |
+
 ## Status
 
 | Milestone | State |

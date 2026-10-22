@@ -28,6 +28,7 @@ export function serializeProspect(
     title: p.title,
     primaryEmail: p.primaryEmail,
     linkedInUrl: p.linkedInUrl,
+    phone: p.phone,
     crmId: p.crmId,
     account: refOrNull('accounts', p.accountId),
     sequenceStates: opts.states.map((s) => (typeof s === 'string' ? ref('sequenceStates', s) : s)) as unknown[],

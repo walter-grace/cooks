@@ -12,6 +12,7 @@ import { api, fmtDate, q } from '../api.js';
 import { useApi, toast } from '../hooks.js';
 import { Link } from '../router.js';
 import { Empty, PageHeader, StateBadge } from '../components/layout.js';
+import { DialDialog } from '../components/dialer.jsx';
 
 export function Tasks() {
   const [scope, setScope] = useState<'due' | 'open' | 'done'>('due');
@@ -19,6 +20,7 @@ export function Tasks() {
   const path = `/v1/tasks${q({ 'filter[completed]': scope === 'done' ? 'true' : 'false', 'filter[dueAt][lte]': scope === 'due' ? now : undefined, 'filter[status]': scope === 'open' ? 'ready' : undefined, include: 'prospect', 'page[size]': 100 })}`;
   const { data, error, loading, reload } = useApi<{ data: any[] }>(path, [scope]);
   const [draft, setDraft] = useState<any | null>(null);
+  const [callTask, setCallTask] = useState<any | null>(null);
 
   const act = async (id: string, verb: 'complete' | 'skip') => {
     await api(`/v1/tasks/${id}/${verb}`, { method: 'POST' });
@@ -97,6 +99,11 @@ export function Tasks() {
                   <TableCell className="text-right">
                     {!t.completed && t.status !== 'skipped' ? (
                       <div className="flex justify-end gap-1">
+                        {t.action === 'call' && (
+                          <Button size="sm" variant="outline" onClick={() => setCallTask(t)} data-testid="task-call">
+                            Call
+                          </Button>
+                        )}
                         {t.action.includes('email') && (
                           <Button size="sm" variant="outline" onClick={() => openDraft(t)}>
                             Draft
@@ -119,6 +126,7 @@ export function Tasks() {
           </Table>
         </div>
       )}
+      <DialDialog open={!!callTask} onOpenChange={(o) => !o && setCallTask(null)} target={callTask ? { prospectId: callTask.prospect?.id, name: callTask.prospect?.name, phone: callTask.prospect?.phone, taskId: callTask.id } : null} onLogged={reload} />
       <Dialog open={!!draft} onOpenChange={(o) => !o && setDraft(null)}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>

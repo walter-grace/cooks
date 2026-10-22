@@ -22,7 +22,8 @@
     "seed": "tsx scripts/seed.ts",
     "web:build": "pnpm --filter @cooks/web build",
     "qa:hubspot": "node scripts/qa/hubspot-ui.mjs",
-    "qa:mock-hubspot": "node scripts/qa/mock-hubspot.mjs"
+    "qa:mock-hubspot": "node scripts/qa/mock-hubspot.mjs",
+    "qa:mock-twilio": "node scripts/qa/mock-twilio.mjs"
   },
   "devDependencies": {
     "@cooks/auth": "workspace:*",

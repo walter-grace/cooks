@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ExternalLink, Search, Sparkles } from 'lucide-react';
+import { Phone, ExternalLink, Search, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import { api, fmtDate, q } from '../api.js';
 import { useApi, toast } from '../hooks.js';
 import { Link, navigate } from '../router.js';
 import { Empty, PageHeader, StateBadge } from '../components/layout.js';
+import { DialDialog, LogCallDialog } from '../components/dialer.jsx';
 
 export function Prospects() {
   const [search, setSearch] = useState('');
@@ -20,7 +21,7 @@ export function Prospects() {
   const path = `/v1/prospects${q({ 'filter[primaryEmail]': search.includes('@') ? search : undefined, 'filter[name]': search && !search.includes('@') ? search : undefined, 'page[size]': 50, 'page[after]': after, include: 'sequenceStates' })}`;
   const { data, error, loading, reload } = useApi<{ data: any[]; links: any }>(path, [search, after]);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ firstName: '', lastName: '', title: '', primaryEmail: '', accountName: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', title: '', primaryEmail: '', phone: '', accountName: '' });
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,8 +31,8 @@ export function Prospects() {
         const found = await api<{ data: any[] }>(`/v1/accounts${q({ 'filter[name]': form.accountName })}`);
         accountId = found.data[0]?.id ?? (await api('/v1/accounts', { method: 'POST', json: { data: { name: form.accountName } } })).data.id;
       }
-      await api('/v1/prospects', { method: 'POST', json: { data: { firstName: form.firstName, lastName: form.lastName || undefined, title: form.title || undefined, primaryEmail: form.primaryEmail || undefined, account: accountId ? { id: accountId } : undefined } } });
-      setForm({ firstName: '', lastName: '', title: '', primaryEmail: '', accountName: '' });
+      await api('/v1/prospects', { method: 'POST', json: { data: { firstName: form.firstName, lastName: form.lastName || undefined, title: form.title || undefined, primaryEmail: form.primaryEmail || undefined, phone: form.phone || undefined, account: accountId ? { id: accountId } : undefined } } });
+      setForm({ firstName: '', lastName: '', title: '', primaryEmail: '', phone: '', accountName: '' });
       setOpen(false);
       toast('Prospect created');
       reload();
@@ -77,6 +78,10 @@ export function Prospects() {
                   <div className="grid gap-2">
                     <Label>Email</Label>
                     <Input type="email" value={form.primaryEmail} onChange={(e) => setForm({ ...form, primaryEmail: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Phone</Label>
+                    <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+1 555 010 2020" />
                   </div>
                   <div className="grid gap-2">
                     <Label>Company</Label>
@@ -152,6 +157,8 @@ export function ProspectDetail({ id }: { id: string }) {
   const research = useApi<{ data: any }>(`/v1/prospects/${id}/research`);
   const [researching, setResearching] = useState(false);
   const [seqId, setSeqId] = useState('');
+  const [dial, setDial] = useState(false);
+  const [logCall, setLogCall] = useState(false);
   const p = data?.data;
 
   const enroll = async () => {
@@ -195,7 +202,22 @@ export function ProspectDetail({ id }: { id: string }) {
       <Link to="/prospects" className="text-sm text-muted-foreground hover:underline">
         ← Prospects
       </Link>
-      <PageHeader title={p.name ?? p.primaryEmail} description={[p.title, p.primaryEmail].filter(Boolean).join(' · ')} />
+      <PageHeader
+        title={p.name ?? p.primaryEmail}
+        description={[p.title, p.primaryEmail, p.phone].filter(Boolean).join(' · ')}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setLogCall(true)} data-testid="prospect-log-call">
+              Log a call
+            </Button>
+            <Button onClick={() => setDial(true)} data-testid="prospect-call">
+              <Phone className="size-4" /> Call
+            </Button>
+          </div>
+        }
+      />
+      <DialDialog open={dial} onOpenChange={setDial} target={{ prospectId: p.id, name: p.name, phone: p.phone }} onLogged={() => tasks.reload()} />
+      <LogCallDialog open={logCall} onOpenChange={setLogCall} prospectId={p.id} onLogged={() => tasks.reload()} />
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -204,6 +226,7 @@ export function ProspectDetail({ id }: { id: string }) {
           <CardContent className="grid gap-2 text-sm">
             <Row k="Title" v={p.title} />
             <Row k="Email" v={p.primaryEmail} />
+            <Row k="Phone" v={p.phone} />
             <Row k="LinkedIn" v={p.linkedInUrl ? <a className="inline-flex items-center gap-1 hover:underline" href={p.linkedInUrl} target="_blank" rel="noreferrer">profile <ExternalLink className="size-3" /></a> : null} />
             <Row k="CRM id" v={p.crmId} />
           </CardContent>

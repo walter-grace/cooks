@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, currentSession, fmtDate } from '../api.js';
 import { useApi, toast } from '../hooks.js';
 import { PageHeader } from '../components/layout.js';
+import { Dialer } from './SettingsDialer.js';
+import { SignalRules } from './Signals.js';
 
 const RELEASE = 'https://github.com/walter-grace/cooks/releases/latest/download/cooks-mcp.tgz';
 
@@ -35,6 +37,12 @@ export function Settings({ authMode }: { authMode: 'password' | 'clerk' }) {
           <TabsTrigger value="crm" data-testid="tab-crm">
             CRM
           </TabsTrigger>
+          <TabsTrigger value="dialer" data-testid="tab-dialer">
+            Dialer
+          </TabsTrigger>
+          <TabsTrigger value="signals" data-testid="tab-signals">
+            Signals
+          </TabsTrigger>
           <TabsTrigger value="ai">Hosted AI</TabsTrigger>
           <TabsTrigger value="workspace">Workspace</TabsTrigger>
           {isAdmin && <TabsTrigger value="api">API keys & MCP</TabsTrigger>}
@@ -45,6 +53,12 @@ export function Settings({ authMode }: { authMode: 'password' | 'clerk' }) {
         </TabsContent>
         <TabsContent value="crm">
           <Crm clerk={clerk} isAdmin={!!isAdmin} />
+        </TabsContent>
+        <TabsContent value="dialer">
+          <Dialer isAdmin={!!isAdmin} />
+        </TabsContent>
+        <TabsContent value="signals">
+          <SignalRules isAdmin={!!isAdmin} />
         </TabsContent>
         <TabsContent value="ai">
           <HostedAi isAdmin={!!isAdmin} />
