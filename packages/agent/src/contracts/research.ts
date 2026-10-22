@@ -13,16 +13,16 @@ export type ResearchInput = z.infer<typeof ResearchInput>;
 export const SIGNAL_KINDS = ['funding', 'hiring', 'news', 'tech', 'leadership', 'expansion', 'product', 'event', 'other'] as const;
 
 export const ResearchOutput = z.object({
-  summary: z.string().max(700).describe('Three to five sentences on the company and the person, grounded in the search results'),
-  talkingPoints: z.array(z.string().max(200)).max(5),
+  summary: z.string().describe('Three to five sentences on the company and the person, grounded in the search results'),
+  talkingPoints: z.array(z.string()),
   signals: z.array(
     z.object({
       kind: z.enum(SIGNAL_KINDS),
-      text: z.string().max(240),
+      text: z.string(),
       sourceUrl: z.string().nullable(),
       date: z.string().nullable().describe('ISO date if the source states one'),
     }),
-  ).max(8),
+  ),
   confidence: z.number().min(0).max(1),
 });
 export type ResearchOutput = z.infer<typeof ResearchOutput>;

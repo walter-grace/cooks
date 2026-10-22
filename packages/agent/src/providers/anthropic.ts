@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import type { LlmProvider, StructuredRequest, StructuredResult, TokenUsage } from './types.js';
 import { estimateCostUsd } from './pricing.js';
+import { extractJson } from './json.js';
 
 export const ANTHROPIC_DEFAULT_MODEL = 'claude-opus-5-5';
 
@@ -53,7 +54,7 @@ export class AnthropicProvider implements LlmProvider {
         .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
         .map((b) => b.text)
         .join('');
-      const r = req.schema.safeParse(tryJson(text));
+      const r = req.schema.safeParse(extractJson(text));
       if (r.success) return { kind: 'ok', value: r.data, usage, model: message.model, latencyMs };
       return { kind: 'invalid', error: r.error.message, text, usage, model: message.model, latencyMs };
     }
@@ -61,18 +62,3 @@ export class AnthropicProvider implements LlmProvider {
   }
 }
 
-function tryJson(s: string): unknown {
-  try {
-    return JSON.parse(s);
-  } catch {
-    const m = /\{[\s\S]*\}/.exec(s);
-    if (m) {
-      try {
-        return JSON.parse(m[0]);
-      } catch {
-        return undefined;
-      }
-    }
-    return undefined;
-  }
-}

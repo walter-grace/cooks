@@ -97,7 +97,7 @@ export async function draftEmailForTask(
       status: 'draft',
       toAddr: prospect?.primaryEmail ?? null,
       recipients: prospect?.primaryEmail ? [prospect.primaryEmail] : [],
-      subject: isReply && lastSubject ? `Re: ${lastSubject.replace(/^Re:\s*/i, '')}` : draft.subject,
+      subject: (isReply && lastSubject ? `Re: ${lastSubject.replace(/^Re:\s*/i, '')}` : draft.subject).slice(0, 998),
       bodyText: draft.bodyText,
       bodyHtml: html,
     })

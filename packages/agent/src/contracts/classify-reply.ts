@@ -13,7 +13,7 @@ export const ClassifyReplyOutput = z.object({
   intent: z.enum(['positive', 'meeting_request', 'objection', 'not_now', 'ooo', 'auto_reply', 'unsubscribe', 'wrong_person', 'referral', 'bounce', 'other']),
   sentiment: z.enum(['positive', 'neutral', 'negative']),
   confidence: z.number().min(0).max(1),
-  summary: z.string().max(300),
+  summary: z.string(),
   suggestedAction: z.enum(['book_meeting', 'reply', 'pause_until', 'finish', 'reassign', 'unsubscribe', 'ignore']),
   pauseUntil: z.string().nullable().describe('ISO 8601 date when the prospect asked to be contacted later or is out of office'),
   referral: z.object({ name: z.string().nullable(), email: z.string().nullable(), title: z.string().nullable() }).nullable(),

@@ -46,7 +46,7 @@ export async function researchProspect(
       schema: ResearchOutput,
       schemaName: 'research_brief',
       effort: 'medium',
-      maxTokens: 2048,
+      maxTokens: 6000,
       cacheTtlMs: opts.force ? null : 7 * 24 * 3600_000,
       parentType: 'prospect',
       parentId: prospectId,

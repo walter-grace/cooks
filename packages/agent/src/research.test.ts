@@ -22,7 +22,8 @@ describe('OpenRouter web plugin', () => {
       const p = new OpenAICompatProvider('openrouter', '~anthropic/claude-sonnet-latest', { apiKey: 'k' });
       const { z } = await import('zod');
       const r = await p.structured({ system: 's', user: 'u', schema: z.object({ a: z.number() }), schemaName: 'x', web: { maxResults: 3 } });
-      expect(bodies[0].plugins).toEqual([{ id: 'web', max_results: 3 }]);
+      expect(bodies[0].plugins[0]).toMatchObject({ id: 'web', max_results: 3 });
+      expect(bodies[0].plugins[0].search_prompt).toContain('source URLs');
       expect(bodies[0].response_format.type).toBe('json_schema');
       expect(bodies[0].usage).toEqual({ include: true });
       expect(r.kind).toBe('ok');

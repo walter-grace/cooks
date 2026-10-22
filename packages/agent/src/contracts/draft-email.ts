@@ -17,12 +17,12 @@ export const DraftEmailInput = z.object({
 export type DraftEmailInput = z.infer<typeof DraftEmailInput>;
 
 export const DraftEmailOutput = z.object({
-  subject: z.string().max(120),
+  subject: z.string(),
   bodyText: z.string(),
   usedFacts: z.array(z.string()).describe('Every concrete claim about the prospect or company, each traceable to the input'),
   riskFlags: z.array(z.enum(['unverified_claim', 'pricing', 'legal', 'pii', 'off_topic', 'competitor'])),
   confidence: z.number().min(0).max(1),
-  rationale: z.string().max(400),
+  rationale: z.string(),
 });
 export type DraftEmailOutput = z.infer<typeof DraftEmailOutput>;
 

@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import type { Citation, LlmProvider, ProviderId, StructuredRequest, StructuredResult, TokenUsage } from './types.js';
 import { estimateCostUsd } from './pricing.js';
+import { extractJson } from './json.js';
 
 /** Presets for OpenAI-compatible chat.completions endpoints. xAI is how Grok users bring their own key. */
 export const COMPAT_PRESETS: Record<Exclude<ProviderId, 'anthropic' | 'custom'>, { baseUrl: string; defaultModel: string; keyEnv: string }> = {
@@ -42,7 +43,9 @@ export class OpenAICompatProvider implements LlmProvider {
         ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
         response_format: { type: 'json_schema', json_schema: { name: req.schemaName, schema: jsonSchema, strict: true } },
         ...(this.id === 'openrouter' ? { usage: { include: true } } : {}),
-        ...(this.id === 'openrouter' && req.web ? { plugins: [{ id: 'web', max_results: typeof req.web === 'object' && req.web.maxResults ? req.web.maxResults : 5 }] } : {}),
+        ...(this.id === 'openrouter' && req.web
+          ? { plugins: [{ id: 'web', max_results: typeof req.web === 'object' && req.web.maxResults ? req.web.maxResults : 5, search_prompt: 'Relevant web results. Use them as facts. Put source URLs only in the JSON fields meant for them; do not add markdown links or citations inside other text:' }] }
+          : {}),
       } as Parameters<typeof this.client.chat.completions.create>[0] & { stream?: false },
       { signal: req.signal },
     );
@@ -61,12 +64,8 @@ export class OpenAICompatProvider implements LlmProvider {
     const model = (res as { model?: string }).model ?? this.model;
     if (choice?.finish_reason === 'content_filter') return { kind: 'refusal', reason: 'content_filter', usage, model, latencyMs };
     const text = choice?.message?.content ?? '';
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      return { kind: 'invalid', error: 'Response was not JSON', text, usage, model, latencyMs };
-    }
+    const parsed = extractJson(text);
+    if (parsed === undefined) return { kind: 'invalid', error: `Response was not JSON (finish_reason=${choice?.finish_reason ?? 'unknown'})`, text, usage, model, latencyMs };
     const r = req.schema.safeParse(parsed);
     if (!r.success) return { kind: 'invalid', error: r.error.message, text, usage, model, latencyMs };
     const annotations = (choice?.message as { annotations?: Array<{ type: string; url_citation?: { url: string; title?: string } }> } | undefined)?.annotations ?? [];
