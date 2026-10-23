@@ -1,0 +1,64 @@
+import type { Metadata, Viewport } from 'next';
+import { Newsreader } from 'next/font/google';
+import './globals.css';
+import { Flocks } from '@/components/Flocks';
+
+const newsreader = Newsreader({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  style: ['normal', 'italic'],
+  display: 'swap',
+  variable: '--font-newsreader',
+});
+
+export const metadata: Metadata = {
+  title: 'Cooks: open-source sales engagement',
+  description:
+    'Cooks is a free, self-hosted sales engagement platform: sequences, a parallel dialer that hears the pickup, buying signals and call coaching, driven by the Claude or Grok assistant you already use.',
+  metadataBase: new URL('https://cooks-site.vercel.app'),
+  openGraph: {
+    title: 'Cooks',
+    description: 'Open-source sales engagement your own AI assistant can run.',
+    type: 'website',
+    images: ['/og.png'],
+  },
+  twitter: { card: 'summary_large_image', title: 'Cooks', description: 'Open-source sales engagement your own AI assistant can run.', images: ['/og.png'] },
+  icons: { icon: '/icon.svg' },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  colorScheme: 'light dark',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fffbf9' },
+    { media: '(prefers-color-scheme: dark)', color: '#170b0e' },
+  ],
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" className={newsreader.variable}>
+      <head>
+        {/* Defer the decorative river scene until the page has loaded, so fonts and text win the first seconds on slow networks. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "document.documentElement.classList.add('defer-art');window.addEventListener('load',function(){setTimeout(function(){var h=document.documentElement;h.classList.remove('defer-art');h.classList.add('art-in')},50)})",
+          }}
+        />
+      </head>
+      <body>
+        <div className="bgart" aria-hidden="true">
+          <div className="scene" />
+          <div className="fade" />
+          <div className="sky">
+            <Flocks />
+          </div>
+        </div>
+        {children}
+      </body>
+    </html>
+  );
+}

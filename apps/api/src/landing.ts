@@ -312,9 +312,17 @@ function css(asset: string) {
     .agents { gap: var(--s6); }
     pre { white-space: pre; overflow-wrap: normal; padding: var(--s3) var(--s4); font-size: 13px; }   /* code scrolls sideways rather than wrapping mid-flag */
     blockquote { font-size: 19px; }
-    .panel .row { grid-template-columns: 1fr 4em; }
-    .panel .sig { grid-template-columns: 6.5em 1fr; }
-    .panel .sig .t { grid-column: 2; text-align: left; }
+    .panel .row { grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: var(--s1) var(--s3); padding: 10px var(--s4); align-items: start; }
+    .panel .row .who { grid-column: 1; grid-row: 1; }
+    .panel .row .t { grid-column: 2; grid-row: 1; padding-top: 3px; }
+    .panel .row .st { grid-column: 1 / -1; grid-row: 2; }
+    .panel .row .who small { margin-top: 1px; }
+    .panel .sig { grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: var(--s1) var(--s3); padding: 10px var(--s4); }
+    .panel .sig .k { grid-column: 1; grid-row: 1; padding-top: 0; }
+    .panel .sig .t { grid-column: 2; grid-row: 1; }
+    .panel .sig .d { grid-column: 1 / -1; grid-row: 2; }
+    .panel .bar { padding: 10px var(--s4); }
+    .panel .foot { padding: 10px var(--s4); gap: var(--s2) 6px; }
     .panel .row .st { grid-column: 1 / -1; }
     .compare { display: block; overflow-x: auto; }
     .compare table { min-width: 560px; }

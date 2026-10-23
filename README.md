@@ -6,7 +6,8 @@
 
 <p align="center">
   <strong>Open-source sales engagement. Let your reps cook.</strong><br>
-  Sequences, a dialer, buying signals and call coaching on one Postgres, driven by the AI assistant you already pay for.
+  Sequences, a dialer, buying signals and call coaching on one Postgres, driven by the AI assistant you already pay for.<br>
+  <a href="https://cooks-site.vercel.app">cooks-site.vercel.app</a>
 </p>
 
 <p align="center">
