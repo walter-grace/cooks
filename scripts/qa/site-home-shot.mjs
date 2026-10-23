@@ -1,0 +1,10 @@
+import { chromium } from 'playwright-core';
+const out = process.argv[2];
+const b = await chromium.launch({ executablePath: process.env.CHROME_PATH });
+const p = await b.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: 'light' });
+await p.goto('https://cooks-site.vercel.app/', { waitUntil: 'load' });
+await p.waitForFunction(() => document.documentElement.classList.contains('art-in'), null, { timeout: 15000 }).catch(() => {});
+await p.evaluate(() => document.fonts.ready);
+await p.waitForTimeout(1200);
+await p.screenshot({ path: out, clip: { x: 0, y: 0, width: 1440, height: 900 } });
+await b.close();

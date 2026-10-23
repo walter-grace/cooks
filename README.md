@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/screenshots/tasks.png" alt="Cooks task queue" width="820">
+  <a href="https://cooks-site.vercel.app"><img src="docs/screenshots/home.png" alt="The Cooks home page: Let your reps cook." width="820"></a>
 </p>
 
 <h1 align="center">Cooks</h1>
@@ -31,6 +31,10 @@
 Cooks is the sales engagement stack a team would build for itself if it had the time: a sequencing engine with real send windows and reply detection, a Twilio dialer with recordings, a feed of buying signals, and an AI coach that scores every recorded call. It runs on your own server under the MIT license, and it speaks the same REST contract as the commercial platform it mirrors, so existing clients and docs carry over by changing a base URL.
 
 The part that makes it different is the brain. Cooks ships an MCP server with 66 tools, so Claude, Grok, Cursor or any MCP-capable assistant can work your pipeline directly: research an account, enroll the prospect, draft the email, place the call, log the outcome. In that mode Cooks spends no tokens of its own.
+
+<p align="center">
+  <img src="docs/screenshots/tasks.png" alt="Cooks task queue" width="820">
+</p>
 
 ## What you get
 
