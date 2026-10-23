@@ -45,6 +45,13 @@ Twilio Programmable Voice and Twilio's asynchronous answering-machine detection 
 
 ![Power dialer with one line connected, one voicemail, one canceled](screenshots/power-dialer.png)
 
+The page is an instrument console: your own line in a rail at the top (a live scope and link quality
+when you join from the browser, a console ticker of line events in either mode), one channel per
+line with an LED that ripples while ringing and the AMD verdict latency once it lands, and the
+connected line expanded into a caller-ID dossier (formatted number, flag, area-code region, local
+time with a quiet-hours flag, recent emails, calls and signals) beside the log form. Keyboard:
+<kbd>D</kbd> dial, <kbd>H</kbd> hang up, <kbd>M</kbd> mute, <kbd>K</kbd> keypad, <kbd>L</kbd> notes.
+
 How a batch works:
 
 1. **The rep joins first.** From the browser (Voice SDK, needs the API key pair and TwiML App) or by
