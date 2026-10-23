@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { dirname, extname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { createNodeWebSocket } from '@hono/node-ws';
 import { cors } from 'hono/cors';
@@ -108,6 +109,16 @@ export function createApp(deps: AppDeps) {
     });
     app.get('/app', (c) => c.redirect('/app/', 302));
   }
+  // Landing-page art and screenshots (apps/api/public/landing). Allow-listed names only; cached for a day.
+  const landingDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'landing');
+  app.get('/landing/:file', (c, next) => {
+    const name = c.req.param('file');
+    if (!/^[a-z0-9-]+\.(png|svg|webp)$/.test(name)) return next();
+    const file = join(landingDir, name);
+    if (!existsSync(file) || !statSync(file).isFile()) return next();
+    const type = { '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp' }[extname(name)] ?? 'application/octet-stream';
+    return c.body(readFileSync(file), 200, { 'content-type': type, 'cache-control': 'public, max-age=86400' });
+  });
   app.get('/', (c) => c.html(landingHtml({ publicUrl, release: 'https://github.com/walter-grace/cooks/releases/latest/download/cooks-mcp.tgz' })));
 
   // Authenticated API surface. Everything under /v1 except /v1/public-ip-list.
