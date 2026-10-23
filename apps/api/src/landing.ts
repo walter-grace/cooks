@@ -167,8 +167,14 @@ function css(asset: string) {
   .panel .row.on .st { color: var(--ink); }
   .panel .row.on .t { color: var(--ink); }
   .panel .foot { display: flex; flex-wrap: wrap; gap: var(--s2); padding: var(--s3) var(--s4); border-top: 1px solid var(--line); }
-  .panel .chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: var(--t-eyebrow); color: var(--ink-soft); }
-  .panel .chip.fill { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .panel .chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; min-height: 28px; font: 400 var(--t-eyebrow)/1.4 var(--font); color: var(--ink-soft); background: transparent; letter-spacing: .01em; }
+  .panel button.chip { cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
+  .panel button.chip:hover { border-color: var(--ink); color: var(--ink); }
+  .panel button.chip:active { transform: translateY(1px); }
+  .panel .chip.fill, .panel button.chip.fill:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .panel .chip.ok { border-color: var(--ink); color: var(--ink); }
+  .panel .row.done .st { color: var(--ink-strong); }
+  .panel .row.ring .t::after { content: ""; display: inline-block; width: 5px; height: 5px; margin-left: 6px; border-radius: 50%; background: var(--ink); vertical-align: middle; animation: pulse 1s ease-in-out infinite; }
   .panel .sig { display: grid; grid-template-columns: 7.5em 1fr 5.5em; gap: var(--s3); align-items: start; padding: var(--s3) var(--s4); border-bottom: 1px solid var(--line); }
   .panel .sig:last-of-type { border-bottom: 0; }
   .panel .sig .k { font-size: var(--t-eyebrow); letter-spacing: .08em; text-transform: uppercase; color: var(--ink); padding-top: 2px; }
@@ -406,17 +412,17 @@ export function landingBody(opts: LandingOptions): string {
       </div>
       <div>
         <figure>
-          <div class="panel" role="img" aria-label="The power dialer during one batch: one person connected after 0.8 seconds, one voicemail detected, one line hung up, one no answer">
-            <div class="bar"><b>Power dialer</b><span class="live">Live · batch 3 of 12</span></div>
-            <div class="rows">
+          <div class="panel pd" id="pd" aria-label="Power dialer demo: log the connected call, then dial the next batch">
+            <div class="bar"><b>Power dialer</b><span class="live" id="pd-live">Live · batch 3 of 12</span></div>
+            <div class="rows" id="pd-rows" aria-live="polite">
               <div class="row on"><div class="who">Maya Chen<small>+1 415 555 0142 · Globex</small></div><div class="st">person · heard <q>Hello?</q></div><div class="t">0.8 s</div></div>
               <div class="row"><div class="who">Dev Patel<small>+1 312 555 0199 · Initech</small></div><div class="st">voicemail · heard <q>you've reached</q></div><div class="t">1.0 s</div></div>
               <div class="row"><div class="who">Sam Okafor<small>+1 646 555 0127 · Hooli</small></div><div class="st">hung up, rep is busy</div><div class="t">0:06</div></div>
               <div class="row"><div class="who">Lena Fischer<small>+1 206 555 0163 · Vandelay</small></div><div class="st">no answer · callback task made</div><div class="t">0:31</div></div>
             </div>
-            <div class="foot"><span class="chip fill">Talking to Maya Chen</span><span class="chip">Meeting booked</span><span class="chip">Left voicemail</span><span class="chip">Not interested</span><span class="chip">Hang up</span></div>
+            <div class="foot" id="pd-foot"><span class="chip fill">Talking to Maya Chen</span><button class="chip" type="button" data-log="Meeting booked">Meeting booked</button><button class="chip" type="button" data-log="Left voicemail">Left voicemail</button><button class="chip" type="button" data-log="Not interested">Not interested</button><button class="chip" type="button" data-hangup>Hang up</button></div>
           </div>
-          <figcaption class="cap">One batch as the rep sees it, with example names. The line that won shows which detector settled it and the first words heard. Dispositions sit one keystroke away.</figcaption>
+          <figcaption class="cap">One batch as the rep sees it, with example names. Log the call with a disposition, then dial the next batch and watch the gate settle each line. The clock runs four times faster than life.</figcaption>
         </figure>
       </div>
     </div>
@@ -602,6 +608,86 @@ pnpm --filter @cooks/worker dev <span class="c"># engine, mail, webhooks, AI</sp
 </footer>
 
 <script>
+  (function () {
+    // Power dialer demo: scripted batches, a 4x clock, the same verdict timings the gate produces.
+    var rows = document.getElementById('pd-rows'), foot = document.getElementById('pd-foot'), live = document.getElementById('pd-live');
+    if (!rows || !foot || !live) return;
+    var BATCHES = [
+      [{ n: 'Maya Chen', p: '+1 415 555 0142', c: 'Globex', v: 'human', at: 0.8, q: 'Hello?' }, { n: 'Dev Patel', p: '+1 312 555 0199', c: 'Initech', v: 'voicemail', at: 1.0, q: "you've reached" }, { n: 'Sam Okafor', p: '+1 646 555 0127', c: 'Hooli', v: 'busy' }, { n: 'Lena Fischer', p: '+1 206 555 0163', c: 'Vandelay', v: 'noanswer', at: 31 }],
+      [{ n: 'Priya Nair', p: '+1 512 555 0188', c: 'Acme', v: 'voicemail', at: 1.1, q: 'leave a message' }, { n: 'Tom Walsh', p: '+1 617 555 0134', c: 'Stark', v: 'human', at: 0.9, q: 'Hi, this is Tom' }, { n: 'Ana Costa', p: '+1 305 555 0171', c: 'Wayne', v: 'noanswer', at: 28 }, { n: 'Omar Haddad', p: '+1 206 555 0115', c: 'Umbrella', v: 'busy' }],
+      [{ n: 'Grace Liu', p: '+1 408 555 0122', c: 'Soylent', v: 'human', at: 0.7, q: 'Hello, Grace speaking' }, { n: 'Jonas Berg', p: '+1 303 555 0149', c: 'Tyrell', v: 'voicemail', at: 1.2, q: 'not available' }, { n: 'Ravi Menon', p: '+1 212 555 0106', c: 'Cyberdyne', v: 'busy' }, { n: 'Elena Rossi', p: '+1 737 555 0160', c: 'Oscorp', v: 'machine', at: 3.0, q: '' }],
+    ];
+    var SPEED = 4, TICK = 250, batchNo = 3, bi = 0, lines, timers = [], clock = 0, human = -1, logged = null;
+    function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+    function mmss(sec) { sec = Math.floor(sec); return Math.floor(sec / 60) + ':' + (sec % 60 < 10 ? '0' : '') + (sec % 60); }
+    function status(l) {
+      if (l.state === 'ring') return 'ringing';
+      if (l.state === 'human') return 'person · heard <q>' + esc(l.q) + '</q>';
+      if (l.state === 'voicemail') return 'voicemail · heard <q>' + esc(l.q) + '</q>';
+      if (l.state === 'machine') return 'machine · carrier detection';
+      if (l.state === 'busy') return 'hung up, rep is busy';
+      if (l.state === 'noanswer') return 'no answer · callback task made';
+      if (l.state === 'hungup') return 'hung up · log the call';
+      if (l.state === 'logged') return 'logged · ' + esc(l.outcome);
+      return '';
+    }
+    function tcell(l) { return l.state === 'human' || l.state === 'voicemail' || l.state === 'logged' || l.state === 'hungup' ? (l.at < 10 ? l.at.toFixed(1) + ' s' : mmss(l.at)) : l.state === 'machine' ? l.at.toFixed(1) + ' s' : mmss(l.settledAt != null ? l.settledAt : clock); }
+    function render() {
+      var h = '';
+      for (var i = 0; i < lines.length; i++) {
+        var l = lines[i], cls = 'row' + (l.state === 'ring' ? ' ring' : '') + (i === human && (l.state === 'human' || l.state === 'hungup') ? ' on' : '') + (l.state === 'logged' ? ' done' : '');
+        h += '<div class="' + cls + '"><div class="who">' + esc(l.n) + '<small>' + esc(l.p) + ' · ' + esc(l.c) + '</small></div><div class="st">' + status(l) + '</div><div class="t">' + tcell(l) + '</div></div>';
+      }
+      rows.innerHTML = h;
+      var f = '';
+      var settled = lines.every(function (l) { return l.state !== 'ring'; });
+      if (human >= 0 && lines[human].state !== 'logged') {
+        f += '<span class="chip fill">' + (lines[human].state === 'hungup' ? 'Call ended' : 'Talking to ' + esc(lines[human].n)) + '</span>';
+        ['Meeting booked', 'Left voicemail', 'Not interested'].forEach(function (o) { f += '<button class="chip" type="button" data-log="' + o + '">' + o + '</button>'; });
+        if (lines[human].state !== 'hungup') f += '<button class="chip" type="button" data-hangup>Hang up</button>';
+      } else if (human >= 0) {
+        f += '<span class="chip ok">Logged: ' + esc(lines[human].outcome) + '</span><button class="chip fill" type="button" data-next>Dial next batch</button>';
+      } else if (settled) {
+        f += '<span class="chip">No one answered</span><button class="chip fill" type="button" data-next>Dial next batch</button>';
+      } else {
+        f += '<span class="chip">Ringing ' + lines.filter(function (l) { return l.state === 'ring'; }).length + ' lines</span>';
+      }
+      foot.innerHTML = f;
+      live.textContent = 'Live · batch ' + batchNo + ' of 12';
+    }
+    function clear() { timers.forEach(clearTimeout); timers = []; }
+    function later(ms, fn) { timers.push(setTimeout(fn, ms)); }
+    function start(script) {
+      clear(); clock = 0; human = -1; logged = null;
+      lines = script.map(function (x) { return { n: x.n, p: x.p, c: x.c, v: x.v, at: x.at, q: x.q, state: 'ring', settledAt: null }; });
+      render();
+      var tick = function () { clock += TICK / 1000 * SPEED; if (lines.some(function (l) { return l.state === 'ring'; })) { render(); later(TICK, tick); } };
+      later(TICK, tick);
+      lines.forEach(function (l, i) {
+        if (l.v === 'human') later(l.at * 1000, function () {
+          if (human >= 0) return;
+          human = i; l.state = 'human';
+          lines.forEach(function (o) { if (o.v === 'busy' && o.state === 'ring') { o.state = 'busy'; o.settledAt = clock + 0.3; } });
+          render();
+        });
+        else if (l.v === 'voicemail' || l.v === 'machine') later(l.at * 1000, function () { if (l.state === 'ring') { l.state = l.v; render(); } });
+        else if (l.v === 'noanswer') later(l.at * 1000 / SPEED, function () { if (l.state === 'ring') { l.state = 'noanswer'; l.settledAt = l.at; render(); } });
+        else if (l.v === 'busy') later(6000, function () { if (l.state === 'ring') { l.state = 'noanswer'; l.settledAt = clock; render(); } });
+      });
+    }
+    function seed() {
+      // resting state = batch 3 fully settled, as printed in the HTML
+      lines = BATCHES[0].map(function (x) { return { n: x.n, p: x.p, c: x.c, v: x.v, at: x.at, q: x.q, state: x.v === 'busy' ? 'busy' : x.v, settledAt: x.v === 'busy' ? 6 : x.v === 'noanswer' ? 31 : null }; });
+      human = 0; render();
+    }
+    foot.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      if (b.hasAttribute('data-log')) { lines[human].state = 'logged'; lines[human].outcome = b.getAttribute('data-log'); render(); }
+      else if (b.hasAttribute('data-hangup')) { lines[human].state = 'hungup'; render(); }
+      else if (b.hasAttribute('data-next')) { bi = (bi + 1) % BATCHES.length; batchNo = batchNo >= 12 ? 1 : batchNo + 1; start(BATCHES[bi]); }
+    });
+    seed();
+  })();
   (function () {
     var f = document.getElementById('footer');
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
