@@ -119,27 +119,57 @@
   }
 }
 
-/* ---------- dialer cockpit: a dark instrument console, one accent, motion only on live elements ---------- */
+/* ---------- dialer cockpit: a midnight console, one blue accent, motion only on live elements ---------- */
 .cockpit {
-  --ck-bg: oklch(0.17 0.006 260);
-  --ck-surface: oklch(0.21 0.007 260);
-  --ck-raised: oklch(0.25 0.008 260);
-  --ck-line: oklch(1 0 0 / 9%);
-  --ck-line-strong: oklch(1 0 0 / 16%);
-  --ck-text: oklch(0.96 0.003 260);
-  --ck-dim: oklch(0.68 0.012 260);
-  --ck-faint: oklch(0.5 0.012 260);
-  --ck-live: oklch(0.84 0.19 150);
-  --ck-live-dim: oklch(0.84 0.19 150 / 18%);
-  --ck-ring: oklch(0.83 0.16 80);
-  --ck-ring-dim: oklch(0.83 0.16 80 / 16%);
-  --ck-drop: oklch(0.7 0.19 25);
-  --ck-vm: oklch(0.72 0.08 250);
+  --ck-bg: oklch(0.18 0.035 262);
+  --ck-surface: oklch(0.215 0.035 262);
+  --ck-raised: oklch(0.26 0.035 262);
+  --ck-line: oklch(0.85 0.05 262 / 10%);
+  --ck-line-strong: oklch(0.85 0.05 262 / 18%);
+  --ck-text: oklch(0.96 0.01 262);
+  --ck-dim: oklch(0.74 0.03 262);
+  --ck-faint: oklch(0.56 0.04 262);
+  --ck-live: oklch(0.82 0.1 235);
+  --ck-live-dim: oklch(0.82 0.1 235 / 16%);
+  --ck-ring: oklch(0.8 0.09 290);
+  --ck-ring-dim: oklch(0.8 0.09 290 / 16%);
+  --ck-drop: oklch(0.72 0.14 15);
+  --ck-vm: oklch(0.66 0.05 262);
   color: var(--ck-text);
   background:
-    radial-gradient(circle at 1px 1px, oklch(1 0 0 / 5%) 1px, transparent 0) 0 0 / 22px 22px,
-    linear-gradient(180deg, oklch(0.19 0.007 260), var(--ck-bg) 40%);
+    radial-gradient(circle at 1px 1px, oklch(0.9 0.05 262 / 6%) 1px, transparent 0) 0 0 / 22px 22px,
+    linear-gradient(180deg, oklch(0.2 0.04 262), var(--ck-bg) 40%);
   font-variant-numeric: tabular-nums;
+}
+/* While the dialer is open the whole shell takes the same midnight surface, so there is one palette on screen. */
+:root.cockpit-mode {
+  --background: oklch(0.18 0.035 262);
+  --foreground: oklch(0.96 0.01 262);
+  --card: oklch(0.215 0.035 262);
+  --card-foreground: oklch(0.96 0.01 262);
+  --popover: oklch(0.215 0.035 262);
+  --popover-foreground: oklch(0.96 0.01 262);
+  --primary: oklch(0.82 0.1 235);
+  --primary-foreground: oklch(0.18 0.035 262);
+  --secondary: oklch(0.26 0.035 262);
+  --secondary-foreground: oklch(0.96 0.01 262);
+  --muted: oklch(0.26 0.035 262);
+  --muted-foreground: oklch(0.74 0.03 262);
+  --accent: oklch(0.26 0.035 262);
+  --accent-foreground: oklch(0.96 0.01 262);
+  --destructive: oklch(0.72 0.14 15);
+  --border: oklch(0.85 0.05 262 / 10%);
+  --input: oklch(0.85 0.05 262 / 16%);
+  --ring: oklch(0.82 0.1 235);
+  --sidebar: oklch(0.155 0.035 262);
+  --sidebar-foreground: oklch(0.92 0.01 262);
+  --sidebar-primary: oklch(0.82 0.1 235);
+  --sidebar-primary-foreground: oklch(0.18 0.035 262);
+  --sidebar-accent: oklch(0.22 0.035 262);
+  --sidebar-accent-foreground: oklch(0.96 0.01 262);
+  --sidebar-border: oklch(0.85 0.05 262 / 10%);
+  --sidebar-ring: oklch(0.82 0.1 235);
+  color-scheme: dark;
 }
 .ck-label {
   font-size: 10px;
@@ -196,7 +226,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, oklch(0.84 0.19 150 / 7%), transparent);
+  background: linear-gradient(90deg, transparent, oklch(0.82 0.1 235 / 8%), transparent);
   transform: translateX(-100%);
   animation: ck-scan 2.4s linear infinite;
   pointer-events: none;
@@ -218,13 +248,13 @@
   font-weight: 500;
   transition: background 120ms, border-color 120ms, transform 80ms;
 }
-.ck-btn:hover:not(:disabled) { background: oklch(0.3 0.008 260); }
+.ck-btn:hover:not(:disabled) { background: oklch(0.31 0.035 262); }
 .ck-btn:active:not(:disabled) { transform: translateY(1px); }
 .ck-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.ck-btn[data-tone='live'] { background: var(--ck-live); color: oklch(0.15 0 0); border-color: transparent; }
-.ck-btn[data-tone='live']:hover:not(:disabled) { background: oklch(0.88 0.19 150); }
-.ck-btn[data-tone='drop'] { background: oklch(0.42 0.14 25); border-color: transparent; }
-.ck-btn[data-tone='drop']:hover:not(:disabled) { background: oklch(0.48 0.16 25); }
+.ck-btn[data-tone='live'] { background: var(--ck-live); color: oklch(0.18 0.035 262); border-color: transparent; }
+.ck-btn[data-tone='live']:hover:not(:disabled) { background: oklch(0.86 0.1 235); }
+.ck-btn[data-tone='drop'] { background: oklch(0.42 0.12 15); border-color: transparent; }
+.ck-btn[data-tone='drop']:hover:not(:disabled) { background: oklch(0.48 0.14 15); }
 .ck-kbd {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px;
@@ -232,14 +262,14 @@
   border-radius: 4px;
   border: 1px solid var(--ck-line-strong);
   color: var(--ck-dim);
-  background: oklch(0 0 0 / 25%);
+  background: oklch(0.12 0.03 262 / 60%);
 }
 .ck-input {
   height: 2.25rem;
   width: 100%;
   border-radius: 8px;
   border: 1px solid var(--ck-line-strong);
-  background: oklch(0 0 0 / 25%);
+  background: oklch(0.12 0.03 262 / 60%);
   color: var(--ck-text);
   padding: 0 0.75rem;
   font-size: 0.875rem;
@@ -249,7 +279,7 @@
 .ck-row {
   border: 1px solid var(--ck-line);
   border-radius: 10px;
-  background: oklch(0 0 0 / 14%);
+  background: oklch(0.12 0.03 262 / 45%);
 }
 .ck-row[data-picked='true'] { border-color: var(--ck-live); background: var(--ck-live-dim); }
 .ck-row:hover { border-color: var(--ck-line-strong); }

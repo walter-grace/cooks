@@ -44,6 +44,9 @@ export function Scope({ levels, active, className, height = 56 }: { levels: Reac
     let frame = 0;
     let raf = 0;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const css = getComputedStyle(el);
+    const accent = css.getPropertyValue('--ck-live').trim() || 'oklch(0.82 0.1 235)';
+    const pale = css.getPropertyValue('--ck-text').trim() || 'white';
     const draw = () => {
       const w = el.clientWidth;
       const h = height;
@@ -93,8 +96,10 @@ export function Scope({ levels, active, className, height = 56 }: { levels: Reac
         }
         ctx.stroke();
       };
-      trace(outHist, 'oklch(0.84 0.19 150)', 1.5);
-      trace(inHist, 'rgba(255,255,255,0.75)', 1);
+      trace(outHist, accent, 1.5);
+      ctx.globalAlpha = 0.75;
+      trace(inHist, pale, 1);
+      ctx.globalAlpha = 1;
       if (!reduced || fresh) raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);

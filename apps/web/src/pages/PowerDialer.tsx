@@ -65,7 +65,7 @@ export function PowerDialer() {
       const r = await api<{ data: Session }>('/v1/dialSessions', { method: 'POST', json: { data: input } });
       setSession(r.data);
       if (input.repMode === 'browser' && r.data.connectParams) await dialer.joinConference(r.data.connectParams);
-      toast(input.repMode === 'browser' ? 'You are on the line. Dial when ready.' : 'Ringing your phone. Pick up to join.');
+      toast(input.repMode === 'browser' ? 'You are on the line. Dial when ready.' : 'Ringing your phone. Pick up to join.', 'info');
     } catch (e: any) {
       toast(e.message, 'error');
     } finally {
@@ -138,7 +138,7 @@ export function PowerDialer() {
         <PageHeader title="Power dialer" description="Several lines ring at once; the first person who answers is on with you instantly." />
         <div className="rounded-lg border p-4" data-testid="compliance-gate">
           <div className="flex items-center gap-2 font-medium">
-            <AlertTriangle className="size-4 text-amber-600" /> An admin needs to confirm the compliance mode
+            <AlertTriangle className="size-4 text-muted-foreground" /> An admin needs to confirm the compliance mode
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             When two people answer at once, the second one is dropped. For calls to consumers in the US that counts as an abandoned call under the FTC Telemarketing Sales Rule, so an admin chooses B2B or consumer mode and confirms it under <Link to="/settings?tab=dialer" className="underline">Settings → Dialer</Link> first.
@@ -474,7 +474,7 @@ function LogForm({ line, wrapping, onLogged }: { line: Line; wrapping: boolean; 
     try {
       await api(`/v1/calls/${line.callId}/actions/log`, { method: 'POST', json: { data: { outcome, notes: notes || undefined } } });
       setLogged(line.id);
-      toast('Call logged');
+      toast('Call logged', 'info');
       onLogged();
     } catch (e: any) {
       toast(e.message, 'error');

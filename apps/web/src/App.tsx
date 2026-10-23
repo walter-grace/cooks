@@ -32,11 +32,15 @@ export function App() {
   }, [session, path]);
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const apply = () => document.documentElement.classList.toggle('dark', mq.matches);
+    const cockpit = path === '/dialer';
+    const apply = () => {
+      document.documentElement.classList.toggle('dark', mq.matches || cockpit);
+      document.documentElement.classList.toggle('cockpit-mode', cockpit);
+    };
     apply();
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
-  }, []);
+  }, [path]);
 
   if (session === undefined || auth === null) return <main className="p-8 text-sm text-muted-foreground">Loading…</main>;
   if (!session || path === '/login') {
