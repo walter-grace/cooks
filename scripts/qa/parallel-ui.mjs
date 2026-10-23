@@ -22,7 +22,7 @@ const step = async (name, fn) => {
     await shot(`fail-${name.replace(/[^a-z0-9]+/gi, '-')}`);
   }
 };
-const lineStatuses = () => page.$$eval('[data-testid=pd-line]', (els) => els.map((e) => `${e.querySelector('.font-medium')?.textContent?.trim()}=${e.getAttribute('data-status')}`));
+const lineStatuses = () => page.$$eval('[data-testid=pd-line]', (els) => els.map((e) => `${(e.querySelector('.font-semibold') ?? e.querySelector('.font-medium'))?.textContent?.trim()}=${e.getAttribute('data-status')}`));
 
 await step('login', async () => {
   await page.goto(`${base}/app/login`, { waitUntil: 'networkidle' });
@@ -48,15 +48,14 @@ await step('power dialer: end any leftover session, pick prospects, join by phon
     await page.waitForSelector('[data-testid=pd-setup]', { timeout: 15000 });
   }
   await page.waitForSelector('[data-testid=pd-setup]');
-  await page.click('[data-testid=pd-rep-mode]');
-  await page.click('[role=option]:has-text("My phone")');
+  await page.click('[data-testid=pd-mode-phone]');
   await page.fill('[data-testid=pd-rep-phone]', '+15559998888');
   await page.fill('[data-testid=pd-search]', 'QA');
   await page.waitForSelector('[data-testid=pd-pick-row]');
   for (const name of ['QA Human', 'QA Machine', 'QA Noanswer', 'QA Slowhuman']) await page.click(`[data-testid=pd-pick-row]:has-text("${name}")`);
   await shot('02-setup-picked');
   await page.click('[data-testid=pd-start]');
-  await page.waitForSelector('[data-testid=pd-waiting]', { timeout: 15000 });
+  await page.waitForSelector('[data-testid=pd-rail]', { timeout: 15000 });
   // mock rings the rep, answers, posts conference callbacks → ready
   await page.waitForSelector('[data-testid=pd-dial]:not([disabled])', { timeout: 20000 });
   await shot('03-ready');
@@ -72,7 +71,8 @@ await step('dial a batch of three: human connects, machine and no-answer never r
   const st = await lineStatuses();
   console.log('   lines after connect:', st.join(', '));
   await shot('05-connected');
-  if (!st.some((s) => s.startsWith('QA Human=connected'))) throw new Error(`human not connected: ${st}`);
+  const liveName = await page.textContent('[data-testid=pd-connected]');
+  if (!liveName?.includes('QA Human')) throw new Error(`human not connected: ${st} / ${liveName}`);
   if (st.some((s) => s.includes('Machine=connected') || s.includes('Noanswer=connected'))) throw new Error('non-human connected');
   // the machine leg must end as voicemail (its verdict lands ~2.6 s after answer) and the no-answer leg as canceled or no_answer
   await page.waitForFunction(() => [...document.querySelectorAll('[data-testid=pd-line]')].some((e) => e.textContent?.includes('QA Machine') && ['voicemail', 'canceled'].includes(e.getAttribute('data-status') ?? '')), null, { timeout: 15000 });
@@ -81,8 +81,8 @@ await step('dial a batch of three: human connects, machine and no-answer never r
 await step('hang up, log the call, dial the next batch (slow human), end the session', async () => {
   await page.click('[data-testid=pd-hangup]');
   await page.waitForFunction(() => document.querySelector('[data-testid=pd-connected]')?.textContent?.includes('Call ended'), null, { timeout: 15000 });
-  await page.click('[data-testid=pd-outcome]');
-  await page.click('[role=option]:has-text("Meeting booked")');
+  await page.waitForTimeout(400);
+  await page.click('[data-testid=pd-outcome-meeting_booked]');
   await page.fill('[data-testid=pd-notes]', 'Demo Thursday 10am (QA)');
   await page.click('[data-testid=pd-log]');
   await page.waitForSelector('[data-sonner-toast]');

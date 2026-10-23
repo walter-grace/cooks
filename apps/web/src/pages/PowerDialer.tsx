@@ -1,29 +1,27 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Phone, PhoneCall, PhoneForwarded, PhoneOff, Square } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
+import { AlertTriangle, Grid3x3, Mic, MicOff, PhoneCall, PhoneForwarded, PhoneOff, Square, X } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { api, q } from '../api.js';
 import { toast, useApi } from '../hooks.js';
 import { Link } from '../router.js';
 import { Empty, PageHeader } from '../components/layout.js';
-import { LINE_LABEL, OUTCOMES, SESSION_LABEL, fmtDuration, loadRepPhone, saveRepPhone, useDialer } from '../dialer.js';
+import { CallerId, Kbd, Keypad, Led, Scope, SignalBars, Ticker, Timer, toneFor, useHotkeys, type TickerEvent } from '../components/cockpit.js';
+import { LINE_LABEL, OUTCOMES, SESSION_LABEL, loadRepPhone, saveRepPhone, useDialer } from '../dialer.js';
+import { localHour, localTime, phoneInfo } from '../lib/phone.js';
 
-type Line = { id: string; batch: number; status: string; to: string | null; prospect: { id: string; name: string | null; title: string | null; phone: string | null; account: string | null } | null; callId: string | null; taskId: string | null; callbackTaskId: string | null; answeredBy: string | null; skipReason: string | null; endReason: string | null; answeredAt: string | null; connectedAt: string | null; endedAt: string | null; durationSeconds: number | null };
-type Session = { id: string; status: string; repMode: string; repPhone: string | null; fromNumber: string; maxLines: number; batch: number; complianceMode: string; autoDial: boolean; connectedLineId: string | null; connectedAt: string | null; endReason: string | null; stats: Record<string, number>; lines: Line[]; connectParams?: Record<string, string> };
+type Prospect = { id: string; name: string | null; title: string | null; phone: string | null; email: string | null; linkedInUrl: string | null; account: string | null; accountId: string | null; timezone: string | null; city: string | null; state: string | null; country: string | null };
+type Line = { id: string; batch: number; status: string; to: string | null; prospect: Prospect | null; callId: string | null; taskId: string | null; callbackTaskId: string | null; answeredBy: string | null; skipReason: string | null; endReason: string | null; answeredAt: string | null; amdAt: string | null; connectedAt: string | null; endedAt: string | null; durationSeconds: number | null };
+type Session = { id: string; status: string; repMode: string; repPhone: string | null; fromNumber: string; maxLines: number; batch: number; complianceMode: string; autoDial: boolean; connectedLineId: string | null; connectedAt: string | null; endReason: string | null; createdAt: string; stats: Record<string, number>; lines: Line[]; connectParams?: Record<string, string> };
 
 const LIVE = new Set(['dialing', 'ringing', 'answered', 'connected']);
+const SKIP_LABEL: Record<string, string> = { no_phone: 'no phone number', do_not_call: 'do-not-call list', quiet_hours: 'quiet hours there', duplicate: 'already queued', session_ended: 'session ended' };
 
 /**
- * Power dialer: the rep joins a silent room first (browser or phone), picks prospects, and rings a
- * batch. Each line shows its live state; the first human answer lands in the rep's ear with no
- * beep, the rest hang up. Log the call, dial again.
+ * Power dialer cockpit. The rep's own line sits in a rail at the top with a live scope and link
+ * quality; prospect lines are instrument channels below it; the first human answer expands into a
+ * caller-ID dossier with the log form beside it.
  */
 export function PowerDialer() {
   const dialerCfg = useApi<{ data: any }>('/v1/workspace/dialer');
@@ -31,7 +29,7 @@ export function PowerDialer() {
   const [session, setSession] = useState<Session | null>(null);
   const dialer = useDialer();
   const [busy, setBusy] = useState(false);
-  const [joinedBrowser, setJoinedBrowser] = useState(false);
+  const [keypad, setKeypad] = useState(false);
   const poll = useRef<number | null>(null);
   const cfg = dialerCfg.data?.data;
   const tw = cfg?.twilio;
@@ -40,8 +38,6 @@ export function PowerDialer() {
   useEffect(() => {
     if (current.data) setSession(current.data.data);
   }, [current.data]);
-
-  // Poll while the session is open. One second keeps line cards honest without hammering the API.
   useEffect(() => {
     if (poll.current) window.clearInterval(poll.current);
     poll.current = null;
@@ -57,62 +53,79 @@ export function PowerDialer() {
     };
   }, [session?.id, session?.status === 'ended']);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (!session) return;
     const r = await api<{ data: Session }>(`/v1/dialSessions/${session.id}`);
     setSession((s) => ({ ...r.data, connectParams: s?.connectParams }));
-  };
+  }, [session?.id]);
 
   const start = async (input: { repMode: 'browser' | 'phone'; repPhone?: string; fromNumber?: string; maxLines: number; autoDial: boolean; prospectIds: string[]; taskIds: string[] }) => {
     setBusy(true);
     try {
       const r = await api<{ data: Session }>('/v1/dialSessions', { method: 'POST', json: { data: input } });
       setSession(r.data);
-      if (input.repMode === 'browser' && r.data.connectParams) {
-        await dialer.joinConference(r.data.connectParams, () => setJoinedBrowser(false));
-        setJoinedBrowser(true);
+      if (input.repMode === 'browser' && r.data.connectParams) await dialer.joinConference(r.data.connectParams);
+      toast(input.repMode === 'browser' ? 'You are on the line. Dial when ready.' : 'Ringing your phone. Pick up to join.');
+    } catch (e: any) {
+      toast(e.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const rejoin = async () => {
+    if (!session) return;
+    try {
+      await dialer.joinConference({ kind: 'parallel', sessionId: session.id, ws: session.connectParams?.ws ?? '' });
+    } catch (e: any) {
+      toast(e.message, 'error');
+    }
+  };
+  const act = useCallback(
+    async (path: string, body?: unknown) => {
+      if (!session || busy) return;
+      setBusy(true);
+      try {
+        const r = await api<{ data: Session }>(`/v1/dialSessions/${session.id}${path}`, { method: 'POST', json: body === undefined ? undefined : { data: body } });
+        if (r?.data?.lines) setSession((s) => ({ ...r.data, connectParams: s?.connectParams }));
+        else await refresh();
+      } catch (e: any) {
+        toast(e.message, 'error');
+        await refresh().catch(() => undefined);
+      } finally {
+        setBusy(false);
       }
-      toast(input.repMode === 'browser' ? 'You are in the room. Dial when ready.' : 'Ringing your phone. Pick up to join.');
-    } catch (e: any) {
-      toast(e.message, 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
-  const rejoinBrowser = async () => {
-    if (!session) return;
-    try {
-      await dialer.joinConference({ kind: 'parallel', sessionId: session.id, ws: session.connectParams?.ws ?? '' }, () => setJoinedBrowser(false));
-      setJoinedBrowser(true);
-    } catch (e: any) {
-      toast(e.message, 'error');
-    }
-  };
-  const act = async (path: string, body?: unknown) => {
-    if (!session) return;
-    setBusy(true);
-    try {
-      const r = await api<{ data: Session }>(`/v1/dialSessions/${session.id}${path}`, { method: 'POST', json: body === undefined ? undefined : { data: body } });
-      if (r?.data?.lines) setSession((s) => ({ ...r.data, connectParams: s?.connectParams }));
-      else await refresh();
-    } catch (e: any) {
-      toast(e.message, 'error');
-      await refresh().catch(() => undefined);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const end = async () => {
+    },
+    [session?.id, busy, refresh],
+  );
+  const end = useCallback(async () => {
     await act('/actions/end');
     dialer.hangup();
-    setJoinedBrowser(false);
-  };
+  }, [act, dialer]);
+
+  const queued = session?.lines.filter((l) => l.status === 'queued') ?? [];
+  const connected = session?.connectedLineId ? session.lines.find((l) => l.id === session.connectedLineId) : null;
+  const canDial = !!session && (session.status === 'ready' || session.status === 'wrapping') && queued.length > 0 && !busy;
+  const canHangup = !!connected && connected.status === 'connected' && !busy;
+  const live = !!session && session.status !== 'ended';
+
+  useHotkeys(
+    useMemo(
+      () => ({
+        d: canDial ? () => void act('/actions/dial', {}) : undefined,
+        h: canHangup ? () => void act('/actions/hangup') : undefined,
+        m: live && dialer.onLine ? () => dialer.mute(!dialer.muted) : undefined,
+        k: live ? () => setKeypad((k) => !k) : undefined,
+        escape: keypad ? () => setKeypad(false) : undefined,
+      }),
+      [canDial, canHangup, live, dialer.onLine, dialer.muted, keypad, act],
+    ),
+  );
 
   if (!cfg) return null;
   if (tw?.status !== 'connected') {
     return (
       <>
-        <PageHeader title="Power dialer" description="Dial several prospects at once; the first person who answers is connected to you instantly." />
+        <PageHeader title="Power dialer" description="Several lines ring at once; the first person who answers is on with you instantly." />
         <Empty>
           Connect Twilio under <Link to="/settings?tab=dialer" className="underline">Settings → Dialer</Link> to use the power dialer.
         </Empty>
@@ -122,374 +135,339 @@ export function PowerDialer() {
   if (!parallel?.confirmed) {
     return (
       <>
-        <PageHeader title="Power dialer" description="Dial several prospects at once; the first person who answers is connected to you instantly." />
-        <Card data-testid="compliance-gate">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-4 text-amber-600" /> An admin needs to confirm the compliance mode
-            </CardTitle>
-            <CardDescription>
-              When two people answer at once, the second one is dropped. For calls to consumers in the US that counts as an abandoned call under the FTC Telemarketing Sales Rule, so an admin must choose B2B or consumer mode and confirm it under <Link to="/settings?tab=dialer" className="underline">Settings → Dialer</Link> first.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <PageHeader title="Power dialer" description="Several lines ring at once; the first person who answers is on with you instantly." />
+        <div className="rounded-lg border p-4" data-testid="compliance-gate">
+          <div className="flex items-center gap-2 font-medium">
+            <AlertTriangle className="size-4 text-amber-600" /> An admin needs to confirm the compliance mode
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            When two people answer at once, the second one is dropped. For calls to consumers in the US that counts as an abandoned call under the FTC Telemarketing Sales Rule, so an admin chooses B2B or consumer mode and confirms it under <Link to="/settings?tab=dialer" className="underline">Settings → Dialer</Link> first.
+          </p>
+        </div>
       </>
     );
   }
 
   return (
-    <>
-      <PageHeader
-        title="Power dialer"
-        description={session && session.status !== 'ended' ? `${SESSION_LABEL[session.status] ?? session.status} · caller id ${session.fromNumber} · ${session.maxLines} lines · ${session.complianceMode === 'consumer' ? 'consumer' : 'B2B'} mode` : 'Dial several prospects at once; the first person who answers is connected to you instantly, with no beep or message.'}
-        actions={
-          session && session.status !== 'ended' ? (
-            <Button variant="destructive" onClick={end} disabled={busy} data-testid="pd-end">
-              <Square className="size-4" /> End session
-            </Button>
-          ) : undefined
-        }
-      />
-      {!session || session.status === 'ended' ? (
+    <div className="cockpit -m-4 min-h-screen p-4 md:-m-6 md:p-6" data-testid="cockpit">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Led tone={!live ? 'off' : session.status === 'connected' ? 'live' : session.status === 'dialing' ? 'ring' : 'idle'} pulse={live && session.status === 'dialing'} />
+          <div>
+            <div className="ck-label">Power dialer</div>
+            <div className="text-lg font-semibold tracking-tight" data-testid="pd-status">
+              {live ? (SESSION_LABEL[session.status] ?? session.status) : 'Standby'}
+            </div>
+          </div>
+        </div>
+        {live && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Stat label="Caller id" value={phoneInfo(session.fromNumber)?.national ?? session.fromNumber} />
+            <Stat label="Lines" value={String(session.maxLines)} />
+            <Stat label="Batch" value={String(session.batch)} />
+            <Stat label="Mode" value={session.complianceMode === 'consumer' ? 'Consumer' : 'B2B'} />
+            <button className="ck-btn" data-tone="drop" onClick={end} disabled={busy} data-testid="pd-end">
+              <Square className="size-3.5" /> End session
+            </button>
+          </div>
+        )}
+      </div>
+
+      {!live ? (
         <Setup softphone={!!tw.softphone} fromNumbers={tw.fromNumbers ?? []} maxLines={parallel.maxLines} maxAllowed={parallel.maxAllowedLines} busy={busy} onStart={start} last={session} />
       ) : (
-        <Live session={session} busy={busy} joinedBrowser={joinedBrowser} onRejoin={rejoinBrowser} onDial={(lines) => act('/actions/dial', lines ? { lines } : {})} onHangup={() => act('/actions/hangup')} onQueue={(prospectIds) => act('/actions/queue', { prospectIds })} onToggleAuto={async (v) => {
-          await api(`/v1/dialSessions/${session.id}`, { method: 'PATCH', json: { data: { autoDial: v } } });
-          await refresh();
-        }} onLogged={refresh} />
+        <>
+          <RepRail session={session} dialer={dialer} keypadOpen={keypad} onKeypad={() => setKeypad((k) => !k)} onRejoin={rejoin} />
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button className="ck-btn" data-tone={canDial ? 'live' : undefined} onClick={() => act('/actions/dial', {})} disabled={!canDial} data-testid="pd-dial">
+              <PhoneCall className="size-4" /> {session.status === 'dialing' ? 'Dialing' : `Dial next ${Math.min(session.maxLines, queued.length) || ''}`} <Kbd>D</Kbd>
+            </button>
+            <button className="ck-btn" data-tone={canHangup ? 'drop' : undefined} onClick={() => act('/actions/hangup')} disabled={!canHangup} data-testid="pd-hangup">
+              <PhoneOff className="size-4" /> Hang up <Kbd>H</Kbd>
+            </button>
+            <label className="ml-auto flex items-center gap-2 text-sm" style={{ color: 'var(--ck-dim)' }}>
+              Auto-dial
+              <Switch
+                checked={session.autoDial}
+                onCheckedChange={async (v) => {
+                  await api(`/v1/dialSessions/${session.id}`, { method: 'PATCH', json: { data: { autoDial: v } } });
+                  await refresh();
+                }}
+                data-testid="pd-auto"
+              />
+            </label>
+          </div>
+          <AnimatePresence>
+            {keypad && (
+              <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }} className="ck-cell mt-3 max-w-xs p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="ck-label">Keypad</span>
+                  <button className="ck-btn h-7 px-2" onClick={() => setKeypad(false)}>
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+                <Keypad onDigit={(d) => dialer.sendDigits(d)} enabled={dialer.onLine && !!connected} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <Board session={session} connected={connected ?? null} onLogged={refresh} onQueue={(ids) => act('/actions/queue', { prospectIds: ids })} />
+        </>
       )}
-    </>
-  );
-}
-
-/* ------------------------------------------------------------------ setup */
-
-function Setup({ softphone, fromNumbers, maxLines, maxAllowed, busy, onStart, last }: { softphone: boolean; fromNumbers: string[]; maxLines: number; maxAllowed: number; busy: boolean; onStart: (i: { repMode: 'browser' | 'phone'; repPhone?: string; fromNumber?: string; maxLines: number; autoDial: boolean; prospectIds: string[]; taskIds: string[] }) => void; last: Session | null }) {
-  const [repMode, setRepMode] = useState<'browser' | 'phone'>(softphone ? 'browser' : 'phone');
-  const [repPhone, setRepPhone] = useState(loadRepPhone());
-  const [from, setFrom] = useState(fromNumbers[0] ?? '');
-  const [lines, setLines] = useState(String(maxLines));
-  const [autoDial, setAutoDial] = useState(false);
-  const [picked, setPicked] = useState<Map<string, { name: string; phone: string | null; taskId?: string }>>(new Map());
-  const [search, setSearch] = useState('');
-  const today = useMemo(() => new Date(Date.now() + 86_400_000).toISOString(), []);
-  const tasks = useApi<{ data: any[] }>(`/v1/tasks${q({ 'filter[completed]': 'false', 'filter[dueAt][lte]': today, include: 'prospect', 'page[size]': 100 })}`);
-  const all = useApi<{ data: any[] }>(`/v1/prospects${q({ 'page[size]': 100 })}`);
-  const found = useMemo(() => (search.length >= 2 ? { data: (all.data?.data ?? []).filter((p) => `${p.name ?? ''} ${p.title ?? ''} ${p.phone ?? ''}`.toLowerCase().includes(search.toLowerCase())).slice(0, 20) } : null), [search, all.data]);
-  const callTasks = (tasks.data?.data ?? []).filter((t) => t.action === 'call' || t.action === 'manual_call');
-  useEffect(() => {
-    if (!from && fromNumbers[0]) setFrom(fromNumbers[0]);
-  }, [fromNumbers]);
-  const toggle = (id: string, v: { name: string; phone: string | null; taskId?: string }) =>
-    setPicked((m) => {
-      const n = new Map(m);
-      if (n.has(id)) n.delete(id);
-      else n.set(id, v);
-      return n;
-    });
-  const start = () => {
-    saveRepPhone(repPhone);
-    const prospectIds = [...picked.entries()].filter(([, v]) => !v.taskId).map(([id]) => id);
-    const taskIds = [...picked.values()].filter((v) => v.taskId).map((v) => v.taskId!);
-    onStart({ repMode, repPhone: repMode === 'phone' ? repPhone : undefined, fromNumber: from || undefined, maxLines: Number(lines), autoDial, prospectIds, taskIds });
-  };
-  return (
-    <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-      <Card data-testid="pd-setup">
-        <CardHeader>
-          <CardTitle>Your line</CardTitle>
-          <CardDescription>You join first and wait in silence. Nothing is dialed until you press Dial.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <div className="grid gap-2">
-            <Label>Join from</Label>
-            <Select value={repMode} onValueChange={(v) => setRepMode(v as 'browser' | 'phone')}>
-              <SelectTrigger data-testid="pd-rep-mode">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="browser" disabled={!softphone}>
-                  This browser{softphone ? '' : ' (needs API key + TwiML app)'}
-                </SelectItem>
-                <SelectItem value="phone">My phone (Twilio rings me first)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {repMode === 'phone' && (
-            <div className="grid gap-2">
-              <Label>Your phone</Label>
-              <Input value={repPhone} onChange={(e) => setRepPhone(e.target.value)} placeholder="+1 555 999 8888" data-testid="pd-rep-phone" />
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label>Caller id</Label>
-              <Select value={from} onValueChange={setFrom}>
-                <SelectTrigger>
-                  <SelectValue placeholder="number" />
-                </SelectTrigger>
-                <SelectContent>
-                  {fromNumbers.map((n) => (
-                    <SelectItem key={n} value={n}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>Lines at once</Label>
-              <Select value={lines} onValueChange={setLines}>
-                <SelectTrigger data-testid="pd-lines">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: maxAllowed }, (_, i) => String(i + 1)).map((n) => (
-                    <SelectItem key={n} value={n}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <div>
-              <div className="text-sm font-medium">Auto-dial</div>
-              <div className="text-xs text-muted-foreground">Ring the next batch when nobody answers</div>
-            </div>
-            <Switch checked={autoDial} onCheckedChange={setAutoDial} />
-          </div>
-          <Button onClick={start} disabled={busy || (repMode === 'phone' && !repPhone) || !from} data-testid="pd-start">
-            <PhoneForwarded className="size-4" /> Join and queue {picked.size ? `${picked.size} ` : ''}prospects
-          </Button>
-          {last?.status === 'ended' && <SessionSummary s={last} />}
-        </CardContent>
-      </Card>
-      <Card className="min-w-0" data-testid="pd-pick">
-        <CardHeader>
-          <CardTitle>Who to call</CardTitle>
-          <CardDescription>Call tasks due today are listed first. Prospects without a phone, on the do-not-call list or outside 08:00–21:00 their time are skipped automatically.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid min-w-0 gap-3">
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => setPicked(new Map(callTasks.filter((t) => t.prospect?.id).map((t) => [t.prospect.id, { name: t.prospect.name, phone: t.prospect.phone, taskId: t.id }])))} disabled={!callTasks.length} data-testid="pd-pick-all-tasks">
-              Select all {callTasks.length} call tasks
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setPicked(new Map())} disabled={!picked.size}>
-              Clear
-            </Button>
-          </div>
-          {callTasks.length > 0 && (
-            <ul className="grid min-w-0 gap-1" data-testid="pd-task-list">
-              {callTasks.map((t) => (
-                <PickRow key={t.id} checked={picked.has(t.prospect?.id)} onToggle={() => t.prospect?.id && toggle(t.prospect.id, { name: t.prospect.name, phone: t.prospect.phone, taskId: t.id })} name={t.prospect?.name ?? 'Unknown'} sub={[t.prospect?.phone ?? 'no phone', t.note].filter(Boolean).join(' · ')} tag={t.sequence?.name ?? 'task'} />
-              ))}
-            </ul>
-          )}
-          <div className="grid gap-2">
-            <Label>Add any prospect</Label>
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name" data-testid="pd-search" />
-          </div>
-          {found?.data && (
-            <ul className="grid min-w-0 gap-1">
-              {found.data.map((p: any) => (
-                <PickRow key={p.id} checked={picked.has(p.id)} onToggle={() => toggle(p.id, { name: p.name, phone: p.phone })} name={p.name} sub={[p.title, p.phone ?? 'no phone'].filter(Boolean).join(' · ')} />
-              ))}
-              {found.data.length === 0 && <li className="text-sm text-muted-foreground">No prospects match.</li>}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
 
-function PickRow({ checked, onToggle, name, sub, tag }: { checked: boolean; onToggle: () => void; name: string; sub: string; tag?: string }) {
+function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <li className="min-w-0 overflow-hidden">
-      <button type="button" onClick={onToggle} className={cn('flex w-full min-w-0 items-center justify-between gap-3 overflow-hidden rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent', checked && 'border-primary bg-primary/5')} data-testid="pd-pick-row" aria-pressed={checked}>
-        <span className="min-w-0">
-          <span className="block truncate font-medium">{name}</span>
-          <span className="block truncate text-xs text-muted-foreground">{sub}</span>
-        </span>
-        {tag && (
-          <Badge variant="outline" className="shrink-0">
-            {tag}
-          </Badge>
-        )}
-      </button>
-    </li>
+    <div className="ck-cell px-3 py-1.5">
+      <div className="ck-label">{label}</div>
+      <div className="ck-mono text-sm">{value}</div>
+    </div>
   );
 }
 
-/* ------------------------------------------------------------------- live */
+/* ------------------------------------------------------------- rep rail */
 
-function Live({ session: s, busy, joinedBrowser, onRejoin, onDial, onHangup, onQueue, onToggleAuto, onLogged }: { session: Session; busy: boolean; joinedBrowser: boolean; onRejoin: () => void; onDial: (lines?: number) => void; onHangup: () => void; onQueue: (ids: string[]) => void; onToggleAuto: (v: boolean) => void; onLogged: () => void }) {
+/** Every timestamp a line carries becomes a console line; the ticker shows the latest few. */
+function tickerEvents(s: Session): TickerEvent[] {
   const batch = s.lines.filter((l) => l.batch === s.batch && l.batch > 0);
+  const ev: TickerEvent[] = [];
+  batch.forEach((l, i) => {
+    const who = l.prospect?.name ?? l.to ?? 'line';
+    const n = i + 1;
+    if (l.answeredAt) ev.push({ at: l.answeredAt, line: n, text: `${who} picked up, screening`, tone: 'ring' });
+    if (l.amdAt && l.answeredBy) ev.push({ at: l.amdAt, line: n, text: `${l.answeredBy.replace(/_/g, ' ')}${l.answeredAt ? ` in ${((new Date(l.amdAt).getTime() - new Date(l.answeredAt).getTime()) / 1000).toFixed(1)}s` : ''}`, tone: l.answeredBy === 'human' ? 'live' : l.answeredBy.startsWith('machine') ? 'vm' : 'off' });
+    if (l.connectedAt) ev.push({ at: l.connectedAt, line: n, text: `${who} on with you`, tone: 'live' });
+    if (l.endedAt) ev.push({ at: l.endedAt, line: n, text: `${LINE_LABEL[l.status]?.toLowerCase() ?? l.status}${l.endReason && l.endReason !== l.status && l.endReason !== l.answeredBy ? ` · ${l.endReason.replace(/_/g, ' ')}` : ''}`, tone: toneFor(l.status) === 'live' ? 'off' : toneFor(l.status) });
+  });
+  return ev.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+}
+
+function RepRail({ session: s, dialer, keypadOpen, onKeypad, onRejoin }: { session: Session; dialer: ReturnType<typeof useDialer>; keypadOpen: boolean; onKeypad: () => void; onRejoin: () => void }) {
+  const browser = s.repMode === 'browser';
+  const joined = browser ? dialer.onLine : s.status !== 'waiting_rep';
+  const rep = phoneInfo(s.repPhone);
+  const events = useMemo(() => tickerEvents(s), [s]);
+  return (
+    <div className="ck-cell grid gap-3 p-3 md:grid-cols-[220px_minmax(0,1fr)_auto] md:items-center" data-testid="pd-rail" data-live={s.status === 'connected' ? 'true' : undefined}>
+      <div className="flex items-center gap-3">
+        <Led tone={joined ? (s.status === 'connected' ? 'live' : 'idle') : 'ring'} pulse={!joined} />
+        <div>
+          <div className="ck-label">Your line</div>
+          <div className="text-sm font-medium" data-testid="pd-rail-status">
+            {joined ? (browser ? 'Browser, on the line' : `Phone ${rep?.national ?? s.repPhone ?? ''}`) : browser ? 'Not on the line' : `Ringing ${rep?.national ?? s.repPhone ?? 'your phone'}`}
+          </div>
+          <div className="ck-mono text-xs" style={{ color: 'var(--ck-faint)' }}>
+            session <Timer from={s.createdAt} animated={false} />
+          </div>
+        </div>
+      </div>
+      <div className="min-w-0">
+        {browser ? (
+          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <Scope levels={dialer.levels} active={dialer.onLine} />
+            <Ticker events={events} sessionStart={s.createdAt} />
+          </div>
+        ) : (
+          <Ticker events={events} sessionStart={s.createdAt} className="min-h-14" />
+        )}
+        {dialer.warning && (
+          <div className="ck-label mt-1" style={{ color: 'var(--ck-ring)' }}>
+            link warning: {dialer.warning.replace(/-/g, ' ')}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <SignalBars quality={dialer.quality} active={dialer.onLine} />
+        {browser && !joined && (
+          <button className="ck-btn" data-tone="live" onClick={onRejoin} data-testid="pd-join">
+            <PhoneForwarded className="size-4" /> Join from this browser
+          </button>
+        )}
+        {browser && joined && (
+          <button className="ck-btn" onClick={() => dialer.mute(!dialer.muted)} data-testid="pd-mute" aria-pressed={dialer.muted} style={dialer.muted ? { borderColor: 'var(--ck-ring)', color: 'var(--ck-ring)' } : undefined}>
+            {dialer.muted ? <MicOff className="size-4" /> : <Mic className="size-4" />} {dialer.muted ? 'Muted' : 'Mute'} <Kbd>M</Kbd>
+          </button>
+        )}
+        <button className="ck-btn" onClick={onKeypad} aria-pressed={keypadOpen} data-testid="pd-keypad">
+          <Grid3x3 className="size-4" /> <Kbd>K</Kbd>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------- board */
+
+function Board({ session: s, connected, onLogged, onQueue }: { session: Session; connected: Line | null; onLogged: () => void; onQueue: (ids: string[]) => void }) {
+  const batch = s.lines.filter((l) => l.batch === s.batch && l.batch > 0);
+  const siblings = batch.filter((l) => l.id !== connected?.id);
   const queued = s.lines.filter((l) => l.status === 'queued');
   const skipped = s.lines.filter((l) => l.status === 'skipped');
-  const connected = s.connectedLineId ? s.lines.find((l) => l.id === s.connectedLineId) : null;
   const history = s.lines.filter((l) => l.batch > 0 && l.batch < s.batch && !LIVE.has(l.status));
-  const canDial = (s.status === 'ready' || s.status === 'wrapping') && queued.length > 0;
-  const [search, setSearch] = useState('');
-  const all = useApi<{ data: any[] }>(`/v1/prospects${q({ 'page[size]': 100 })}`);
-  const found = useMemo(() => (search.length >= 2 ? { data: (all.data?.data ?? []).filter((p) => `${p.name ?? ''} ${p.phone ?? ''}`.toLowerCase().includes(search.toLowerCase())).slice(0, 8) } : null), [search, all.data]);
   return (
-    <div className="grid gap-4">
-      {s.status === 'waiting_rep' && (
-        <Card data-testid="pd-waiting">
-          <CardContent className="flex items-center justify-between gap-3 pt-6">
-            <div className="text-sm">{s.repMode === 'phone' ? `Ringing ${s.repPhone}. Pick up to join the room.` : joinedBrowser ? 'Connecting your browser to the room…' : 'Your browser is not in the room.'}</div>
-            {s.repMode === 'browser' && !joinedBrowser && (
-              <Button size="sm" onClick={onRejoin}>
-                <Phone className="size-4" /> Join from this browser
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={() => onDial()} disabled={busy || !canDial} data-testid="pd-dial">
-          <PhoneCall className="size-4" /> {s.status === 'dialing' ? 'Dialing…' : `Dial next ${Math.min(s.maxLines, queued.length) || ''}`}
-        </Button>
-        {connected && (
-          <Button variant="destructive" onClick={onHangup} disabled={busy} data-testid="pd-hangup">
-            <PhoneOff className="size-4" /> Hang up
-          </Button>
-        )}
-        <div className="ml-auto flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Auto-dial</span>
-          <Switch checked={s.autoDial} onCheckedChange={onToggleAuto} data-testid="pd-auto" />
-        </div>
-      </div>
-      {connected && <ConnectedPanel line={connected} session={s} onLogged={onLogged} />}
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="pd-lines">
-        {batch.length === 0 && <Empty>No lines ringing. {queued.length ? `${queued.length} queued.` : 'Queue is empty.'}</Empty>}
-        {batch.map((l) => (
-          <LineCard key={l.id} line={l} winner={l.id === s.connectedLineId} />
-        ))}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Up next ({queued.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            {queued.slice(0, 12).map((l) => (
-              <div key={l.id} className="flex items-center justify-between text-sm">
-                <span className="truncate">{l.prospect?.name ?? l.to}</span>
-                <span className="text-xs text-muted-foreground">{l.to}</span>
+    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid gap-4">
+        <LayoutGroup>
+          <div className="grid gap-3" data-testid="pd-lines">
+            {batch.length === 0 && (
+              <div className="ck-cell flex h-28 items-center justify-center text-sm" style={{ color: 'var(--ck-faint)' }}>
+                {queued.length ? `${queued.length} queued. Press D to ring the next ${Math.min(s.maxLines, queued.length)}.` : 'Queue is empty. Add prospects on the right.'}
               </div>
-            ))}
-            {queued.length > 12 && <div className="text-xs text-muted-foreground">and {queued.length - 12} more</div>}
-            <div className="grid gap-2 pt-2">
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Add a prospect by name" data-testid="pd-live-search" />
-              {found?.data.map((p: any) => (
-                <Button key={p.id} size="sm" variant="outline" className="justify-between" onClick={() => (onQueue([p.id]), setSearch(''))}>
-                  <span className="truncate">{p.name}</span>
-                  <span className="text-xs text-muted-foreground">{p.phone ?? 'no phone'}</span>
-                </Button>
-              ))}
-            </div>
-            {skipped.length > 0 && (
-              <details className="pt-2 text-xs text-muted-foreground">
-                <summary>{skipped.length} skipped</summary>
-                <ul className="mt-1 grid gap-1">
-                  {skipped.map((l) => (
-                    <li key={l.id}>
-                      {l.prospect?.name ?? l.to}: {SKIP_LABEL[l.skipReason ?? ''] ?? l.skipReason}
-                    </li>
-                  ))}
-                </ul>
-              </details>
             )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">This session</CardTitle>
-            <CardDescription>
-              {s.stats.dialed ?? 0} dialed · {s.stats.connected ?? 0} conversations · {s.stats.voicemail ?? 0} voicemail · {s.stats.noAnswer ?? 0} no answer · {s.stats.dropped ?? 0} dropped
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            {history.length === 0 && <div className="text-sm text-muted-foreground">Nothing yet.</div>}
-            {history
-              .slice()
-              .reverse()
-              .slice(0, 20)
-              .map((l) => (
-                <div key={l.id} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="truncate">{l.prospect?.name ?? l.to}</span>
-                  <span className="flex items-center gap-2">
-                    {l.callId && (l.status === 'completed' || l.status === 'dropped') && (
-                      <Link to={`/calls/${l.callId}`} className="text-xs underline">
-                        call
-                      </Link>
-                    )}
-                    <LineBadge status={l.status} />
-                  </span>
+            {connected ? (
+              <>
+                <ConnectedCell key={connected.id} line={connected} session={s} onLogged={onLogged} />
+                {siblings.length > 0 && (
+                  <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(4, siblings.length)}, minmax(0, 1fr))` }}>
+                    {siblings.map((l) => (
+                      <LineStrip key={l.id} line={l} index={batch.indexOf(l) + 1} />
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              batch.length > 0 && (
+                <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(4, batch.length)}, minmax(0, 1fr))` }}>
+                  {batch.map((l, i) => (
+                    <LineCell key={l.id} line={l} index={i + 1} />
+                  ))}
                 </div>
-              ))}
-          </CardContent>
-        </Card>
+              )
+            )}
+          </div>
+        </LayoutGroup>
+        <Tally session={s} history={history} />
       </div>
+      <Queue queued={queued} skipped={skipped} onQueue={onQueue} />
     </div>
   );
 }
 
-const SKIP_LABEL: Record<string, string> = { no_phone: 'no phone number', do_not_call: 'on the do-not-call list', quiet_hours: 'outside 08:00–21:00 their time', duplicate: 'already in this session', session_ended: 'session ended' };
-
-function LineBadge({ status }: { status: string }) {
-  const tone = status === 'connected' || status === 'completed' ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-300' : status === 'ringing' || status === 'dialing' || status === 'answered' ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300' : status === 'dropped' ? 'bg-destructive/15 text-destructive' : 'text-muted-foreground';
-  return <span className={cn('inline-flex items-center rounded-full border border-transparent px-2 py-0.5 text-xs font-medium', tone)}>{LINE_LABEL[status] ?? status}</span>;
-}
-
-function LineCard({ line: l, winner }: { line: Line; winner: boolean }) {
-  const live = LIVE.has(l.status);
+/** One instrument channel while a batch is ringing. */
+function LineCell({ line: l, index }: { line: Line; index: number }) {
+  const tone = toneFor(l.status);
+  const racing = l.status === 'dialing' || l.status === 'ringing' || l.status === 'answered';
+  const verdictMs = l.answeredAt && l.amdAt ? new Date(l.amdAt).getTime() - new Date(l.answeredAt).getTime() : null;
+  const color = tone === 'live' ? 'var(--ck-live)' : tone === 'ring' ? 'var(--ck-ring)' : tone === 'drop' ? 'var(--ck-drop)' : tone === 'vm' ? 'var(--ck-vm)' : 'var(--ck-dim)';
   return (
-    <Card className={cn('min-w-0', winner && 'border-emerald-600', live && !winner && 'border-sky-500/50')} data-testid="pd-line" data-status={l.status}>
-      <CardContent className="grid gap-1 pt-5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="truncate font-medium">{l.prospect?.name ?? l.to}</div>
-            <div className="truncate text-xs text-muted-foreground">{[l.prospect?.title, l.prospect?.account].filter(Boolean).join(' · ') || '\u00a0'}</div>
-          </div>
-          <LineBadge status={l.status} />
+    <motion.div layout layoutId={`line-${l.id}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 420, damping: 36 }} className={cn('ck-cell min-w-0 p-3', l.status === 'answered' && 'ck-scan')} data-testid="pd-line" data-status={l.status} data-ringing={racing ? 'true' : undefined}>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="ck-label">Line {index}</span>
+        <span className="flex items-center gap-2 text-xs" style={{ color }}>
+          <Led tone={tone} pulse={racing} />
+          {LINE_LABEL[l.status] ?? l.status}
+        </span>
+      </div>
+      <CallerId name={l.prospect?.name} title={l.prospect?.title} account={l.prospect?.account} phone={l.to ?? l.prospect?.phone} timezone={l.prospect?.timezone} city={l.prospect?.city} state={l.prospect?.state} />
+      <div className="ck-mono mt-2 flex items-center justify-between text-xs" style={{ color: 'var(--ck-faint)' }}>
+        <span>{racing && l.answeredAt ? <Timer from={l.answeredAt} animated={false} /> : l.durationSeconds ? <Timer from={null} fixedSeconds={l.durationSeconds} animated={false} /> : '—'}</span>
+        <span>{verdictMs !== null && l.answeredBy ? `${l.answeredBy.replace(/_/g, ' ')} in ${(verdictMs / 1000).toFixed(1)}s` : l.status === 'answered' ? 'screening' : l.endReason ? l.endReason.replace(/_/g, ' ') : ''}</span>
+      </div>
+      {l.status === 'dropped' && l.callbackTaskId && (
+        <div className="mt-1 text-xs" style={{ color: 'var(--ck-drop)' }}>
+          Callback task created.
         </div>
-        <div className="flex items-center justify-between pt-1 text-xs text-muted-foreground">
-          <span>{l.to}</span>
-          <Timer from={l.status === 'connected' ? l.connectedAt : null} fixed={l.durationSeconds} />
-        </div>
-        {l.status === 'dropped' && l.callbackTaskId && <div className="text-xs text-destructive">Callback task created.</div>}
-      </CardContent>
-    </Card>
+      )}
+    </motion.div>
   );
 }
 
-function Timer({ from, fixed }: { from: string | null | undefined; fixed: number | null }) {
-  const [, tick] = useState(0);
-  useEffect(() => {
-    if (!from) return;
-    const id = window.setInterval(() => tick((n) => n + 1), 1000);
-    return () => window.clearInterval(id);
-  }, [from]);
-  if (from) return <span className="tabular-nums">{fmtDuration((Date.now() - new Date(from).getTime()) / 1000)}</span>;
-  if (fixed) return <span className="tabular-nums">{fmtDuration(fixed)}</span>;
-  return null;
+/** Collapsed sibling while someone is connected. */
+function LineStrip({ line: l, index }: { line: Line; index: number }) {
+  return (
+    <motion.div layout layoutId={`line-${l.id}`} className="ck-cell flex min-w-0 items-center gap-2 px-3 py-2 text-xs" data-testid="pd-line" data-status={l.status} style={{ opacity: 0.85 }}>
+      <Led tone={toneFor(l.status)} pulse={l.status === 'answered'} />
+      <span className="ck-label">L{index}</span>
+      <span className="truncate font-medium">{l.prospect?.name ?? l.to}</span>
+      <span className="ml-auto shrink-0" style={{ color: 'var(--ck-dim)' }}>{LINE_LABEL[l.status] ?? l.status}</span>
+    </motion.div>
+  );
 }
 
-function ConnectedPanel({ line, session, onLogged }: { line: Line; session: Session; onLogged: () => void }) {
+/* --------------------------------------------------------- connected cell */
+
+function ConnectedCell({ line, session, onLogged }: { line: Line; session: Session; onLogged: () => void }) {
+  const p = line.prospect;
+  const ended = line.status !== 'connected';
+  const emails = useApi<{ data: any[] }>(p ? `/v1/emails${q({ 'filter[prospect][id]': p.id, 'page[size]': 3 })}` : null, [p?.id]);
+  const calls = useApi<{ data: any[] }>(p ? `/v1/calls${q({ 'filter[prospect][id]': p.id, 'page[size]': 4, include: 'callDisposition' })}` : null, [p?.id]);
+  const signals = useApi<{ data: any[] }>(p ? `/v1/signals${q({ 'filter[prospect][id]': p.id, 'page[size]': 3 })}` : null, [p?.id]);
+  const touches = useMemo(() => {
+    const t: Array<{ at: string; kind: string; text: string }> = [];
+    for (const e of emails.data?.data ?? []) t.push({ at: e.createdAt, kind: e.direction === 'inbound' ? 'reply' : 'email', text: e.subject ?? '(no subject)' });
+    for (const c of calls.data?.data ?? []) if (c.id !== line.callId) t.push({ at: c.time, kind: 'call', text: c.callDisposition?.name ?? c.outcome ?? c.status });
+    for (const s of signals.data?.data ?? []) t.push({ at: s.occurredAt, kind: 'signal', text: s.title ?? s.kind });
+    return t.sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 5);
+  }, [emails.data, calls.data, signals.data, line.callId]);
+  return (
+    <motion.div initial={{ opacity: 0, scale: 0.985 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="ck-cell grid gap-4 p-4 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]" data-live={ended ? undefined : 'true'} data-testid="pd-connected">
+      <div className="min-w-0">
+        <div className="mb-3 flex items-center gap-2">
+          <Led tone={ended ? 'off' : 'live'} />
+          <span className="ck-label" style={{ color: ended ? undefined : 'var(--ck-live)' }}>
+            {ended ? 'Call ended' : 'Live'}
+          </span>
+          <span className="ck-mono ml-auto text-2xl" data-testid="pd-live-timer">
+            <Timer from={ended ? null : line.connectedAt} fixedSeconds={line.durationSeconds ?? 0} />
+          </span>
+        </div>
+        <CallerId size="lg" name={p?.name ?? line.to} title={p?.title} account={p?.account} phone={line.to ?? p?.phone} timezone={p?.timezone} city={p?.city} state={p?.state} />
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          {p?.id && (
+            <Link to={`/prospects/${p.id}`} className="ck-btn h-7 px-2 text-xs">
+              Open prospect
+            </Link>
+          )}
+          {p?.linkedInUrl && (
+            <a href={p.linkedInUrl} target="_blank" rel="noreferrer" className="ck-btn h-7 px-2 text-xs">
+              LinkedIn
+            </a>
+          )}
+          {p?.email && (
+            <span className="ck-mono self-center" style={{ color: 'var(--ck-faint)' }}>
+              {p.email}
+            </span>
+          )}
+        </div>
+        <div className="mt-4">
+          <div className="ck-label mb-1.5">Recent</div>
+          {touches.length === 0 ? (
+            <div className="text-xs" style={{ color: 'var(--ck-faint)' }}>
+              First touch.
+            </div>
+          ) : (
+            <ul className="grid gap-1 text-xs">
+              {touches.map((t, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <span className="ck-label w-10 shrink-0">{t.kind}</span>
+                  <span className="truncate">{t.text}</span>
+                  <span className="ck-mono ml-auto shrink-0" style={{ color: 'var(--ck-faint)' }}>
+                    {new Date(t.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+      <LogForm line={line} wrapping={session.status === 'wrapping'} onLogged={onLogged} />
+    </motion.div>
+  );
+}
+
+function LogForm({ line, wrapping, onLogged }: { line: Line; wrapping: boolean; onLogged: () => void }) {
   const [outcome, setOutcome] = useState('connected');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [logged, setLogged] = useState<string | null>(null);
+  const notesRef = useRef<HTMLTextAreaElement | null>(null);
   useEffect(() => {
     setOutcome('connected');
     setNotes('');
     setLogged(null);
   }, [line.id]);
+  useHotkeys(useMemo(() => ({ l: () => notesRef.current?.focus() }), []));
   const log = async () => {
     if (!line.callId) return;
     setBusy(true);
@@ -504,65 +482,319 @@ function ConnectedPanel({ line, session, onLogged }: { line: Line; session: Sess
       setBusy(false);
     }
   };
-  const ended = line.status !== 'connected';
   return (
-    <Card className="border-emerald-600" data-testid="pd-connected">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <PhoneCall className="size-4 text-emerald-600" /> {ended ? 'Call ended' : 'Live'}: {line.prospect?.name ?? line.to}
-          {!ended && (
-            <Badge variant="secondary" className="ml-auto">
-              <Timer from={line.connectedAt} fixed={null} />
-            </Badge>
-          )}
-        </CardTitle>
-        <CardDescription>
-          {[line.prospect?.title, line.prospect?.account].filter(Boolean).join(' · ')}
-          {line.prospect?.id && (
-            <>
-              {' · '}
-              <Link to={`/prospects/${line.prospect.id}`} className="underline">
-                open prospect
-              </Link>
-            </>
-          )}
-          {session.status === 'wrapping' && ' · log the call, then dial the next batch'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 md:grid-cols-[200px_minmax(0,1fr)_auto]">
-        <div className="grid gap-2">
-          <Label>Outcome</Label>
-          <Select value={outcome} onValueChange={setOutcome}>
-            <SelectTrigger data-testid="pd-outcome">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {OUTCOMES.map(([v, l]) => (
-                <SelectItem key={v} value={v}>
-                  {l}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <div className="grid content-start gap-3 md:border-l md:pl-4" style={{ borderColor: 'var(--ck-line)' }}>
+      <div className="flex items-center justify-between">
+        <span className="ck-label">Outcome</span>
+        {wrapping && (
+          <span className="ck-label" style={{ color: 'var(--ck-ring)' }}>
+            log, then dial
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1.5" role="radiogroup" data-testid="pd-outcome">
+        {OUTCOMES.map(([v, l]) => (
+          <button key={v} type="button" role="radio" aria-checked={outcome === v} onClick={() => setOutcome(v)} className="ck-btn h-8 px-2.5 text-xs" style={outcome === v ? { borderColor: 'var(--ck-live)', color: 'var(--ck-live)', background: 'var(--ck-live-dim)' } : undefined} data-testid={`pd-outcome-${v}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+      <div>
+        <div className="mb-1 flex items-center justify-between">
+          <span className="ck-label">Notes</span>
+          <Kbd>L</Kbd>
         </div>
-        <div className="grid gap-2">
-          <Label>Notes</Label>
-          <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What happened, next step" data-testid="pd-notes" />
-        </div>
-        <div className="flex items-end">
-          <Button onClick={log} disabled={busy || logged === line.id || !line.callId} data-testid="pd-log">
-            {logged === line.id ? 'Logged' : 'Log call'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        <textarea ref={notesRef} rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What happened, next step" className="ck-input h-auto resize-none py-2" data-testid="pd-notes" />
+      </div>
+      <button onClick={log} disabled={busy || logged === line.id || !line.callId} className="ck-btn justify-center" data-tone={logged === line.id ? undefined : 'live'} data-testid="pd-log">
+        {logged === line.id ? 'Logged' : 'Log call'}
+      </button>
+    </div>
   );
 }
 
-function SessionSummary({ s }: { s: Session }) {
+/* ----------------------------------------------------------- queue, tally */
+
+function Queue({ queued, skipped, onQueue }: { queued: Line[]; skipped: Line[]; onQueue: (ids: string[]) => void }) {
+  const [search, setSearch] = useState('');
+  const all = useApi<{ data: any[] }>(`/v1/prospects${q({ 'page[size]': 100 })}`);
+  const found = useMemo(() => (search.length >= 2 ? (all.data?.data ?? []).filter((p) => `${p.name ?? ''} ${p.phone ?? ''}`.toLowerCase().includes(search.toLowerCase())).slice(0, 6) : []), [search, all.data]);
   return (
-    <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground" data-testid="pd-summary">
-      Last session: {s.stats.dialed ?? 0} dialed, {s.stats.connected ?? 0} conversations, {s.stats.voicemail ?? 0} voicemail, {s.stats.dropped ?? 0} dropped{s.endReason ? ` · ${s.endReason.replace(/_/g, ' ')}` : ''}.
+    <div className="ck-cell p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="ck-label">Up next</span>
+        <span className="ck-mono text-xs" style={{ color: 'var(--ck-dim)' }}>
+          {queued.length}
+        </span>
+      </div>
+      <ul className="grid gap-1.5">
+        {queued.slice(0, 10).map((l) => (
+          <li key={l.id} className="ck-row flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs">
+            <span className="truncate font-medium">{l.prospect?.name ?? l.to}</span>
+            <span className="ck-mono shrink-0" style={{ color: 'var(--ck-faint)' }}>
+              {phoneInfo(l.to)?.region ?? ''}
+            </span>
+          </li>
+        ))}
+        {queued.length > 10 && <li className="ck-label">and {queued.length - 10} more</li>}
+      </ul>
+      <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Add a prospect" className="ck-input mt-3" data-testid="pd-live-search" />
+      {found.length > 0 && (
+        <ul className="mt-1.5 grid gap-1">
+          {found.map((p: any) => (
+            <li key={p.id}>
+              <button type="button" className="ck-row flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-xs" onClick={() => (onQueue([p.id]), setSearch(''))}>
+                <span className="truncate">{p.name}</span>
+                <span className="ck-mono shrink-0" style={{ color: 'var(--ck-faint)' }}>
+                  {phoneInfo(p.phone)?.national ?? 'no phone'}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {skipped.length > 0 && (
+        <details className="mt-3 text-xs" style={{ color: 'var(--ck-faint)' }}>
+          <summary className="ck-label cursor-pointer">{skipped.length} skipped</summary>
+          <ul className="mt-1 grid gap-1">
+            {skipped.map((l) => (
+              <li key={l.id} className="flex justify-between gap-2">
+                <span className="truncate">{l.prospect?.name ?? l.to}</span>
+                <span className="shrink-0">{SKIP_LABEL[l.skipReason ?? ''] ?? l.skipReason}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
+  );
+}
+
+function Tally({ session: s, history }: { session: Session; history: Line[] }) {
+  const st = s.stats;
+  const cells: Array<[string, number, string]> = [
+    ['Dialed', st.dialed ?? 0, 'var(--ck-text)'],
+    ['Talked', st.connected ?? 0, 'var(--ck-live)'],
+    ['Voicemail', st.voicemail ?? 0, 'var(--ck-vm)'],
+    ['No answer', (st.noAnswer ?? 0) + (st.busy ?? 0), 'var(--ck-dim)'],
+    ['Dropped', st.dropped ?? 0, 'var(--ck-drop)'],
+  ];
+  return (
+    <div className="ck-cell p-3" data-testid="pd-tally">
+      <div className="grid grid-cols-5 gap-2">
+        {cells.map(([label, n, color]) => (
+          <div key={label}>
+            <div className="ck-label">{label}</div>
+            <div className="ck-mono text-xl" style={{ color }}>
+              {n}
+            </div>
+          </div>
+        ))}
+      </div>
+      {history.length > 0 && (
+        <ul className="mt-3 grid gap-1 border-t pt-3 text-xs" style={{ borderColor: 'var(--ck-line)' }}>
+          {history
+            .slice()
+            .reverse()
+            .slice(0, 8)
+            .map((l) => (
+              <li key={l.id} className="flex items-center gap-2">
+                <Led tone={toneFor(l.status)} />
+                <span className="truncate">{l.prospect?.name ?? l.to}</span>
+                {l.callId && (l.status === 'completed' || l.status === 'dropped' || l.status === 'voicemail') && (
+                  <Link to={`/calls/${l.callId}`} className="ck-label underline-offset-2 hover:underline">
+                    call
+                  </Link>
+                )}
+                <span className="ml-auto shrink-0" style={{ color: 'var(--ck-dim)' }}>
+                  {LINE_LABEL[l.status] ?? l.status}
+                </span>
+              </li>
+            ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------- setup */
+
+function Setup({ softphone, fromNumbers, maxLines, maxAllowed, busy, onStart, last }: { softphone: boolean; fromNumbers: string[]; maxLines: number; maxAllowed: number; busy: boolean; onStart: (i: { repMode: 'browser' | 'phone'; repPhone?: string; fromNumber?: string; maxLines: number; autoDial: boolean; prospectIds: string[]; taskIds: string[] }) => void; last: Session | null }) {
+  const [repMode, setRepMode] = useState<'browser' | 'phone'>(softphone ? 'browser' : 'phone');
+  const [repPhone, setRepPhone] = useState(loadRepPhone());
+  const [from, setFrom] = useState(fromNumbers[0] ?? '');
+  const [lines, setLines] = useState(maxLines);
+  const [autoDial, setAutoDial] = useState(false);
+  const [picked, setPicked] = useState<Map<string, { taskId?: string }>>(new Map());
+  const [search, setSearch] = useState('');
+  const today = useMemo(() => new Date(Date.now() + 86_400_000).toISOString(), []);
+  const tasks = useApi<{ data: any[] }>(`/v1/tasks${q({ 'filter[completed]': 'false', 'filter[dueAt][lte]': today, include: 'prospect', 'page[size]': 100 })}`);
+  const all = useApi<{ data: any[] }>(`/v1/prospects${q({ 'page[size]': 100 })}`);
+  const found = useMemo(() => (search.length >= 2 ? (all.data?.data ?? []).filter((p) => `${p.name ?? ''} ${p.title ?? ''} ${p.phone ?? ''}`.toLowerCase().includes(search.toLowerCase())).slice(0, 20) : null), [search, all.data]);
+  const callTasks = (tasks.data?.data ?? []).filter((t) => t.action === 'call' || t.action === 'manual_call');
+  useEffect(() => {
+    if (!from && fromNumbers[0]) setFrom(fromNumbers[0]);
+  }, [fromNumbers]);
+  const toggle = (id: string, v: { taskId?: string }) =>
+    setPicked((m) => {
+      const n = new Map(m);
+      if (n.has(id)) n.delete(id);
+      else n.set(id, v);
+      return n;
+    });
+  const start = () => {
+    saveRepPhone(repPhone);
+    const prospectIds = [...picked.entries()].filter(([, v]) => !v.taskId).map(([id]) => id);
+    const taskIds = [...picked.values()].filter((v) => v.taskId).map((v) => v.taskId!);
+    onStart({ repMode, repPhone: repMode === 'phone' ? repPhone : undefined, fromNumber: from || undefined, maxLines: lines, autoDial, prospectIds, taskIds });
+  };
+  const fromInfo = phoneInfo(from);
+  const repInfo = phoneInfo(repPhone);
+  return (
+    <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="ck-cell grid content-start gap-4 p-4" data-testid="pd-setup">
+        <div>
+          <div className="ck-label">Your line</div>
+          <div className="mt-1 text-sm" style={{ color: 'var(--ck-dim)' }}>
+            You join first and wait in silence. Nothing rings until you press Dial.
+          </div>
+        </div>
+        <div className="grid gap-1.5">
+          <span className="ck-label">Join from</span>
+          <div className="grid grid-cols-2 gap-1.5" role="radiogroup" data-testid="pd-rep-mode">
+            <Choice on={repMode === 'browser'} disabled={!softphone} onClick={() => setRepMode('browser')} title="This browser" sub={softphone ? 'mic, scope, keypad' : 'needs API key + TwiML app'} testid="pd-mode-browser" />
+            <Choice on={repMode === 'phone'} onClick={() => setRepMode('phone')} title="My phone" sub="Twilio rings you first" testid="pd-mode-phone" />
+          </div>
+        </div>
+        {repMode === 'phone' && (
+          <div className="grid gap-1.5">
+            <span className="ck-label">Your phone</span>
+            <input value={repPhone} onChange={(e) => setRepPhone(e.target.value)} placeholder="+1 555 999 8888" className="ck-input ck-mono" data-testid="pd-rep-phone" />
+            {repInfo && (
+              <span className="ck-mono text-xs" style={{ color: 'var(--ck-faint)' }}>
+                {repInfo.national}
+                {repInfo.region ? ` · ${repInfo.region}` : ''}
+              </span>
+            )}
+          </div>
+        )}
+        <div className="grid gap-1.5">
+          <span className="ck-label">Caller id</span>
+          <div className="grid gap-1.5">
+            {fromNumbers.map((n) => {
+              const i = phoneInfo(n);
+              return <Choice key={n} on={from === n} onClick={() => setFrom(n)} title={i?.national ?? n} sub={[i?.city ?? i?.region, localTime(i?.timezone)].filter(Boolean).join(' · ')} mono />;
+            })}
+          </div>
+          {fromInfo?.region && <span className="ck-label">Local presence: {fromInfo.city ?? fromInfo.region}</span>}
+        </div>
+        <div className="grid gap-1.5">
+          <span className="ck-label">Lines at once</span>
+          <div className="flex gap-1.5" role="radiogroup" data-testid="pd-lines">
+            {Array.from({ length: maxAllowed }, (_, i) => i + 1).map((n) => (
+              <button key={n} type="button" role="radio" aria-checked={lines === n} onClick={() => setLines(n)} className="ck-btn ck-mono h-9 w-9 justify-center px-0" style={lines === n ? { borderColor: 'var(--ck-live)', color: 'var(--ck-live)', background: 'var(--ck-live-dim)' } : undefined} data-testid={`pd-lines-${n}`}>
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="flex items-center justify-between gap-3 rounded-lg p-3" style={{ border: '1px solid var(--ck-line)' }}>
+          <span>
+            <span className="block text-sm font-medium">Auto-dial</span>
+            <span className="block text-xs" style={{ color: 'var(--ck-dim)' }}>
+              Ring the next batch when nobody answers
+            </span>
+          </span>
+          <Switch checked={autoDial} onCheckedChange={setAutoDial} />
+        </label>
+        <button onClick={start} disabled={busy || (repMode === 'phone' && !repPhone) || !from} className="ck-btn justify-center" data-tone="live" data-testid="pd-start">
+          <PhoneForwarded className="size-4" /> Join and queue {picked.size || ''} {picked.size === 1 ? 'prospect' : 'prospects'}
+        </button>
+        {last?.status === 'ended' && (
+          <div className="rounded-lg p-3 text-xs" style={{ border: '1px dashed var(--ck-line-strong)', color: 'var(--ck-dim)' }} data-testid="pd-summary">
+            Last session: {last.stats.dialed ?? 0} dialed, {last.stats.connected ?? 0} conversations, {last.stats.voicemail ?? 0} voicemail, {last.stats.dropped ?? 0} dropped{last.endReason ? ` · ${last.endReason.replace(/_/g, ' ')}` : ''}.
+          </div>
+        )}
+      </div>
+      <div className="ck-cell min-w-0 p-4" data-testid="pd-pick">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="ck-label">Who to call</div>
+            <div className="mt-1 text-sm" style={{ color: 'var(--ck-dim)' }}>
+              Call tasks due today first. No phone, do-not-call and quiet hours are skipped automatically.
+            </div>
+          </div>
+          <div className="flex gap-1.5">
+            <button className="ck-btn h-8 px-2.5 text-xs" onClick={() => setPicked(new Map(callTasks.filter((t) => t.prospect?.id).map((t) => [t.prospect.id, { taskId: t.id }])))} disabled={!callTasks.length} data-testid="pd-pick-all-tasks">
+              Select all {callTasks.length} call tasks
+            </button>
+            <button className="ck-btn h-8 px-2.5 text-xs" onClick={() => setPicked(new Map())} disabled={!picked.size}>
+              Clear
+            </button>
+          </div>
+        </div>
+        {callTasks.length > 0 && (
+          <ul className="grid min-w-0 gap-1.5" data-testid="pd-task-list">
+            {callTasks.map((t) => (
+              <PickRow key={t.id} checked={picked.has(t.prospect?.id)} onToggle={() => t.prospect?.id && toggle(t.prospect.id, { taskId: t.id })} p={t.prospect} note={t.note} tag={t.sequence?.name ?? 'task'} />
+            ))}
+          </ul>
+        )}
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Add any prospect by name, title or number" className="ck-input mt-3" data-testid="pd-search" />
+        {found && (
+          <ul className="mt-1.5 grid min-w-0 gap-1.5">
+            {found.map((p: any) => (
+              <PickRow key={p.id} checked={picked.has(p.id)} onToggle={() => toggle(p.id, {})} p={p} />
+            ))}
+            {found.length === 0 && <li className="ck-label py-2">No prospects match.</li>}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Choice({ on, disabled, onClick, title, sub, mono, testid }: { on: boolean; disabled?: boolean; onClick: () => void; title: string; sub?: string | null; mono?: boolean; testid?: string }) {
+  return (
+    <button type="button" role="radio" aria-checked={on} disabled={disabled} onClick={onClick} className={cn('ck-row grid min-w-0 gap-0.5 px-3 py-2 text-left disabled:opacity-40', mono && 'ck-mono')} data-picked={on ? 'true' : undefined} data-testid={testid}>
+      <span className="truncate text-sm font-medium">{title}</span>
+      {sub && (
+        <span className="truncate text-xs" style={{ color: 'var(--ck-faint)' }}>
+          {sub}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function PickRow({ checked, onToggle, p, note, tag }: { checked: boolean; onToggle: () => void; p: any; note?: string | null; tag?: string }) {
+  const info = phoneInfo(p?.phone);
+  const tz = p?.timezone ?? info?.timezone ?? null;
+  const hour = localHour(tz);
+  const quiet = hour !== null && (hour < 8 || hour >= 21);
+  return (
+    <li className="min-w-0 overflow-hidden">
+      <button type="button" onClick={onToggle} className="ck-row flex w-full min-w-0 items-center gap-3 px-3 py-2 text-left text-sm" data-picked={checked ? 'true' : undefined} data-testid="pd-pick-row" aria-pressed={checked}>
+        <Led tone={checked ? 'live' : !p?.phone ? 'off' : quiet ? 'ring' : 'idle'} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{p?.name ?? 'Unknown'}</span>
+          <span className="block truncate text-xs" style={{ color: 'var(--ck-faint)' }}>
+            {[p?.title, note].filter(Boolean).join(' · ')}
+          </span>
+        </span>
+        <span className="ck-mono hidden shrink-0 text-right text-xs sm:block" style={{ color: 'var(--ck-dim)' }}>
+          <span className="block">{info?.national ?? 'no phone'}</span>
+          <span className="block" style={{ color: quiet ? 'var(--ck-ring)' : 'var(--ck-faint)' }}>
+            {[info?.city ?? info?.region, localTime(tz)].filter(Boolean).join(' · ')}
+            {quiet ? ' · quiet' : ''}
+          </span>
+        </span>
+        {tag && (
+          <span className="ck-label shrink-0 rounded px-1.5 py-0.5" style={{ border: '1px solid var(--ck-line-strong)' }}>
+            {tag}
+          </span>
+        )}
+      </button>
+    </li>
   );
 }

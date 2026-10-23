@@ -122,7 +122,7 @@ export interface DialLineView {
   batch: number;
   status: string;
   to: string | null;
-  prospect: { id: string; name: string | null; title: string | null; phone: string | null; account: string | null } | null;
+  prospect: { id: string; name: string | null; title: string | null; phone: string | null; email: string | null; linkedInUrl: string | null; account: string | null; accountId: string | null; timezone: string | null; city: string | null; state: string | null; country: string | null } | null;
   callId: string | null;
   taskId: string | null;
   callbackTaskId: string | null;
@@ -130,6 +130,7 @@ export interface DialLineView {
   skipReason: string | null;
   endReason: string | null;
   answeredAt: string | null;
+  amdAt: string | null;
   connectedAt: string | null;
   endedAt: string | null;
   durationSeconds: number | null;
@@ -161,11 +162,11 @@ export function lineStats(lines: DialLineRow[]): Record<string, number> {
 async function viewOf(ctx: Ctx, s: DialSessionRow, extra: { connectParams?: Record<string, string> } = {}): Promise<DialSessionView> {
   const lines = await ctx.db.select().from(dialLines).where(eq(dialLines.sessionId, s.id)).orderBy(dialLines.createdAt);
   const pids = [...new Set(lines.map((l) => l.prospectId).filter((x): x is string => !!x))];
-  const ps = pids.length ? await ctx.db.select({ id: prospects.id, firstName: prospects.firstName, lastName: prospects.lastName, name: prospects.name, title: prospects.title, phone: prospects.phone, accountId: prospects.accountId }).from(prospects).where(inArray(prospects.id, pids)) : [];
+  const ps = pids.length ? await ctx.db.select({ id: prospects.id, firstName: prospects.firstName, lastName: prospects.lastName, name: prospects.name, title: prospects.title, phone: prospects.phone, accountId: prospects.accountId, primaryEmail: prospects.primaryEmail, linkedInUrl: prospects.linkedInUrl, timezone: prospects.timezone, city: prospects.city, state: prospects.state, country: prospects.country }).from(prospects).where(inArray(prospects.id, pids)) : [];
   const aids = [...new Set(ps.map((p) => p.accountId).filter((x): x is string => !!x))];
   const as = aids.length ? await ctx.db.select({ id: accounts.id, name: accounts.name }).from(accounts).where(inArray(accounts.id, aids)) : [];
   const am = new Map(as.map((a) => [a.id, a.name]));
-  const pm = new Map(ps.map((p) => [p.id, { id: p.id, name: fullName(p.firstName, p.lastName, p.name), title: p.title, phone: p.phone, account: p.accountId ? (am.get(p.accountId) ?? null) : null }]));
+  const pm = new Map(ps.map((p) => [p.id, { id: p.id, name: fullName(p.firstName, p.lastName, p.name), title: p.title, phone: p.phone, email: p.primaryEmail, linkedInUrl: p.linkedInUrl, account: p.accountId ? (am.get(p.accountId) ?? null) : null, accountId: p.accountId, timezone: p.timezone, city: p.city, state: p.state, country: p.country }]));
   return {
     id: s.id,
     status: s.status,
@@ -191,7 +192,7 @@ async function viewOf(ctx: Ctx, s: DialSessionRow, extra: { connectParams?: Reco
       batch: l.batch,
       status: l.status,
       to: l.toNumber,
-      prospect: l.prospectId ? (pm.get(l.prospectId) ?? { id: l.prospectId, name: null, title: null, phone: null, account: null }) : null,
+      prospect: l.prospectId ? (pm.get(l.prospectId) ?? { id: l.prospectId, name: null, title: null, phone: null, email: null, linkedInUrl: null, account: null, accountId: null, timezone: null, city: null, state: null, country: null }) : null,
       callId: l.callId,
       taskId: l.taskId,
       callbackTaskId: l.callbackTaskId,
@@ -199,6 +200,7 @@ async function viewOf(ctx: Ctx, s: DialSessionRow, extra: { connectParams?: Reco
       skipReason: l.skipReason,
       endReason: l.endReason,
       answeredAt: iso(l.answeredAt),
+      amdAt: iso(l.amdAt),
       connectedAt: iso(l.connectedAt),
       endedAt: iso(l.endedAt),
       durationSeconds: l.durationSeconds,

@@ -36,12 +36,45 @@ export const saveRepPhone = (v: string) => {
   } catch {}
 };
 
+/** Live audio levels (0–1) and link quality from the Voice SDK, read by canvas meters without re-rendering React. */
+export interface AudioLevels {
+  input: number;
+  output: number;
+  at: number;
+}
+export interface LinkQuality {
+  mos: number | null;
+  rtt: number | null;
+  jitter: number | null;
+  packetsLost: number | null;
+  at: number;
+}
+
 export function useDialer() {
   const [active, setActive] = useState<ActiveCall | null>(null);
   const [softphoneReady, setSoftphoneReady] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [muted, setMuted] = useState(false);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [onLine, setOnLine] = useState(false);
+  const levels = useRef<AudioLevels>({ input: 0, output: 0, at: 0 });
+  const quality = useRef<LinkQuality>({ mos: null, rtt: null, jitter: null, packetsLost: null, at: 0 });
   const device = useRef<SdkDevice | null>(null);
   const sdkCall = useRef<SdkCall | null>(null);
   const timer = useRef<number | null>(null);
+  /** Wire the SDK events every call needs: levels for the scope, samples for signal bars, mute, warnings. */
+  const instrument = useCallback((c: SdkCall) => {
+    c.on('volume', (input: number, output: number) => {
+      levels.current = { input, output, at: performance.now() };
+    });
+    c.on('sample', (s: { mos?: number | null; rtt?: number | null; jitter?: number | null; packetsLostFraction?: number | null }) => {
+      quality.current = { mos: s.mos ?? null, rtt: s.rtt ?? null, jitter: s.jitter ?? null, packetsLost: s.packetsLostFraction ?? null, at: performance.now() };
+    });
+    c.on('mute', (m: boolean) => setMuted(m));
+    c.on('warning', (name: string) => setWarning(name));
+    c.on('warning-cleared', () => setWarning(null));
+    c.on('accept', () => setOnLine(true));
+    setOnLine(c.status() === 'open');
+  }, []);
 
   const poll = useCallback((callId: string) => {
     if (timer.current) window.clearInterval(timer.current);
@@ -92,6 +125,7 @@ export function useDialer() {
         const d = await ensureDevice();
         const c = await d.connect({ params: r.data.connectParams });
         sdkCall.current = c;
+        instrument(c);
         c.on('disconnect', () => {
           sdkCall.current = null;
         });
@@ -102,7 +136,7 @@ export function useDialer() {
       poll(call.id);
       return r.data;
     },
-    [ensureDevice, poll],
+    [ensureDevice, instrument, poll],
   );
 
   /** Parallel dialer: join the session conference from the browser. Resolves once the SDK call is accepted. */
@@ -111,17 +145,19 @@ export function useDialer() {
       const d = await ensureDevice();
       const c = await d.connect({ params });
       sdkCall.current = c;
-      c.on('disconnect', () => {
+      instrument(c);
+      const gone = () => {
         sdkCall.current = null;
+        setOnLine(false);
+        setMuted(false);
+        levels.current = { input: 0, output: 0, at: 0 };
         onDisconnect?.();
-      });
-      c.on('error', () => {
-        sdkCall.current = null;
-        onDisconnect?.();
-      });
+      };
+      c.on('disconnect', gone);
+      c.on('error', gone);
       return c;
     },
-    [ensureDevice],
+    [ensureDevice, instrument],
   );
 
   const hangup = useCallback(() => {
@@ -135,7 +171,23 @@ export function useDialer() {
     setActive(null);
   }, []);
 
-  return { active, dial, joinConference, hangup, clear, softphoneReady, connected: () => !!sdkCall.current, muted: () => sdkCall.current?.isMuted() ?? false, mute: (m: boolean) => sdkCall.current?.mute(m) };
+  return {
+    active,
+    dial,
+    joinConference,
+    hangup,
+    clear,
+    softphoneReady,
+    /** True while the browser leg is up. */
+    onLine,
+    muted,
+    warning,
+    levels,
+    quality,
+    connected: () => !!sdkCall.current,
+    mute: (m: boolean) => sdkCall.current?.mute(m),
+    sendDigits: (d: string) => sdkCall.current?.sendDigits(d),
+  };
 }
 
 export const OUTCOMES = [
