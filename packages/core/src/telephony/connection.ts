@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { telephonyConnections, workspaces, type ParallelDialerSettings } from '@cooks/db';
 import type { Ctx } from '../context.js';
+import type { SpeechConfig } from './speech/providers/types.js';
 import { decrypt, encrypt } from '../crypto.js';
 import { insufficientPermission, unprocessable } from '../errors.js';
 import { SpekoClient, SpekoProvider, DialerError, type DialerKind } from '../dialer/providers/index.js';
@@ -21,6 +22,8 @@ export interface TwilioEnv {
 export interface TelephonyDeps extends TwilioClientOpts {
   kek?: string;
   twilioEnv?: TwilioEnv;
+  /** Speech gate: streaming recognizer + optional Jev tie-breaker (server-wide, from env). */
+  speech?: SpeechConfig;
   /** Server-wide Speko key and base override (mocks). Workspaces can store their own key instead. */
   speko?: { apiKey?: string; apiBase?: string };
 }
@@ -370,6 +373,7 @@ export const PARALLEL_DEFAULTS = {
   onUnknown: 'hangup' as const,
   ringTimeoutSeconds: 25,
   amd: { speechThresholdMs: 2400, speechEndThresholdMs: 1200, silenceTimeoutMs: 3000, timeoutSeconds: 5 },
+  speechGate: { enabled: true, judge: 'rules' as const, maxMs: 6000 },
 };
 /** Hard ceilings whatever the settings say. */
 export const MAX_PARALLEL_LINES = 6;
@@ -389,6 +393,7 @@ export function parallelSettingsOf(s: ParallelDialerSettings | undefined) {
     onUnknown: s?.onUnknown ?? PARALLEL_DEFAULTS.onUnknown,
     ringTimeoutSeconds: Math.min(60, Math.max(15, s?.ringTimeoutSeconds ?? PARALLEL_DEFAULTS.ringTimeoutSeconds)),
     amd: { ...PARALLEL_DEFAULTS.amd, ...(s?.amd ?? {}) },
+    speechGate: { ...PARALLEL_DEFAULTS.speechGate, ...(s?.speechGate ?? {}) },
   };
 }
 export const serializeParallelSettings = (s: ParallelDialerSettings | undefined) => parallelSettingsOf(s);
@@ -402,6 +407,7 @@ export interface ParallelSettingsPatch {
   onUnknown?: 'hangup' | 'connect';
   ringTimeoutSeconds?: number;
   amd?: ParallelDialerSettings['amd'];
+  speechGate?: ParallelDialerSettings['speechGate'];
 }
 
 /**
@@ -423,6 +429,7 @@ export async function setParallelSettings(ctx: Ctx, patch: ParallelSettingsPatch
   if (patch.onUnknown) next.onUnknown = patch.onUnknown;
   if (patch.ringTimeoutSeconds !== undefined) next.ringTimeoutSeconds = patch.ringTimeoutSeconds;
   if (patch.amd) next.amd = { ...(prev.amd ?? {}), ...patch.amd };
+  if (patch.speechGate) next.speechGate = { ...(prev.speechGate ?? {}), ...patch.speechGate };
   if (patch.confirm) {
     if ((next.complianceMode ?? 'b2b') === 'consumer' && !next.abandonedCallMessage) throw unprocessable('Consumer mode needs an abandoned-call message (your company name and a call-back number) before it can be confirmed', { code: 'ABANDON_MESSAGE_REQUIRED', field: 'abandonedCallMessage' });
     next.confirmedAt = ctx.clock.now().toISOString();

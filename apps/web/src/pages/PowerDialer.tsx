@@ -12,7 +12,7 @@ import { LINE_LABEL, OUTCOMES, SESSION_LABEL, loadRepPhone, saveRepPhone, useDia
 import { localHour, localTime, phoneInfo } from '../lib/phone.js';
 
 type Prospect = { id: string; name: string | null; title: string | null; phone: string | null; email: string | null; linkedInUrl: string | null; account: string | null; accountId: string | null; timezone: string | null; city: string | null; state: string | null; country: string | null };
-type Line = { id: string; batch: number; status: string; to: string | null; prospect: Prospect | null; callId: string | null; taskId: string | null; callbackTaskId: string | null; answeredBy: string | null; skipReason: string | null; endReason: string | null; answeredAt: string | null; amdAt: string | null; connectedAt: string | null; endedAt: string | null; durationSeconds: number | null };
+type Line = { id: string; batch: number; status: string; to: string | null; prospect: Prospect | null; callId: string | null; taskId: string | null; callbackTaskId: string | null; answeredBy: string | null; skipReason: string | null; endReason: string | null; answeredAt: string | null; amdAt: string | null; connectedAt: string | null; endedAt: string | null; durationSeconds: number | null; verdictSource: string | null; speech: { text?: string; reason?: string; confidence?: number; latencyMs?: number; provider?: string; judge?: string } | null };
 type Session = { id: string; status: string; repMode: string; repPhone: string | null; fromNumber: string; maxLines: number; batch: number; complianceMode: string; autoDial: boolean; connectedLineId: string | null; connectedAt: string | null; endReason: string | null; createdAt: string; stats: Record<string, number>; lines: Line[]; connectParams?: Record<string, string> };
 
 const LIVE = new Set(['dialing', 'ringing', 'answered', 'connected']);
@@ -229,6 +229,17 @@ function Stat({ label, value }: { label: string; value: string }) {
 /* ------------------------------------------------------------- rep rail */
 
 /** Every timestamp a line carries becomes a console line; the ticker shows the latest few. */
+/** "person (heard)" / "machine (AMD)": who answered and which detector said so. */
+const verdictLabel = (l: Line) => {
+  const who = l.answeredBy === 'human' ? 'person' : l.answeredBy?.startsWith('machine') ? 'machine' : (l.answeredBy ?? '').replace(/_/g, ' ');
+  return l.verdictSource === 'speech' ? `${who} (heard)` : `${who} (AMD)`;
+};
+/** Seconds from pickup to verdict; the speech gate reports its own audio latency, which is the honest number. */
+const verdictSeconds = (l: Line) => {
+  if (l.verdictSource === 'speech' && typeof l.speech?.latencyMs === 'number') return (l.speech.latencyMs / 1000).toFixed(1);
+  return l.answeredAt && l.amdAt ? ((new Date(l.amdAt).getTime() - new Date(l.answeredAt).getTime()) / 1000).toFixed(1) : '?';
+};
+
 function tickerEvents(s: Session): TickerEvent[] {
   const batch = s.lines.filter((l) => l.batch === s.batch && l.batch > 0);
   const ev: TickerEvent[] = [];
@@ -236,7 +247,7 @@ function tickerEvents(s: Session): TickerEvent[] {
     const who = l.prospect?.name ?? l.to ?? 'line';
     const n = i + 1;
     if (l.answeredAt) ev.push({ at: l.answeredAt, line: n, text: `${who} picked up, screening`, tone: 'ring' });
-    if (l.amdAt && l.answeredBy) ev.push({ at: l.amdAt, line: n, text: `${l.answeredBy.replace(/_/g, ' ')}${l.answeredAt ? ` in ${((new Date(l.amdAt).getTime() - new Date(l.answeredAt).getTime()) / 1000).toFixed(1)}s` : ''}`, tone: l.answeredBy === 'human' ? 'live' : l.answeredBy.startsWith('machine') ? 'vm' : 'off' });
+    if (l.amdAt && l.answeredBy) ev.push({ at: l.amdAt, line: n, text: `${verdictLabel(l)}${l.answeredAt ? ` in ${verdictSeconds(l)}s` : ''}${l.speech?.text ? ` · “${l.speech.text.slice(0, 48)}”` : ''}`, tone: l.answeredBy === 'human' ? 'live' : l.answeredBy.startsWith('machine') ? 'vm' : 'off' });
     if (l.connectedAt) ev.push({ at: l.connectedAt, line: n, text: `${who} on with you`, tone: 'live' });
     if (l.endedAt) ev.push({ at: l.endedAt, line: n, text: `${LINE_LABEL[l.status]?.toLowerCase() ?? l.status}${l.endReason && l.endReason !== l.status && l.endReason !== l.answeredBy ? ` · ${l.endReason.replace(/_/g, ' ')}` : ''}`, tone: toneFor(l.status) === 'live' ? 'off' : toneFor(l.status) });
   });
@@ -362,8 +373,13 @@ function LineCell({ line: l, index }: { line: Line; index: number }) {
       <CallerId name={l.prospect?.name} title={l.prospect?.title} account={l.prospect?.account} phone={l.to ?? l.prospect?.phone} timezone={l.prospect?.timezone} city={l.prospect?.city} state={l.prospect?.state} />
       <div className="ck-mono mt-2 flex items-center justify-between text-xs" style={{ color: 'var(--ck-faint)' }}>
         <span>{racing && l.answeredAt ? <Timer from={l.answeredAt} animated={false} /> : l.durationSeconds ? <Timer from={null} fixedSeconds={l.durationSeconds} animated={false} /> : '—'}</span>
-        <span>{verdictMs !== null && l.answeredBy ? `${l.answeredBy.replace(/_/g, ' ')} in ${(verdictMs / 1000).toFixed(1)}s` : l.status === 'answered' ? 'screening' : l.endReason ? l.endReason.replace(/_/g, ' ') : ''}</span>
+        <span>{verdictMs !== null && l.answeredBy ? `${verdictLabel(l)} in ${verdictSeconds(l)}s` : l.status === 'answered' ? 'screening' : l.endReason ? l.endReason.replace(/_/g, ' ') : ''}</span>
       </div>
+      {l.speech?.text && (
+        <div className="mt-1 truncate text-xs italic" style={{ color: 'var(--ck-faint)' }} title={l.speech.text} data-testid="pd-heard">
+          “{l.speech.text}”
+        </div>
+      )}
       {l.status === 'dropped' && l.callbackTaskId && (
         <div className="mt-1 text-xs" style={{ color: 'var(--ck-drop)' }}>
           Callback task created.
@@ -380,6 +396,11 @@ function LineStrip({ line: l, index }: { line: Line; index: number }) {
       <Led tone={toneFor(l.status)} pulse={l.status === 'answered'} />
       <span className="ck-label">L{index}</span>
       <span className="truncate font-medium">{l.prospect?.name ?? l.to}</span>
+      {l.speech?.text && (
+        <span className="truncate italic" style={{ color: 'var(--ck-faint)' }} title={l.speech.text} data-testid="pd-heard">
+          “{l.speech.text}”
+        </span>
+      )}
       <span className="ml-auto shrink-0" style={{ color: 'var(--ck-dim)' }}>{LINE_LABEL[l.status] ?? l.status}</span>
     </motion.div>
   );
@@ -413,6 +434,16 @@ function ConnectedCell({ line, session, onLogged }: { line: Line; session: Sessi
           </span>
         </div>
         <CallerId size="lg" name={p?.name ?? line.to} title={p?.title} account={p?.account} phone={line.to ?? p?.phone} timezone={p?.timezone} city={p?.city} state={p?.state} />
+        {line.answeredBy && (
+          <div className="ck-mono mt-2 flex items-center gap-2 text-xs" style={{ color: 'var(--ck-faint)' }} data-testid="pd-verdict">
+            <span>{`${verdictLabel(line)} in ${verdictSeconds(line)}s`}</span>
+            {line.speech?.text && (
+              <span className="truncate italic" title={line.speech.text} data-testid="pd-heard">
+                “{line.speech.text}”
+              </span>
+            )}
+          </div>
+        )}
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
           {p?.id && (
             <Link to={`/prospects/${p.id}`} className="ck-btn h-7 px-2 text-xs">

@@ -41,7 +41,7 @@ The part that makes it different is the brain. Cooks ships an MCP server with 66
     </td>
     <td width="50%" valign="top">
       <h3>Dialer</h3>
-      Reps call on Twilio Voice, from the browser or with a bridge that rings their phone first. A parallel power dialer rings three or four prospects at once and drops the first person who answers straight into the rep's ear, with no beep or message; machines are detected and hung up. Or let a Speko voice agent place the call from a script and bring back the outcome, transcript and recording. Dispositions close the linked task, a byte-compatible <code>call.logged</code> webhook fires, and calls land on the HubSpot timeline.
+      Reps call on Twilio Voice, from the browser or with a bridge that rings their phone first. A parallel power dialer rings three or four prospects at once and drops the first person who answers straight into the rep's ear, with no beep or message; machines are detected and hung up. With a speech recognizer configured it hears the pickup itself and connects on "Hello?" about a second in, instead of waiting three for carrier AMD; TypeSafe's Jev on OpenRouter can decide the unclear ones. Or let a Speko voice agent place the call from a script and bring back the outcome, transcript and recording. Dispositions close the linked task, a byte-compatible <code>call.logged</code> webhook fires, and calls land on the HubSpot timeline.
     </td>
   </tr>
   <tr>

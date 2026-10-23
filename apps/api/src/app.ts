@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { OpenAPIHono } from '@hono/zod-openapi';
+import { createNodeWebSocket } from '@hono/node-ws';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { Scalar } from '@scalar/hono-api-reference';
@@ -21,7 +22,7 @@ import { makeVerifyJwt, mountOAuth } from './oauth/routes.js';
 import { mountConnect } from './routes/connect.js';
 import { clerkBrokers, mountClerkAuth, mountClerkConnectors } from './routes/clerk.js';
 import type { ClerkGateway } from '@cooks/auth';
-import type { ConnectorApps, TwilioEnv } from '@cooks/core';
+import type { ConnectorApps, SpeechConfig, TwilioEnv } from '@cooks/core';
 import type { ActiveKey } from '@cooks/auth';
 import { SCOPES, SCOPE_DESCRIPTIONS } from '@cooks/core';
 
@@ -50,7 +51,7 @@ export interface AppDeps {
   /** HubSpot OAuth app (optional; private-app tokens work without it). */
   hubspotApp?: { clientId: string; clientSecret: string };
   /** Twilio: override the API base for mocks; `trustWebhookSignature: false` skips X-Twilio-Signature checks (tests only). */
-  telephony?: { apiBase?: string; trustWebhookSignature?: boolean; speko?: { apiKey?: string; apiBase?: string }; twilioEnv?: TwilioEnv };
+  telephony?: { apiBase?: string; trustWebhookSignature?: boolean; speko?: { apiKey?: string; apiBase?: string }; twilioEnv?: TwilioEnv; speech?: SpeechConfig };
   channels?: { inkboxApiBase?: string; trustWebhookSignature?: boolean };
   /** Directory with the built web UI (apps/web/dist). Served at /app with SPA fallback. */
   webDir?: string;
@@ -123,14 +124,15 @@ export function createApp(deps: AppDeps) {
 
   const brokers = deps.clerk ? clerkBrokers(deps.db, deps.clerk.gateway) : undefined;
   const reg: Registrar = { app, store, now: () => clock.now(), registry: [], crmDeps: { kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp, brokerHubspotToken: brokers?.brokerHubspotToken } };
-  const dialer = { kek: deps.kek, fetchImpl: deps.fetchImpl, apiBase: deps.telephony?.apiBase, speko: deps.telephony?.speko, twilioEnv: deps.telephony?.twilioEnv, publicUrl };
+  const dialer = { kek: deps.kek, fetchImpl: deps.fetchImpl, apiBase: deps.telephony?.apiBase, speko: deps.telephony?.speko, twilioEnv: deps.telephony?.twilioEnv, speech: deps.telephony?.speech, publicUrl };
+  const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
   const channels = { kek: deps.kek, fetchImpl: deps.fetchImpl, inkbox: { apiBase: deps.channels?.inkboxApiBase }, publicUrl };
   mountRoutes(reg, { publicIps: deps.publicIps ?? [], kek: deps.kek, fetchImpl: deps.fetchImpl, keyPrefix: deps.keyPrefix, crm: { db: deps.db, publicUrl, now: () => clock.now(), kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp, brokerHubspotToken: brokers?.brokerHubspotToken }, dialer, channels });
   const secureCookies = deps.oauth?.secureCookies ?? publicUrl.startsWith('https');
   mountClerkAuth(app, deps.clerk ? { gateway: deps.clerk.gateway, publishableKey: deps.clerk.publishableKey, defaultWorkspaceSlug: deps.clerk.defaultWorkspaceSlug, db: deps.db, kek: deps.kek, clock, secureCookies, crm: reg.crmDeps } : null);
   if (deps.clerk) mountClerkConnectors(reg, { gateway: deps.clerk.gateway, publishableKey: deps.clerk.publishableKey, defaultWorkspaceSlug: deps.clerk.defaultWorkspaceSlug, db: deps.db, kek: deps.kek, clock, secureCookies, crm: reg.crmDeps });
   mountTracking(app, { db: deps.db, secret: deps.kek ?? 'cooks-dev', clock, jobs, publicUrl });
-  mountTelephonyWebhooks(app, { db: deps.db, jobs, clock, publicUrl, dialer, trustSignature: deps.telephony?.trustWebhookSignature === false });
+  mountTelephonyWebhooks(app, { db: deps.db, jobs, clock, publicUrl, dialer, trustSignature: deps.telephony?.trustWebhookSignature === false, upgradeWebSocket, fetchImpl: deps.fetchImpl });
   mountInkboxWebhook(app, { db: deps.db, jobs, clock, publicUrl, channels, trustSignature: deps.channels?.trustWebhookSignature === false });
   mountConnect(app, { db: deps.db, publicUrl, kek: deps.kek, apps: deps.connectorApps ?? {}, msTenant: deps.msTenant, fetchImpl: deps.fetchImpl, now: () => clock.now() });
   if (deps.oauth) mountOAuth(app, { db: deps.db, issuer: publicUrl, key: deps.oauth.key, clock, dcrEnabled: deps.oauth.dcrEnabled ?? true, secureCookies: deps.oauth.secureCookies ?? publicUrl.startsWith('https') });
@@ -176,7 +178,7 @@ export function createApp(deps: AppDeps) {
   app.get('/openapi.yml', (c) => c.text(toYaml(buildDoc()), 200, { 'content-type': 'application/yaml; charset=utf-8' }));
   app.get('/docs', Scalar({ url: '/openapi.json', pageTitle: 'Cooks API' }));
 
-  return { app, registry: reg.registry };
+  return { app, registry: reg.registry, injectWebSocket };
 }
 
 export type App = ReturnType<typeof createApp>['app'];

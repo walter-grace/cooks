@@ -50,6 +50,13 @@
       "when": 1792722458467,
       "tag": "0006_parallel_dialer",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792732858138,
+      "tag": "0007_speech_gate",
+      "breakpoints": true
     }
   ]
 }

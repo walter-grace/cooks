@@ -431,6 +431,7 @@ function ParallelCompliance({ isAdmin, reload }: { isAdmin: boolean; reload: () 
   const [msg, setMsg] = useState('');
   const [lines, setLines] = useState('3');
   const [onUnknown, setOnUnknown] = useState<'hangup' | 'connect'>('hangup');
+  const [gate, setGate] = useState<'off' | 'rules' | 'jev'>('rules');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!c) return;
@@ -438,12 +439,13 @@ function ParallelCompliance({ isAdmin, reload }: { isAdmin: boolean; reload: () 
     setMsg(c.abandonedCallMessage ?? '');
     setLines(String(c.maxLines));
     setOnUnknown(c.onUnknown);
+    setGate(c.speechGate?.enabled === false ? 'off' : c.speechGate?.judge === 'jev' ? 'jev' : 'rules');
   }, [c?.confirmedAt, c?.complianceMode]);
   if (!c) return null;
   const save = async (confirm: boolean) => {
     setBusy(true);
     try {
-      await api('/v1/workspace/dialer/compliance', { method: 'PUT', json: { data: { complianceMode: mode, abandonedCallMessage: msg || null, maxLines: Number(lines), onUnknown, confirm } } });
+      await api('/v1/workspace/dialer/compliance', { method: 'PUT', json: { data: { complianceMode: mode, abandonedCallMessage: msg || null, maxLines: Number(lines), onUnknown, confirm, speechGate: { enabled: gate !== 'off', judge: gate === 'jev' ? 'jev' : 'rules' } } } });
       toast(confirm ? 'Compliance mode confirmed' : 'Saved');
       cfg.reload();
       reload();
@@ -495,6 +497,24 @@ function ParallelCompliance({ isAdmin, reload }: { isAdmin: boolean; reload: () 
               </SelectContent>
             </Select>
           </div>
+        </div>
+        <div className="grid gap-2">
+          <Label>Fast pickup (speech gate)</Label>
+          <Select value={gate} onValueChange={(v) => setGate(v as 'off' | 'rules' | 'jev')} disabled={!isAdmin}>
+            <SelectTrigger data-testid="pc-gate">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="off">Off: wait for carrier AMD</SelectItem>
+              <SelectItem value="rules">Hear the first words, decide by rules</SelectItem>
+              <SelectItem value="jev" disabled={!c.speech?.jevAvailable}>Rules, with Jev deciding unclear pickups{c.speech?.jevAvailable ? '' : ' (set OPENROUTER_API_KEY)'}</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {c.speech?.provider
+              ? `Each answered line streams its first seconds to the ${c.speech.provider} recognizer; a person saying "Hello?" is connected in well under a second, a voicemail greeting is dropped on its first phrase. Carrier AMD still runs as the fallback. No audio is stored; the first words are kept on the line as evidence.`
+              : 'No recognizer is configured on this server (SPEECH_PROVIDER is off), so lines wait for carrier AMD. See docs/dialer.md → Fast pickup.'}
+          </p>
         </div>
         {mode === 'consumer' && (
           <div className="grid gap-2">

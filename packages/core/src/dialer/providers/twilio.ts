@@ -1,5 +1,5 @@
 /** Twilio behind the DialerProvider interface: human calls in bridge mode (rep first, then prospect). */
-import { TwilioClient, TwilioError, conferenceTwiml, hangupTwiml, pauseTwiml, type AmdOptions } from '../../telephony/twilio.js';
+import { TwilioClient, TwilioError, conferenceTwiml, hangupTwiml, holdWithStreamTwiml, pauseTwiml, type AmdOptions } from '../../telephony/twilio.js';
 import { DialerError, type DialLegInput, type DialerProvider, type ParallelCarrier, type PlaceCallInput, type PlaceCallResult, type ProviderCallState, type RecordingRef, type RepLegInput } from './types.js';
 
 const TERMINAL: Record<string, ProviderCallState['outcome']> = { completed: 'answered', busy: 'failed', 'no-answer': 'no_answer', failed: 'failed', canceled: 'failed' };
@@ -94,8 +94,8 @@ export class TwilioProvider implements DialerProvider, ParallelCarrier {
   repJoinDocument(conference: string, opts: { statusCallback: string; label: string }) {
     return conferenceTwiml({ name: conference, role: 'rep', statusCallback: opts.statusCallback, label: opts.label });
   }
-  prospectHoldDocument(seconds: number) {
-    return pauseTwiml(seconds);
+  prospectHoldDocument(seconds: number, stream?: { url: string; params: Record<string, string> }) {
+    return stream ? holdWithStreamTwiml(seconds, stream) : pauseTwiml(seconds);
   }
 }
 

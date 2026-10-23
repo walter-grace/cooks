@@ -241,6 +241,25 @@ export function conferenceTwiml(o: ConferenceTwimlOpts): string {
 /** Silent hold while async AMD decides; falls through to a hangup so a lost callback never strands the callee. */
 export const pauseTwiml = (seconds: number) => `<?xml version="1.0" encoding="UTF-8"?><Response><Pause length="${Math.max(1, Math.min(600, Math.round(seconds)))}"/><Hangup/></Response>`;
 
+export interface StreamSpec {
+  /** wss:// endpoint that receives the Media Stream (ws:// only for local mocks). */
+  url: string;
+  /** Delivered back in the `start` message as customParameters. */
+  params: Record<string, string>;
+  name?: string;
+}
+
+/**
+ * Hold in silence while forking the callee's audio to our speech gate (`<Start><Stream>` returns
+ * immediately, so the <Pause> still times the hold). Only the inbound track: we never hear ourselves.
+ */
+export function holdWithStreamTwiml(seconds: number, stream: StreamSpec): string {
+  const params = Object.entries(stream.params)
+    .map(([k, v]) => `<Parameter name="${esc(k)}" value="${esc(v)}"/>`)
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Start><Stream url="${esc(stream.url)}" name="${esc(stream.name ?? 'gate')}" track="inbound_track">${params}</Stream></Start><Pause length="${Math.max(1, Math.min(600, Math.round(seconds)))}"/><Hangup/></Response>`;
+}
+
 export const hangupTwiml = (message?: string) => `<?xml version="1.0" encoding="UTF-8"?><Response>${message ? `<Say>${esc(message)}</Say>` : ''}<Hangup/></Response>`;
 
 /** E.164-ish normaliser: strips punctuation, assumes `defaultCountry` (+1) for 10-digit numbers. */

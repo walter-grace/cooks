@@ -45,6 +45,8 @@ export interface ParallelDialerSettings {
   amd?: { speechThresholdMs?: number; speechEndThresholdMs?: number; silenceTimeoutMs?: number; timeoutSeconds?: number };
   /** Seconds a line rings before it is counted as no answer (15–60). */
   ringTimeoutSeconds?: number;
+  /** Fast pickup: listen to the first words of each answered leg and connect a person before AMD. */
+  speechGate?: { enabled?: boolean; judge?: 'rules' | 'jev'; maxMs?: number };
 }
 
 export const users = pgTable(

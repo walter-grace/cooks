@@ -4,6 +4,7 @@
  */
 import { createRoute, z } from '@hono/zod-openapi';
 import type { OpenAPIHono } from '@hono/zod-openapi';
+import type { UpgradeWebSocket } from 'hono/ws';
 import { eq } from 'drizzle-orm';
 import {
   Call,
@@ -61,7 +62,12 @@ import {
   type Ctx,
   type DialerDeps,
   type JobsPort,
+  createGateSocket,
+  speechProviderFrom,
 } from '@cooks/core';
+
+/** Concurrent Media Streams sockets this process accepts (one per answered leg). */
+const GATE_MAX_SOCKETS = 64;
 import { workspaces, type Db } from '@cooks/db';
 import { register, type Registrar } from '../register.js';
 import type { AppEnv } from '../types.js';
@@ -299,7 +305,7 @@ export function mountTelephony(reg: Registrar, d: DialerDeps) {
 }
 
 /** Twilio webhooks. Each carries `?ws=<workspaceId>&call=<callId>`; the body is form-encoded. */
-export function mountTelephonyWebhooks(app: OpenAPIHono<AppEnv>, deps: { db: Db; jobs: JobsPort; clock: Clock; publicUrl: string; dialer: DialerDeps; trustSignature?: boolean }) {
+export function mountTelephonyWebhooks(app: OpenAPIHono<AppEnv>, deps: { db: Db; jobs: JobsPort; clock: Clock; publicUrl: string; dialer: DialerDeps; trustSignature?: boolean; upgradeWebSocket?: UpgradeWebSocket; fetchImpl?: typeof fetch }) {
   const ctxFor = (ws: string): Ctx => ({ db: deps.db, principal: systemPrincipal(ws), jobs: deps.jobs, clock: deps.clock, traceId: 'twilio', publicUrl: deps.publicUrl });
   const parse = async (c: { req: { parseBody(): Promise<Record<string, unknown>>; header(n: string): string | undefined; url: string; query(n: string): string | undefined } }) => {
     const ws = c.req.query('ws') ?? '';
@@ -371,6 +377,36 @@ export function mountTelephonyWebhooks(app: OpenAPIHono<AppEnv>, deps: { db: Db;
     const { session, line } = sess(c);
     return xml(c, await parallelProspectVoice(r.ctx, session, line, r.params, deps.dialer).catch(() => hangupTwiml()));
   });
+  // Speech gate: Twilio forks each answered prospect leg's audio here (<Start><Stream>). The socket
+  // authenticates through the signed token in the stream's custom parameters, not the HTTP upgrade.
+  if (deps.upgradeWebSocket) {
+    const provider = speechProviderFrom(deps.dialer.speech);
+    let open = 0;
+    app.get(
+      '/telephony/parallel/stream',
+      deps.upgradeWebSocket(() => {
+        let sock: ReturnType<typeof createGateSocket> | null = null;
+        return {
+          onOpen(_evt, ws) {
+            if (open >= GATE_MAX_SOCKETS) return ws.close(1013, 'busy');
+            open += 1;
+            sock = createGateSocket({ db: deps.db, jobs: deps.jobs, clock: deps.clock, publicUrl: deps.publicUrl, dialer: deps.dialer, provider, fetchImpl: deps.fetchImpl, close: () => ws.close(), log: (m) => console.log(`[speech] ${m}`) });
+          },
+          onMessage(evt) {
+            void sock?.message(evt.data as string | ArrayBuffer);
+          },
+          onClose() {
+            open = Math.max(0, open - 1);
+            sock?.close();
+            sock = null;
+          },
+          onError() {
+            sock?.close();
+          },
+        };
+      }),
+    );
+  }
   app.post('/telephony/parallel/prospect/amd', async (c) => {
     const r = await parse(c);
     if (!r) return c.text('forbidden', 403);

@@ -26,6 +26,8 @@ import { CALL_HOURS, dncOutcome, withinCallHours } from './ai-call.js';
 import { getParallelSettings, requireTelephony, telephonyFor, type TelephonyDeps } from './connection.js';
 import { logCall, type DialerDeps } from './dialer.js';
 import { hangupTwiml, normalizePhone } from './twilio.js';
+import { mintStreamToken } from './speech/token.js';
+import type { GateVerdict } from './speech/gate.js';
 
 export type DialSessionRow = typeof dialSessions.$inferSelect;
 export type DialLineRow = typeof dialLines.$inferSelect;
@@ -131,6 +133,10 @@ export interface DialLineView {
   endReason: string | null;
   answeredAt: string | null;
   amdAt: string | null;
+  /** amd | speech: which detector settled the line. */
+  verdictSource: string | null;
+  /** Speech-gate evidence (first words, rule, confidence, latency). */
+  speech: Record<string, unknown> | null;
   connectedAt: string | null;
   endedAt: string | null;
   durationSeconds: number | null;
@@ -201,6 +207,8 @@ async function viewOf(ctx: Ctx, s: DialSessionRow, extra: { connectParams?: Reco
       endReason: l.endReason,
       answeredAt: iso(l.answeredAt),
       amdAt: iso(l.amdAt),
+      verdictSource: l.verdictSource,
+      speech: l.speech ?? null,
       connectedAt: iso(l.connectedAt),
       endedAt: iso(l.endedAt),
       durationSeconds: l.durationSeconds,
@@ -266,7 +274,7 @@ export async function startDialSession(ctx: Ctx, input: StartDialSessionInput, d
       maxLines,
       complianceMode: settings.complianceMode,
       autoDial: input.autoDial ?? false,
-      options: { amd: settings.amd, ringTimeoutSeconds: settings.ringTimeoutSeconds, onUnknown: settings.onUnknown, abandonedCallMessage: settings.abandonedCallMessage, record: c.record },
+      options: { amd: settings.amd, ringTimeoutSeconds: settings.ringTimeoutSeconds, onUnknown: settings.onUnknown, abandonedCallMessage: settings.abandonedCallMessage, record: c.record, speechGate: settings.speechGate },
       lastActivityAt: now,
     })
     .returning();
@@ -614,18 +622,66 @@ export async function parallelProspectVoice(ctx: Ctx, sessionId: string, lineId:
   if (line.status === 'dialing' || line.status === 'ringing') await ctx.db.update(dialLines).set({ status: 'answered', answeredAt: now, updatedAt: now }).where(eq(dialLines.id, line.id));
   await ctx.db.update(dialSessions).set(touch(now)).where(eq(dialSessions.id, s.id));
   const amd = (s.options as { amd?: { timeoutSeconds?: number } }).amd;
-  return c.carrier.prospectHoldDocument((amd?.timeoutSeconds ?? 5) + HOLD_GRACE_SECONDS);
+  return c.carrier.prospectHoldDocument((amd?.timeoutSeconds ?? 5) + HOLD_GRACE_SECONDS, await gateStreamFor(ctx, s, line, d));
 }
 
-/** Async AMD verdict for one leg. This is where "first human wins" happens. */
+/** Speech-gate availability for a session: a recognizer is configured server-side and the workspace has not turned it off. */
+export function speechGateEnabled(s: DialSessionRow, d: DialerDeps): boolean {
+  const opts = s.options as { speechGate?: { enabled?: boolean } };
+  return !!d.speech?.provider && d.speech.provider !== 'off' && opts.speechGate?.enabled !== false;
+}
+
+/** Where the carrier should fork this leg's audio, with a signed token the socket must echo. Null when the gate is off. */
+async function gateStreamFor(ctx: Ctx, s: DialSessionRow, line: DialLineRow, d: DialerDeps): Promise<{ url: string; params: Record<string, string> } | undefined> {
+  if (!speechGateEnabled(s, d)) return undefined;
+  const u = new URL(`${d.publicUrl.replace(/\/+$/, '')}/telephony/parallel/stream`);
+  u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+  const exp = Math.floor(ctx.clock.now().getTime() / 1000) + 180;
+  const params: Record<string, string> = { ws: s.workspaceId, session: s.id, line: line.id, token: mintStreamToken(d.kek ?? 'cooks-dev', { ws: s.workspaceId, session: s.id, line: line.id, exp }) };
+  if (line.prospectId) {
+    const [p] = await ctx.db.select({ firstName: prospects.firstName, lastName: prospects.lastName }).from(prospects).where(eq(prospects.id, line.prospectId)).limit(1);
+    const kw = [p?.firstName, p?.lastName].filter((x): x is string => !!x && x.length > 1);
+    if (kw.length) params.keywords = kw.join('|');
+  }
+  return { url: u.toString(), params };
+}
+
+/** Async AMD verdict for one leg. The speech gate may already have settled it; then this is a no-op. */
 export async function parallelAmd(ctx: Ctx, sessionId: string, lineId: string, params: Record<string, string>, d: DialerDeps) {
   const s = await sessionRow(ctx, sessionId);
   const line = await lineRow(ctx, lineId);
   const answeredBy = (params.AnsweredBy ?? 'unknown').toLowerCase();
   if (!(await recordDialEvent(ctx, s.id, `amd:${params.CallSid ?? line.providerCallSid ?? line.id}`, 'prospect.amd', params))) return { duplicate: true, lineId: line.id };
+  return settleVerdict(ctx, s, line, answeredBy, 'amd', null, params.CallSid, d);
+}
+
+/**
+ * The speech gate heard the pickup. `human` and `machine` settle the line exactly like an AMD
+ * verdict; `unknown` is dropped so the carrier's verdict can still decide.
+ */
+export async function parallelSpeechVerdict(ctx: Ctx, sessionId: string, lineId: string, v: GateVerdict, d: DialerDeps) {
+  const s = await sessionRow(ctx, sessionId);
+  const line = await lineRow(ctx, lineId);
+  const evidence = { text: v.text, reason: v.reason, confidence: v.confidence, latencyMs: v.latencyMs, provider: v.provider, judge: v.judge, ...(v.costUsd != null ? { costUsd: v.costUsd } : {}) };
+  await recordDialEvent(ctx, s.id, `speech:${line.id}:${v.reason}:${v.latencyMs}`, 'prospect.speech', { lineId: line.id, verdict: v.verdict, ...evidence });
+  if (v.verdict === 'unknown') return { lineId: line.id, ignored: 'unknown' };
+  return settleVerdict(ctx, s, line, v.verdict === 'human' ? 'human' : 'machine_speech', 'speech', evidence, undefined, d);
+}
+
+/**
+ * One verdict per line, whoever gets there first: the claim is a conditional UPDATE on
+ * `answered_by IS NULL`, so a speech verdict and an AMD callback arriving together cannot both
+ * act. Then: human → first human wins (or dropped), machine → voicemail, fax → failed, else no answer.
+ */
+async function settleVerdict(ctx: Ctx, s: DialSessionRow, line: DialLineRow, answeredBy: string, source: 'amd' | 'speech', speech: Record<string, unknown> | null, callSid: string | undefined, d: DialerDeps) {
   const now = ctx.clock.now();
   if (!(RACING_LINE as readonly string[]).includes(line.status)) return { lineId: line.id, ignored: line.status };
-  await ctx.db.update(dialLines).set({ answeredBy, amdAt: now, status: 'answered', answeredAt: line.answeredAt ?? now, providerCallSid: line.providerCallSid ?? params.CallSid ?? null, updatedAt: now }).where(eq(dialLines.id, line.id));
+  const claimed = await ctx.db
+    .update(dialLines)
+    .set({ answeredBy, verdictSource: source, speech, amdAt: now, status: 'answered', answeredAt: line.answeredAt ?? now, providerCallSid: line.providerCallSid ?? callSid ?? null, updatedAt: now })
+    .where(and(eq(dialLines.id, line.id), isNull(dialLines.answeredBy), inArray(dialLines.status, [...RACING_LINE])))
+    .returning({ id: dialLines.id });
+  if (claimed.length !== 1) return { lineId: line.id, ignored: 'already_settled' };
   const fresh = await lineRow(ctx, line.id);
   const c = await carrierFor(ctx, d);
   const opts = s.options as { onUnknown?: 'hangup' | 'connect' };
@@ -650,7 +706,7 @@ export async function parallelAmd(ctx: Ctx, sessionId: string, lineId: string, p
     result = 'unknown';
   }
   await afterLineSettled(ctx, s.id, d);
-  return { lineId: line.id, answeredBy, result };
+  return { lineId: line.id, answeredBy, source, result };
 }
 
 /** Prospect leg progress. Terminal states close the line (and the conversation when it was the winner). */

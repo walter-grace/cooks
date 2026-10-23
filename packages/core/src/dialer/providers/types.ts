@@ -132,8 +132,8 @@ export interface ParallelCarrier {
   endConference(conferenceId: string): Promise<void>;
   /** Instructions for a rep leg that just answered (phone or browser): join the room and wait in silence. */
   repJoinDocument(conference: string, opts: { statusCallback: string; label: string }): string;
-  /** Instructions for a prospect leg that just answered: hold silently while AMD decides. */
-  prospectHoldDocument(seconds: number): string;
+  /** Instructions for a prospect leg that just answered: hold silently while AMD decides, optionally forking its audio to the speech gate. */
+  prospectHoldDocument(seconds: number, stream?: { url: string; params: Record<string, string> }): string;
 }
 
 /** Provider failure with a stable code and a message safe to show a rep. Never carries credentials. */

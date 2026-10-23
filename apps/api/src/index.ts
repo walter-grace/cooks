@@ -15,7 +15,7 @@ if (env.COOKS_AUTO_MIGRATE) await runMigrations(handle.db, env.DATABASE_URL);
 const boss = await createBoss(env.DATABASE_URL);
 const signingKey = await ensureSigningKey(handle.db, env.COOKS_KEK);
 
-const { app, registry } = createApp({
+const { app, registry, injectWebSocket } = createApp({
   db: handle.db,
   jobs: new PgBossJobs(boss),
   rateLimitStore: new PgRateLimitStore(handle.db),
@@ -34,6 +34,7 @@ const { app, registry } = createApp({
     apiBase: env.TWILIO_API_BASE,
     speko: { apiKey: env.SPEKO_API_KEY, apiBase: env.SPEKO_API_BASE },
     twilioEnv: env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN ? { accountSid: env.TWILIO_ACCOUNT_SID, authToken: env.TWILIO_AUTH_TOKEN, fromNumber: env.TWILIO_FROM_NUMBER, apiKeySid: env.TWILIO_API_KEY_SID, apiKeySecret: env.TWILIO_API_KEY_SECRET, twimlAppSid: env.TWILIO_TWIML_APP_SID } : undefined,
+    speech: { provider: env.SPEECH_PROVIDER, apiKey: env.SPEECH_API_KEY ?? env.OPENAI_API_KEY, apiBase: env.SPEECH_API_BASE, model: env.SPEECH_MODEL, modelDir: env.SPEECH_MODEL_DIR, jev: { apiKey: env.OPENROUTER_API_KEY, model: env.SPEECH_JEV_MODEL } },
   },
   channels: { inkboxApiBase: env.INKBOX_API_BASE },
   webDir: [join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist'), process.env.COOKS_WEB_DIR ?? ''].find((d) => d && existsSync(join(d, 'index.html'))),
@@ -41,9 +42,10 @@ const { app, registry } = createApp({
   publicIps: env.COOKS_PUBLIC_IPS.split(',').map((s) => s.trim()).filter(Boolean),
 });
 
-serve({ fetch: app.fetch, port: env.PORT }, (info) => {
-  console.log(`cooks api listening on http://localhost:${info.port}  (${registry.length} routes, docs at /docs)`);
+const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
+  console.log(`cooks api listening on http://localhost:${info.port}  (${registry.length} routes, docs at /docs${env.SPEECH_PROVIDER !== 'off' ? `, speech gate: ${env.SPEECH_PROVIDER}` : ''})`);
 });
+injectWebSocket(server);
 
 const shutdown = async () => {
   await boss.stop();

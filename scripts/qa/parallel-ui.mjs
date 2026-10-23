@@ -73,6 +73,11 @@ await step('dial a batch of three: human connects, machine and no-answer never r
   await shot('05-connected');
   const liveName = await page.textContent('[data-testid=pd-connected]');
   if (!liveName?.includes('QA Human')) throw new Error(`human not connected: ${st} / ${liveName}`);
+  // Speech gate (API started with SPEECH_PROVIDER=mock): the human line is settled by what was heard, before carrier AMD.
+  const heard = await page.$$eval('[data-testid=pd-heard]', (els) => els.map((e) => e.textContent?.trim()));
+  const human = await page.$eval('[data-testid=pd-connected]', (e) => e.textContent ?? '');
+  console.log('   heard:', heard.join(' | ') || '(nothing: speech gate off)', '| connected cell:', /heard/.test(human) ? 'verdict by speech' : 'verdict by AMD');
+  if (process.env.QA_EXPECT_SPEECH && !/heard/.test(human)) throw new Error('expected the speech gate to settle the human line before AMD');
   if (st.some((s) => s.includes('Machine=connected') || s.includes('Noanswer=connected'))) throw new Error('non-human connected');
   // the machine leg must end as voicemail (its verdict lands ~2.6 s after answer) and the no-answer leg as canceled or no_answer
   await page.waitForFunction(() => [...document.querySelectorAll('[data-testid=pd-line]')].some((e) => e.textContent?.includes('QA Machine') && ['voicemail', 'canceled'].includes(e.getAttribute('data-status') ?? '')), null, { timeout: 15000 });

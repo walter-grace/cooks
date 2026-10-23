@@ -69,6 +69,14 @@ const EnvSchema = z.object({
   TWILIO_API_KEY_SID: z.string().optional(),
   TWILIO_API_KEY_SECRET: z.string().optional(),
   TWILIO_TWIML_APP_SID: z.string().optional(),
+  /** Speech gate (fast pickup) for the parallel dialer: off | mock | openai | sherpa. */
+  SPEECH_PROVIDER: z.enum(['off', 'mock', 'openai', 'sherpa']).default('off'),
+  SPEECH_API_KEY: z.string().optional(),
+  SPEECH_API_BASE: z.string().optional(),
+  SPEECH_MODEL: z.string().optional(),
+  SPEECH_MODEL_DIR: z.string().optional(),
+  /** Jev decision model id on OpenRouter for the tie-breaker (OPENROUTER_API_KEY). */
+  SPEECH_JEV_MODEL: z.string().default('typesafe/jev-1.14'),
   /** Server-wide Speko key (workspaces can store their own instead). */
   SPEKO_API_KEY: z.string().optional(),
   SPEKO_API_BASE: z.string().optional(),

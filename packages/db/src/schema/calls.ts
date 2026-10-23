@@ -256,6 +256,10 @@ export const dialLines = pgTable(
     /** queued | skipped | dialing | ringing | answered | connected | dropped | voicemail | no_answer | busy | failed | canceled | completed */
     status: text('status').notNull().default('queued'),
     answeredBy: text('answered_by'),
+    /** amd (carrier) | speech (the speech gate heard the pickup) */
+    verdictSource: text('verdict_source'),
+    /** Speech-gate evidence: { text, reason, confidence, latencyMs, provider, judge } */
+    speech: jsonb('speech').$type<Record<string, unknown>>(),
     skipReason: text('skip_reason'),
     endReason: text('end_reason'),
     recordingSid: text('recording_sid'),

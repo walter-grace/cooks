@@ -147,3 +147,58 @@ The carrier is behind `ParallelCarrier` (`packages/core/src/dialer/providers/typ
 prospect with AMD, join conference, hang up leg, say-and-hangup, start/stop recording, end conference, and
 the two instruction documents. Telnyx or Jambonz would implement that interface; the engine in
 `packages/core/src/telephony/parallel.ts` would not change.
+
+## Round two: hearing the pickup (2026-10-22)
+
+The question this time was whether we could pick up the words ourselves and beat carrier AMD to the
+"human" verdict, since every second between "Hello?" and the bridge is a second in which the person hangs
+up. Three leads were checked.
+
+**MacParakeet** ([macparakeet.com](https://macparakeet.com/), [moona3k/macparakeet](https://github.com/moona3k/macparakeet),
+GPL-3.0). A free Mac app plus `macparakeet-cli` that runs NVIDIA's Parakeet on Apple Silicon through
+FluidAudio CoreML, with WhisperKit, Cohere Transcribe and NVIDIA Nemotron as alternative engines. It is a
+very good local file transcriber (dictation, meeting capture, diarization, JSON output) but it exposes no
+HTTP or streaming API, and GPL-3.0 code cannot be vendored into this MIT repo. What we took: the engine
+shortlist (Parakeet for batch, Nemotron Speech for streaming), the habit of keeping audio on the box, and
+the CLI's "spec --json" idea for machine-readable automation. The CLI could still transcribe call
+recordings for coaching on a Mac self-host; that is a separate, optional provider and was not built here.
+
+**NVIDIA Nemotron Speech streaming** ([nvidia/nemotron-speech-streaming-en-0.6b](https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b)).
+A cache-aware streaming FastConformer transducer with 80 / 160 / 560 / 1120 ms chunk sizes chosen at
+inference time, roughly 2.3% WER on LibriSpeech clean at the slow setting. sherpa-onnx (Apache-2.0) ships
+Node bindings (`sherpa-onnx-node`) with an `OnlineRecognizer` for NeMo streaming transducers and an int8
+Nemotron export, so a fully local, on-prem recognizer is possible from Node without Python. The
+`sherpa` provider in `packages/core/src/telephony/speech/providers/sherpa.ts` targets that API; it has
+not yet been run against a downloaded model from this repo.
+
+**Jev on OpenRouter** ([docs](https://openrouter.ai/docs/guides/community/jev), model `typesafe/jev-1.14`,
+alias `~typesafe/jev-latest`). TypeSafe's "System One" decision model: state in, typed Choice / Noul /
+Score / Box question in, a decision with probabilities out. Launch claims put it at 70 to 500 ms end to end;
+output tokens are free and input is about $0.042 per million, so a verdict costs about $0.00002. It
+reads text and images, not audio, so it is the judge, not the ears. Separately, `typesafe/jev-router`
+is a hosted router that picks a generative model per request; not relevant here.
+
+**Twilio Media Streams** ([TwiML `<Stream>`](https://www.twilio.com/docs/voice/twiml/stream),
+[message protocol](https://www.twilio.com/docs/voice/media-streams/websocket-messages)). `<Start><Stream>`
+forks a call's audio to a `wss://` endpoint and continues with the next verb at once, so it drops into
+our existing `<Pause>` hold without changing the hold. Frames are 8 kHz μ-law, 20 ms, base64 in JSON,
+with a `start` message that carries `<Parameter>` values as `customParameters` (query strings are not
+allowed on the URL). The upgrade itself is not signed, hence the HMAC token parameter. Async AMD and a
+`<Start><Stream>` each take one of the four forks a call allows.
+
+Prior art for speech-based machine detection is thin: Asterisk's `app_amd` and FreeSWITCH's `mod_amd`
+are the same energy / silence heuristics the carriers run; a 2024 paper
+([arXiv 2410.08235](https://arxiv.org/html/2410.08235v1)) trains a YAMNet-plus-RNN classifier on live
+audio to 96–98% accuracy but reports no latency against AMD. Nothing open-source combines words,
+timing and a decision model the way the gate here does.
+
+### What was built
+
+`packages/core/src/telephony/speech/`: μ-law decode, resampling and a Goertzel beep detector
+(`audio.ts`); an adaptive energy VAD that produces a timeline rather than word boundaries (`vad.ts`); a
+rule judge with 40-odd voicemail / IVR phrases and a greeting list (`judge.ts`); the Jev client
+(`jev.ts`); recognizer adapters for OpenAI Realtime transcription, sherpa-onnx and a scripted mock; the
+`SpeechGate` that ties them together and emits one verdict; and the signed stream token. The engine
+settles a line on its first verdict with a conditional `UPDATE … WHERE answered_by IS NULL`, so the gate
+and AMD can race safely. Measured on the mock: "Hello?" connects at about 1.1 s of audio; a voicemail
+greeting is dropped at the first phrase (about 1.0 s); the mock's AMD verdict lands at 3.0 s.

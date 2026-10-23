@@ -58,10 +58,13 @@ How a batch works:
    phone (Twilio rings the rep, who lands in a silent conference). Nothing is dialed until the rep is in
    the room.
 2. **Cooks dials N lines** (default 3, admin-set cap, 1–6) with `calls.create`, `MachineDetection=Enable`
-   and `AsyncAmd=true`. A leg that answers hears silence (`<Pause>`) while AMD decides.
-3. **First human wins.** The AMD callback that says `human` claims the session with one
-   `UPDATE … WHERE connected_line_id IS NULL` statement. Only one such update can return a row, so two
-   simultaneous humans can never both reach the rep. The winner is redirected into the conference
+   and `AsyncAmd=true`. A leg that answers hears silence (`<Pause>`) while the verdict is reached. With a
+   recognizer configured, the same TwiML also forks the callee's audio to the speech gate (below), which
+   usually calls it first.
+3. **First human wins.** The verdict that says `human`, whether it came from the speech gate or the AMD
+   callback, claims the session with one `UPDATE … WHERE connected_line_id IS NULL` statement. Only one such
+   update can return a row, so two simultaneous humans can never both reach the rep. A line takes exactly one
+   verdict: `UPDATE dial_lines … WHERE answered_by IS NULL`, so the slower detector is a no-op. The winner is redirected into the conference
    (`beep="false"`), a dual-channel recording starts on the rep's leg, and in the same moment every sibling
    is handled: still ringing → canceled silently; already answered → dropped (see compliance).
 4. **Losers become callbacks.** A second human is hung up and a high-priority call task due in 15 minutes
@@ -92,6 +95,48 @@ phone number, or outside 08:00–21:00 in their time zone are skipped with the r
 25 s by default (15–60; the rule asks for at least 15 s or four rings). None of this is legal advice;
 the TCPA and state rules apply on top.
 
+### Fast pickup (speech gate)
+
+Carrier AMD listens for about 2.4 s of speech and then a pause before it will say "human". A person who
+answers says "Hello?" and is done in 600 ms; every second of silence after that is a second in which they
+hang up. The speech gate closes that gap. When a leg answers, the hold TwiML adds
+`<Start><Stream track="inbound_track">` so Twilio forks the callee's audio (8 kHz μ-law, 20 ms frames) to
+`wss://<PUBLIC_URL>/telephony/parallel/stream`. Cooks measures the voice (when speech started, how long the
+run is, the silence after it, a 1 kHz beep), streams the frames to a recognizer, and decides:
+
+| What it hears | Verdict | Typical time after pickup |
+| --- | --- | --- |
+| A short greeting ("Hello?", "Yeah, this is Sam") then ≥ 350 ms of silence | person, connected | 0.9–1.3 s |
+| "you've reached", "leave a message", "press one", 40 more voicemail and IVR phrases | machine, hung up and logged | the moment the phrase lands, ~1 s |
+| Speech that runs 2.6 s with no pause, or a beep | machine | 2.6 s |
+| A bare name or company ("Dana Lee") | person at low confidence, or **Jev** decides when enabled | 1.2 s |
+| Nothing usable for 6 s | no verdict; AMD decides | |
+
+AMD keeps running beside it as the fallback, and `unknown` from the gate never settles anything. The
+connected line shows which detector won ("person (heard) in 1.1s" vs "(AMD) in 3.2s") and the first words,
+which are also kept on the line (`speech.text`) as evidence. No audio is stored; the socket is closed the
+instant a verdict exists.
+
+**Jev.** [TypeSafe's Jev](https://openrouter.ai/docs/guides/community/jev) on OpenRouter is a decision
+model: it takes state plus a typed question and returns a choice with probabilities in a few hundred
+milliseconds, with free output tokens. When an admin picks "Rules, with Jev deciding unclear pickups", the
+gate sends the transcript and timing of an ambiguous pickup to the Decisions API (`typesafe/jev-1.14`) with
+one Choice question (human / voicemail / ivr / unclear) and takes the answer; rules decide if Jev is slow
+(700 ms cap) or unreachable. Needs `OPENROUTER_API_KEY`; about $0.00002 per question.
+
+**Recognizers** (`SPEECH_PROVIDER`):
+
+| Provider | Setting | Notes |
+| --- | --- | --- |
+| `openai` | `SPEECH_API_KEY` (or `OPENAI_API_KEY`), optional `SPEECH_MODEL` (default `gpt-live-transcribe`) | OpenAI Realtime transcription over WebSocket; audio resampled to 24 kHz. Written to the published guide, not yet run against a live account from this repo. |
+| `sherpa` | `SPEECH_MODEL_DIR` pointing at a sherpa-onnx streaming transducer (encoder/decoder/joiner `.onnx` + `tokens.txt`), plus `pnpm --filter @cooks/api add sherpa-onnx-node` | Fully local. NVIDIA's Nemotron Speech streaming model (80 ms chunks) or a Zipformer; sherpa-onnx is Apache-2.0. Written to the package's JS API, not yet run against a downloaded model here. |
+| `mock` | none | Scripted transcript for QA with `scripts/qa/mock-twilio.mjs`. |
+| `off` | | Default. Lines wait for AMD. |
+
+Settings → Dialer → "Fast pickup" turns the gate off, on with rules, or on with Jev, per workspace. The
+gate only ever hears the first seconds of a leg that has not yet been connected to anyone, the same window
+AMD listens to.
+
 ### AMD tuning
 
 Settings → Dialer exposes Twilio's knobs with these defaults: analysis timeout 5 s, speech threshold
@@ -111,6 +156,9 @@ TWILIO_API_BASE=http://127.0.0.1:18100 pnpm --filter @cooks/worker dev
 Connect Twilio in Settings → Dialer with any Account SID and the token `qa-auth-token`, confirm B2B mode,
 then open the power dialer in phone mode. The mock picks a scenario from the last digit of each
 prospect's number: `…1` human, `…2` answering machine, `…3` no answer, `…4` busy, `…5` slow human.
+Start the API with `SPEECH_PROVIDER=mock` as well and each answered leg forks synthetic line audio plus a
+scripted transcript to the speech gate, so the human line connects on "Hello?" about a second after pickup
+while the mock's AMD verdict only lands at three; `QA_EXPECT_SPEECH=1 pnpm qa:parallel` asserts it.
 
 ### API and tools
 

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { calls, dialEvents, dialLines, dialSessions, outboxEvents, prospects, tasks } from '@cooks/db';
-import { conferenceTwiml, pauseTwiml, twilioSignature } from '@cooks/core';
+import { conferenceTwiml, createGateSocket, mintStreamToken, pauseTwiml, pcm16ToMulaw, twilioSignature } from '@cooks/core';
 import { createTestApp, type TestApp } from './test/harness.js';
 
 /**
@@ -17,8 +17,15 @@ function fakeTwilio() {
   /** SIDs that should 404 on update (already ended on the carrier side). */
   const gone = new Set<string>();
   let seq = 0;
+  /** Jev (OpenRouter decisions) requests, answered with `jevAnswer`. */
+  const jev: Array<Record<string, unknown>> = [];
+  const state = { jevAnswer: 'human' as 'human' | 'voicemail' | 'ivr' | 'unclear' };
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
+    if (url.hostname === 'openrouter.ai') {
+      jev.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return Response.json({ model: 'typesafe/jev-1.14', answers: { answered_by: { type: 'choice', choice: state.jevAnswer, confidence: 0.88, probabilities: { [state.jevAnswer]: 0.88 } } }, usage: { input_tokens: 420, output_tokens: 8, cost: 0.00002 } });
+    }
     const auth = Buffer.from(((init?.headers as Record<string, string>)?.authorization ?? '').replace('Basic ', ''), 'base64').toString();
     if (!auth.endsWith(':good-token')) return Response.json({ code: 20003, message: 'Authenticate' }, { status: 401 });
     const body = Object.fromEntries(new URLSearchParams(String(init?.body ?? '')));
@@ -47,7 +54,7 @@ function fakeTwilio() {
     }
     return Response.json({ message: `unhandled ${url.pathname}` }, { status: 404 });
   };
-  return { fetchImpl, created, updates, recordings, conferences, gone, reset: () => (created.length = updates.length = recordings.length = conferences.length = 0) };
+  return { fetchImpl, created, updates, recordings, conferences, gone, jev, state, reset: () => (created.length = updates.length = recordings.length = conferences.length = jev.length = 0) };
 }
 
 let t: TestApp;
@@ -60,7 +67,7 @@ const sidOf = async (lineId: string) => (await t.db.select().from(dialLines).whe
 const webhook = (kind: string, sid: string, lineId: string) => `/telephony/parallel/prospect/${kind}?ws=${t.workspaceId}&session=${sid}&line=${lineId}`;
 
 beforeAll(async () => {
-  t = await createTestApp({ fetchImpl: tw.fetchImpl, telephony: { trustWebhookSignature: false } });
+  t = await createTestApp({ fetchImpl: tw.fetchImpl, telephony: { trustWebhookSignature: false, speech: { provider: 'mock', jev: { apiKey: 'or-test-key' } } } });
   t.clock.set(new Date('2026-03-03T16:00:00Z')); // 11:00 New York, inside calling hours everywhere in the US
   const acc = await t.request('/v1/accounts', { method: 'POST', json: { data: { name: 'Globex', domain: 'globex.test' } } });
   const mk = async (first: string, phone: string | null, extra: Record<string, unknown> = {}) => {
@@ -241,7 +248,11 @@ describe('session lifecycle: browser rep, three lines, first human wins', () => 
     expect(lineBy(await session(sid), ids.ada).status).toBe('ringing');
     const res = await form(webhook('voice', sid, ada.id), { CallSid: await sidOf(ada.id), CallStatus: 'in-progress' });
     const xml = await res.text();
-    expect(xml).toBe(pauseTwiml(15));
+    // silent hold, plus the callee's audio forked to the speech gate with a signed token (no query string: Twilio forbids it)
+    expect(xml).toContain('<Pause length="15"/><Hangup/>');
+    expect(xml).toContain('<Start><Stream url="ws://localhost/telephony/parallel/stream" name="gate" track="inbound_track">');
+    expect(xml).toContain(`<Parameter name="ws" value="${t.workspaceId}"/><Parameter name="session" value="${sid}"/><Parameter name="line" value="${ada.id}"/><Parameter name="token" value="`);
+    expect(xml).toContain('<Parameter name="keywords" value="Ada|Test"/>');
     expect(lineBy(await session(sid), ids.ada).status).toBe('answered');
   });
   it('RACE: two humans at once → exactly one connects, the other is dropped with a callback task, the third sibling is canceled', async () => {
@@ -473,6 +484,166 @@ describe('answered sibling at win time', () => {
     expect(tw.updates.find((u) => u.sid === cySid)?.params).toEqual({ Status: 'completed' }); // B2B: silent drop
     expect(s.stats).toMatchObject({ connected: 1, voicemail: 1, dropped: 1 });
     await t.request(`/v1/dialSessions/${sid}/actions/end`, { method: 'POST' });
+  });
+});
+
+/* ------------------------------------------------------------- speech gate (fast pickup) */
+type Kind = 'silence' | 'speech';
+function mulawFrame(kind: Kind, i: number): string {
+  const b = new Uint8Array(160);
+  for (let n = 0; n < 160; n++) {
+    const tt = (i * 160 + n) / 8000;
+    const v = kind === 'speech' ? 6000 * Math.sin(2 * Math.PI * 180 * tt) * (0.6 + 0.4 * Math.sin(2 * Math.PI * 4 * tt)) + Math.sin(tt * 7919) * 2500 : Math.sin(tt * 104729) * 30;
+    b[n] = pcm16ToMulaw(v);
+  }
+  return Buffer.from(b).toString('base64');
+}
+/** Drive a gate socket like Twilio would: start (with the TwiML's parameters) then 20 ms frames until it closes. */
+async function streamTo(sock: ReturnType<typeof createGateSocket>, params: Record<string, string>, segs: Array<[number, Kind]>, script: Array<{ atMs: number; text: string; final?: boolean }>, closed: () => boolean) {
+  await sock.message(JSON.stringify({ event: 'connected', protocol: 'Call', version: '1.0.0' }));
+  await sock.message(JSON.stringify({ event: 'start', streamSid: 'MZ1', start: { callSid: 'CAx', customParameters: { ...params, qaScript: JSON.stringify(script) }, mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: 8000, channels: 1 } } }));
+  let i = 0;
+  let sent = 0;
+  for (const [ms, kind] of segs) {
+    for (let k = 0; k < ms / 20 && !closed(); k++) {
+      await sock.message(JSON.stringify({ event: 'media', media: { track: 'inbound', chunk: String(i + 1), timestamp: String(i * 20), payload: mulawFrame(kind, i++) } }));
+      sent += 20;
+    }
+  }
+  // the socket closes the instant a verdict exists; wait for the verdict's DB work too
+  await Promise.race([sock.done, new Promise((r) => setTimeout(r, 3000))]);
+  return sent;
+}
+const streamParams = (xml: string) => Object.fromEntries([...xml.matchAll(/<Parameter name="([^"]+)" value="([^"]*)"\/>/g)].map((m) => [m[1]!, m[2]!.replace(/&amp;/g, '&')]));
+const socketFor = () => {
+  let closed = false;
+  const sock = createGateSocket({ db: t.db, jobs: t.jobs, clock: t.clock, publicUrl: 'http://localhost', dialer: (t as any).dialerDeps ?? { kek: t.kek, fetchImpl: tw.fetchImpl, speech: { provider: 'mock', jev: { apiKey: 'or-test-key' } }, publicUrl: 'http://localhost' }, fetchImpl: tw.fetchImpl, close: () => void (closed = true) });
+  return { sock, closed: () => closed };
+};
+
+describe('speech gate: hear the pickup, connect before AMD', () => {
+  let sid: string;
+  let xmlAda = '';
+  it('opens a session and holds the first answered leg with its audio forked to the gate', async () => {
+    await t.request('/v1/workspace/dialer/compliance', { method: 'PUT', json: { data: { complianceMode: 'b2b', confirm: true, maxLines: 3, speechGate: { enabled: true, judge: 'rules' } } } });
+    const get = await t.request('/v1/workspace/dialer/compliance');
+    expect(get.json.data.speechGate).toMatchObject({ enabled: true, judge: 'rules', maxMs: 6000 });
+    expect(get.json.data.speech).toEqual({ provider: 'mock', jevAvailable: true });
+    tw.reset();
+    const r = await t.request('/v1/dialSessions', { method: 'POST', json: { data: { repMode: 'phone', repPhone: '+15559998888', prospectIds: [ids.ada, ids.bob, ids.cy] } } });
+    sid = r.json.data.id;
+    const repSid = tw.created[0]!.sid;
+    await form(`/telephony/parallel/rep/voice?ws=${t.workspaceId}&session=${sid}`, { CallSid: repSid, CallStatus: 'in-progress' });
+    await form(`/telephony/parallel/conference?ws=${t.workspaceId}&session=${sid}`, { StatusCallbackEvent: 'participant-join', ConferenceSid: 'CFs', CallSid: repSid, ParticipantLabel: 'rep' });
+    expect((await session(sid)).status).toBe('ready');
+    await t.request(`/v1/dialSessions/${sid}/actions/dial`, { method: 'POST' });
+    const s = await session(sid);
+    const ada = lineBy(s, ids.ada);
+    xmlAda = await (await form(webhook('voice', sid, ada.id), { CallSid: await sidOf(ada.id), CallStatus: 'in-progress' })).text();
+    expect(xmlAda).toContain('<Start><Stream url="ws://localhost/telephony/parallel/stream"');
+  });
+  it('rejects a socket whose start message carries a bad or foreign token', async () => {
+    const p = streamParams(xmlAda);
+    const bad = socketFor();
+    await bad.sock.message(JSON.stringify({ event: 'start', start: { customParameters: { ...p, token: `${p.token!.split('.')[0]}.tampered` } } }));
+    expect(bad.closed()).toBe(true);
+    expect(bad.sock.authenticated).toBe(false);
+    const foreign = socketFor();
+    const other = mintStreamToken(t.kek, { ws: t.workspaceId, session: p.session!, line: '00000000-0000-0000-0000-000000000001', exp: Math.floor(t.clock.now().getTime() / 1000) + 60 });
+    await foreign.sock.message(JSON.stringify({ event: 'start', start: { customParameters: { ...p, token: other } } }));
+    expect(foreign.closed()).toBe(true);
+  });
+  it('"Hello?" → the line is connected by what was heard, in about a second; the later AMD callback is a no-op', async () => {
+    const s = await session(sid);
+    const ada = lineBy(s, ids.ada);
+    const adaSid = await sidOf(ada.id);
+    const g = socketFor();
+    const sentMs = await streamTo(g.sock, streamParams(xmlAda), [[300, 'silence'], [600, 'speech'], [2000, 'silence']], [{ atMs: 520, text: 'Hello' }, { atMs: 820, text: 'Hello?', final: true }], g.closed);
+    expect(g.closed()).toBe(true); // the gate hangs up its own ears after the verdict
+    expect(sentMs).toBeLessThan(1500);
+    const after = await session(sid);
+    const line = lineBy(after, ids.ada);
+    expect(line).toMatchObject({ status: 'connected', answeredBy: 'human', verdictSource: 'speech' });
+    expect(line.speech).toMatchObject({ text: 'Hello?', provider: 'mock', judge: 'rules' });
+    expect(line.speech.latencyMs).toBeLessThan(1500);
+    expect(after.status).toBe('connected');
+    expect(tw.updates.filter((u) => u.sid === adaSid && u.params.Twiml)).toHaveLength(1);
+    // siblings still ringing were canceled
+    expect(lineBy(after, ids.bob)).toMatchObject({ status: 'canceled', endReason: 'sibling_connected' });
+    // Twilio's AMD arrives three seconds later and changes nothing
+    const updates = tw.updates.length;
+    expect((await form(webhook('amd', sid, ada.id), { CallSid: adaSid, AnsweredBy: 'human', MachineDetectionDuration: '3000' })).status).toBe(204);
+    const again = lineBy(await session(sid), ids.ada);
+    expect(again).toMatchObject({ status: 'connected', verdictSource: 'speech' });
+    expect(tw.updates.length).toBe(updates);
+    const [call] = await t.db.select().from(calls).where(eq(calls.id, line.callId));
+    expect(call).toMatchObject({ status: 'in_progress', amdResult: 'human' });
+    const ev = await t.db.select().from(dialEvents).where(and(eq(dialEvents.sessionId, sid), eq(dialEvents.kind, 'prospect.speech')));
+    expect(ev).toHaveLength(1);
+    expect((ev[0]!.payload as any).text).toBe('Hello?');
+  });
+  it('a voicemail greeting on the next batch is dropped on its first phrase and logged, never connected', async () => {
+    // wrap the live call and dial again
+    const s0 = await session(sid);
+    const ada = lineBy(s0, ids.ada);
+    await form(webhook('status', sid, ada.id), { CallSid: await sidOf(ada.id), CallStatus: 'completed', CallDuration: '40' });
+    await t.request(`/v1/calls/${ada.callId}/actions/log`, { method: 'POST', json: { data: { outcome: 'connected' } } });
+    tw.reset();
+    const d = await t.request(`/v1/dialSessions/${sid}/actions/dial`, { method: 'POST', json: { data: { prospectIds: [ids.dee, ids.eve] } } });
+    expect(d.status, JSON.stringify(d.json)).toBe(200);
+    const s = await session(sid);
+    expect(s, 'session readable after second dial').toBeTruthy();
+    const dee = lineBy(s, ids.dee, s.batch);
+    const deeSid = await sidOf(dee.id);
+    const xml = await (await form(webhook('voice', sid, dee.id), { CallSid: deeSid, CallStatus: 'in-progress' })).text();
+    const g = socketFor();
+    const sentMs = await streamTo(g.sock, streamParams(xml), [[300, 'silence'], [6000, 'speech']], [{ atMs: 700, text: 'Hi you' }, { atMs: 1000, text: "Hi, you've reached Dee" }], g.closed);
+    expect(sentMs).toBeLessThanOrEqual(1100);
+    const after = await session(sid);
+    const line = lineBy(after, ids.dee, s.batch);
+    expect(line).toMatchObject({ status: 'voicemail', answeredBy: 'machine_speech', verdictSource: 'speech' });
+    expect(line.speech).toMatchObject({ reason: "phrase:you've reached" });
+    expect(tw.updates.find((u) => u.sid === deeSid)?.params).toEqual({ Status: 'completed' });
+    const [call] = await t.db.select().from(calls).where(eq(calls.id, line.callId));
+    expect(call).toMatchObject({ status: 'voicemail', outcome: 'voicemail' });
+    // eve is still ringing: the race is open for her
+    expect(lineBy(after, ids.eve, s.batch).status).toBe('dialing');
+  });
+  it('an unclear pickup goes to Jev when the workspace asks for it; its answer settles the line', async () => {
+    await t.request('/v1/workspace/dialer/compliance', { method: 'PUT', json: { data: { speechGate: { judge: 'jev' } } } });
+    const s = await session(sid);
+    const eve = lineBy(s, ids.eve, s.batch);
+    const eveSid = await sidOf(eve.id);
+    const xml = await (await form(webhook('voice', sid, eve.id), { CallSid: eveSid, CallStatus: 'in-progress' })).text();
+    tw.state.jevAnswer = 'human';
+    const g = socketFor();
+    await streamTo(g.sock, streamParams(xml), [[300, 'silence'], [500, 'speech'], [1500, 'silence']], [{ atMs: 700, text: 'Eve Test', final: true }], g.closed);
+    expect(tw.jev).toHaveLength(1);
+    expect(tw.jev[0]).toMatchObject({ model: 'typesafe/jev-1.14' });
+    expect((tw.jev[0] as any).state.transcript).toBe('Eve Test');
+    const line = lineBy(await session(sid), ids.eve, s.batch);
+    expect(line).toMatchObject({ status: 'connected', verdictSource: 'speech' });
+    expect(line.speech).toMatchObject({ judge: 'jev', reason: 'jev:human', costUsd: 0.00002 });
+    await t.request(`/v1/dialSessions/${sid}/actions/end`, { method: 'POST' });
+  });
+  it('with the gate turned off the hold is a plain pause and sockets are refused', async () => {
+    await t.request('/v1/workspace/dialer/compliance', { method: 'PUT', json: { data: { speechGate: { enabled: false } } } });
+    tw.reset();
+    const r = await t.request('/v1/dialSessions', { method: 'POST', json: { data: { repMode: 'phone', repPhone: '+15559998888', prospectIds: [ids.fay] } } });
+    const id = r.json.data.id;
+    const repSid = tw.created[0]!.sid;
+    await form(`/telephony/parallel/rep/voice?ws=${t.workspaceId}&session=${id}`, { CallSid: repSid, CallStatus: 'in-progress' });
+    await form(`/telephony/parallel/conference?ws=${t.workspaceId}&session=${id}`, { StatusCallbackEvent: 'participant-join', ConferenceSid: 'CFt', CallSid: repSid, ParticipantLabel: 'rep' });
+    await t.request(`/v1/dialSessions/${id}/actions/dial`, { method: 'POST' });
+    const fay = lineBy(await session(id), ids.fay);
+    const xml = await (await form(webhook('voice', id, fay.id), { CallSid: await sidOf(fay.id), CallStatus: 'in-progress' })).text();
+    expect(xml).toBe(pauseTwiml(15));
+    const g = socketFor();
+    const tok = mintStreamToken(t.kek, { ws: t.workspaceId, session: id, line: fay.id, exp: Math.floor(t.clock.now().getTime() / 1000) + 60 });
+    await g.sock.message(JSON.stringify({ event: 'start', start: { customParameters: { ws: t.workspaceId, session: id, line: fay.id, token: tok } } }));
+    expect(g.closed()).toBe(true);
+    await t.request(`/v1/dialSessions/${id}/actions/end`, { method: 'POST' });
+    await t.request('/v1/workspace/dialer/compliance', { method: 'PUT', json: { data: { speechGate: { enabled: true, judge: 'rules' } } } });
   });
 });
 

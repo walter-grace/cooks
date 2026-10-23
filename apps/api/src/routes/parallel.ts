@@ -40,6 +40,8 @@ const Line = z
     endReason: z.string().nullable(),
     answeredAt: z.string().nullable(),
     amdAt: z.string().nullable(),
+    verdictSource: z.string().nullable().describe('amd | speech: which detector settled the line'),
+    speech: z.record(z.string(), z.unknown()).nullable().describe('Speech-gate evidence: first words, rule, confidence, latencyMs'),
     connectedAt: z.string().nullable(),
     endedAt: z.string().nullable(),
     durationSeconds: z.number().nullable(),
@@ -83,6 +85,8 @@ const Compliance = z
     onUnknown: z.enum(['hangup', 'connect']),
     ringTimeoutSeconds: z.number(),
     amd: z.object({ speechThresholdMs: z.number().optional(), speechEndThresholdMs: z.number().optional(), silenceTimeoutMs: z.number().optional(), timeoutSeconds: z.number().optional() }),
+    speechGate: z.object({ enabled: z.boolean().optional(), judge: z.enum(['rules', 'jev']).optional(), maxMs: z.number().optional() }),
+    speech: z.object({ provider: z.string().nullable().describe('Recognizer configured on the server (mock | openai | sherpa) or null'), jevAvailable: z.boolean() }).optional(),
     abandonment: z.object({ windowDays: z.number(), humansAnswered: z.number(), dropped: z.number(), ratePct: z.number().nullable(), safeHarborMaxPct: z.number() }).optional(),
   })
   .openapi('ParallelDialerSettings');
@@ -93,7 +97,7 @@ export function mountParallelDialer(reg: Registrar, d: DialerDeps) {
     reg,
     createRoute({ method: 'get', path: '/v1/workspace/dialer/compliance', operationId: 'getParallelDialerSettings', tags: ['Dialer'], summary: 'Parallel dialer compliance mode, limits, AMD tuning and the 30-day abandonment rate', responses: { 200: jsonResponse(dataOf(Compliance), 'Settings'), ...errorResponses } }),
     { scope: 'calls:read', rateClass: 'get', extension: true },
-    async (c) => c.json({ data: { ...(await getParallelSettings(c.get('ctx'))), abandonment: await abandonmentStats(c.get('ctx'), 30) } }, 200),
+    async (c) => c.json({ data: { ...(await getParallelSettings(c.get('ctx'))), speech: { provider: d.speech?.provider && d.speech.provider !== 'off' ? d.speech.provider : null, jevAvailable: !!d.speech?.jev?.apiKey }, abandonment: await abandonmentStats(c.get('ctx'), 30) } }, 200),
   );
   register(
     reg,
@@ -102,9 +106,9 @@ export function mountParallelDialer(reg: Registrar, d: DialerDeps) {
       path: '/v1/workspace/dialer/compliance',
       operationId: 'setParallelDialerSettings',
       tags: ['Dialer'],
-      summary: 'Choose and confirm B2B or consumer mode (admins); set lines, AMD tuning, abandoned-call message',
+      summary: 'Choose and confirm B2B or consumer mode (admins); set lines, AMD tuning, speech gate, abandoned-call message',
       description: 'Dropping a second live answer is an abandoned call under the FTC Telemarketing Sales Rule (16 CFR 310.4(b)(1)(iv)) when the callee is a consumer. An admin must pick a mode and send confirm: true before any session can start. Changing the mode clears the confirmation. Consumer mode caps lines at 2, needs an abandoned-call message (seller name and number, played to dropped humans), and falls back to one line while the 30-day abandonment rate is at or above 3%.',
-      request: { body: jsonBody(z.object({ data: z.object({ complianceMode: z.enum(['b2b', 'consumer']).optional(), confirm: z.boolean().optional(), maxLines: z.number().int().min(1).max(6).optional(), abandonedCallMessage: z.string().max(500).nullable().optional(), onUnknown: z.enum(['hangup', 'connect']).optional(), ringTimeoutSeconds: z.number().int().min(15).max(60).optional(), amd: z.object({ speechThresholdMs: z.number().int().min(1000).max(6000).optional(), speechEndThresholdMs: z.number().int().min(500).max(5000).optional(), silenceTimeoutMs: z.number().int().min(2000).max(10_000).optional(), timeoutSeconds: z.number().int().min(3).max(59).optional() }).optional() }) })) },
+      request: { body: jsonBody(z.object({ data: z.object({ complianceMode: z.enum(['b2b', 'consumer']).optional(), confirm: z.boolean().optional(), maxLines: z.number().int().min(1).max(6).optional(), abandonedCallMessage: z.string().max(500).nullable().optional(), onUnknown: z.enum(['hangup', 'connect']).optional(), ringTimeoutSeconds: z.number().int().min(15).max(60).optional(), amd: z.object({ speechThresholdMs: z.number().int().min(1000).max(6000).optional(), speechEndThresholdMs: z.number().int().min(500).max(5000).optional(), silenceTimeoutMs: z.number().int().min(2000).max(10_000).optional(), timeoutSeconds: z.number().int().min(3).max(59).optional() }).optional(), speechGate: z.object({ enabled: z.boolean().optional(), judge: z.enum(['rules', 'jev']).optional(), maxMs: z.number().int().min(2000).max(15_000).optional() }).optional() }) })) },
       responses: { 200: jsonResponse(dataOf(Compliance), 'Updated'), ...errorResponses },
     }),
     { scope: 'calls:write', rateClass: 'write', extension: true },
