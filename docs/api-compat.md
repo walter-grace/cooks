@@ -46,7 +46,7 @@ sequencing platform publishes a full REST reference. Checked in October 2026:
 
 | Vendor | Public API reference | Webhooks | Notes |
 | --- | --- | --- | --- |
-| Orum | None. No developer portal, OpenAPI document, SDK or MCP server. | One documented event, `call-disposition-added`, sold as a paid add-on. Signed `x-webhook-signature: t=…,s=…` with base64 HMAC-SHA256 over `timestamp.body`, eight retries over about thirty minutes. | [support.orum.com, ART-463](https://support.orum.com/en-US/orum/article/ART-463-webhooks) |
+| Orum | None found. No developer portal, OpenAPI document, SDK or MCP server. | One event, `call-disposition-added`, sold as an add-on. Signed `x-webhook-signature: t=…,s=…` with base64 HMAC-SHA256, 15 s receiver timeout, eight retries over about thirty minutes. Payload carries disposition, notes, recording URL, transcript, rep email and prospect fields. | [support.orum.com, ART-463](https://support.orum.com/en-US/orum/article/ART-463-webhooks); notes in `docs/research/orum-public-research.md` |
 | Salesfinity | Yes: OpenAPI 3.0.1 at `client-api.salesfinity.co`, `x-api-key` auth, plus a hosted MCP server. | In the settings UI, not documented publicly. | [docs.salesfinity.ai](https://docs.salesfinity.ai) |
 | Kixie | Yes, per tier: contacts, activities, dispositions, lookups, power-list and cadence automations. | Calls, SMS, dispositions, voicemail and more. | [kixie.com/developer-api](https://www.kixie.com/developer-api/) |
 
