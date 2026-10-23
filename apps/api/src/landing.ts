@@ -41,7 +41,7 @@ export function landingHtml(opts: { publicUrl: string; release: string }) {
 <div class="card"><h3>Coaching</h3><p>Transcripts, talk ratio and an AI scorecard for every recorded call, with the provider and model you choose.</p></div>
 </div>
 <section class="two">
-<div><h2>Your bot is the brain</h2><p class="lead">One command adds 61 tools to Claude Code, Claude Desktop, Cursor or Grok. Cooks spends none of its own tokens in this mode.</p>
+<div><h2>Your bot is the brain</h2><p class="lead">One command adds 66 tools to Claude Code, Claude Desktop, Cursor or Grok. Cooks spends none of its own tokens in this mode.</p>
 <pre>claude mcp add cooks \\
   -e COOKS_API_URL=${publicUrl} \\
   -e COOKS_API_KEY=cooks-api-... \\

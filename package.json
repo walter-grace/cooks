@@ -24,7 +24,8 @@
     "qa:hubspot": "node scripts/qa/hubspot-ui.mjs",
     "qa:mock-hubspot": "node scripts/qa/mock-hubspot.mjs",
     "qa:mock-twilio": "node scripts/qa/mock-twilio.mjs",
-    "qa:mock-speko": "node scripts/qa/mock-speko.mjs"
+    "qa:mock-speko": "node scripts/qa/mock-speko.mjs",
+    "qa:parallel": "node scripts/qa/parallel-ui.mjs"
   },
   "devDependencies": {
     "@cooks/auth": "workspace:*",

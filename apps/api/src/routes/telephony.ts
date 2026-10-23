@@ -40,6 +40,12 @@ import {
   jsonBody,
   jsonResponse,
   logCall,
+  parallelAmd,
+  parallelConferenceEvent,
+  parallelProspectStatus,
+  parallelProspectVoice,
+  parallelRepStatus,
+  parallelRepVoice,
   recordingResponse,
   requestCoaching,
   serializeDisposition,
@@ -338,6 +344,45 @@ export function mountTelephonyWebhooks(app: OpenAPIHono<AppEnv>, deps: { db: Db;
     const r = await parse(c);
     if (!r) return c.text('forbidden', 403);
     await handleRecording(r.ctx, r.callId, r.params, deps.dialer).catch(() => undefined);
+    return c.body(null, 204);
+  });
+  /* ---------- parallel dialer (all signed; idempotent through dial_events) ---------- */
+  const sess = (c: { req: { query(n: string): string | undefined } }) => ({ session: c.req.query('session') ?? '', line: c.req.query('line') ?? '' });
+  app.post('/telephony/parallel/rep/voice', async (c) => {
+    const r = await parse(c);
+    if (!r) return xml(c, hangupTwiml('Unauthorized.'), 403);
+    return xml(c, await parallelRepVoice(r.ctx, sess(c).session, r.params, deps.dialer).catch(() => hangupTwiml('This dial session is no longer available.')));
+  });
+  app.post('/telephony/parallel/rep/status', async (c) => {
+    const r = await parse(c);
+    if (!r) return c.text('forbidden', 403);
+    await parallelRepStatus(r.ctx, sess(c).session, r.params, deps.dialer).catch(() => undefined);
+    return c.body(null, 204);
+  });
+  app.post('/telephony/parallel/conference', async (c) => {
+    const r = await parse(c);
+    if (!r) return c.text('forbidden', 403);
+    await parallelConferenceEvent(r.ctx, sess(c).session, r.params, deps.dialer).catch(() => undefined);
+    return c.body(null, 204);
+  });
+  app.post('/telephony/parallel/prospect/voice', async (c) => {
+    const r = await parse(c);
+    if (!r) return xml(c, hangupTwiml(), 403);
+    const { session, line } = sess(c);
+    return xml(c, await parallelProspectVoice(r.ctx, session, line, r.params, deps.dialer).catch(() => hangupTwiml()));
+  });
+  app.post('/telephony/parallel/prospect/amd', async (c) => {
+    const r = await parse(c);
+    if (!r) return c.text('forbidden', 403);
+    const { session, line } = sess(c);
+    await parallelAmd(r.ctx, session, line, r.params, deps.dialer).catch(() => undefined);
+    return c.body(null, 204);
+  });
+  app.post('/telephony/parallel/prospect/status', async (c) => {
+    const r = await parse(c);
+    if (!r) return c.text('forbidden', 403);
+    const { session, line } = sess(c);
+    await parallelProspectStatus(r.ctx, session, line, r.params, deps.dialer).catch(() => undefined);
     return c.body(null, 204);
   });
   /** Speko `call.*` events (Standard Webhooks signature when the workspace stored a secret). Only ever triggers a poll. */

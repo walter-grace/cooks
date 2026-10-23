@@ -96,7 +96,8 @@ export async function spekoSpendToday(ctx: Ctx, now: Date): Promise<{ spentUsd: 
   return { spentUsd: Math.round(spentUsd * 10_000) / 10_000, inFlight };
 }
 
-const dncOutcome = async (ctx: Ctx, prospectId: string) => {
+/** True when the prospect has ever been logged with a Do-not-call disposition. */
+export const dncOutcome = async (ctx: Ctx, prospectId: string) => {
   const [hit] = await ctx.db
     .select({ id: calls.id })
     .from(calls)

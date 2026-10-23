@@ -29,6 +29,7 @@ export const QUEUES: Record<JobName, { policy?: string; retryLimit?: number; ret
   'inkbox.call': { policy: 'exclusive', retryLimit: 2, retryDelay: 30, retryBackoff: true, expireInSeconds: 120 },
   'inkbox.call_poll': { policy: 'standard', retryLimit: 3, retryDelay: 15, retryBackoff: true, expireInSeconds: 120 },
   'ai.coach_call': { policy: 'standard', retryLimit: 2, retryBackoff: true, expireInSeconds: 300 },
+  'telephony.dial_sweep': { policy: 'singleton', retryLimit: 0, expireInSeconds: 55 },
 };
 
 export async function createBoss(connectionString: string, opts: { schema?: string } = {}): Promise<PgBoss> {

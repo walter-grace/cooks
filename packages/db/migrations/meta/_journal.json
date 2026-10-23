@@ -43,6 +43,13 @@
       "when": 1792713209361,
       "tag": "0005_inkbox",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792722458467,
+      "tag": "0006_parallel_dialer",
+      "breakpoints": true
     }
   ]
 }

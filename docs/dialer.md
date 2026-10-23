@@ -1,7 +1,7 @@
 # Dialer
 
-Cooks has two dialer providers. **Twilio** carries calls a rep makes (phone bridge or browser
-softphone). **Speko** places AI-voiced calls: a voice agent dials the prospect, follows your
+Cooks has two dialer providers. **Twilio** carries calls a rep makes (phone bridge, browser
+softphone, or the parallel power dialer). **Speko** places AI-voiced calls: a voice agent dials the prospect, follows your
 script, and the outcome, transcript, summary, cost and recording land in Cooks. Both can be
 connected at once; an admin picks which one the Call button uses under Settings → Dialer.
 Every provider sits behind the same interface (`packages/core/src/dialer/providers`): place,
@@ -36,6 +36,91 @@ For browser calling also:
 Cooks must be reachable from Twilio for status, recording and TwiML callbacks. For local
 development use a tunnel (`ngrok http 8080`, Cloudflare Tunnel) and set `COOKS_PUBLIC_URL` to it.
 Every callback is verified with `X-Twilio-Signature` against your auth token.
+
+## Parallel dialing (power dialer)
+
+The power dialer at `/app/dialer` rings several prospects at once and connects the first person who
+answers to the rep, with no beep, announcement or AI voice. It is the Nooks-style flow, built on
+Twilio Programmable Voice and Twilio's asynchronous answering-machine detection (AMD).
+
+How a batch works:
+
+1. **The rep joins first.** From the browser (Voice SDK, needs the API key pair and TwiML App) or by
+   phone (Twilio rings the rep, who lands in a silent conference). Nothing is dialed until the rep is in
+   the room.
+2. **Cooks dials N lines** (default 3, admin-set cap, 1–6) with `calls.create`, `MachineDetection=Enable`
+   and `AsyncAmd=true`. A leg that answers hears silence (`<Pause>`) while AMD decides.
+3. **First human wins.** The AMD callback that says `human` claims the session with one
+   `UPDATE … WHERE connected_line_id IS NULL` statement. Only one such update can return a row, so two
+   simultaneous humans can never both reach the rep. The winner is redirected into the conference
+   (`beep="false"`), a dual-channel recording starts on the rep's leg, and in the same moment every sibling
+   is handled: still ringing → canceled silently; already answered → dropped (see compliance).
+4. **Losers become callbacks.** A second human is hung up and a high-priority call task due in 15 minutes
+   is created for the rep, noting the dropped call. Machines (`machine_*`), faxes and `unknown` verdicts
+   are hung up, never connected; machine and no-answer legs are logged automatically as No answer or Busy,
+   which completes their sequence tasks.
+5. **Wrap and repeat.** When the prospect leaves, the session is `wrapping`: the rep logs the call (same
+   dialog as any other call) and dials the next batch. With auto-dial on, a batch that ends with nobody
+   connected rings the next one by itself. The rep leaving the room ends the session; sessions idle for two
+   hours are closed by the worker.
+
+Every carrier webhook is recorded in `dial_events` under a unique key before it is acted on, so Twilio
+retrying a callback changes nothing. All parallel webhooks are signature-checked like the rest.
+
+### Compliance mode (required)
+
+Dropping a person who answered is an **abandoned call** under the FTC Telemarketing Sales Rule
+(16 CFR 310.4(b)(1)(iv)) when the callee is a consumer. Before the first session an admin must choose a
+mode under Settings → Dialer and confirm it:
+
+| Mode | Rules Cooks applies |
+| --- | --- |
+| **B2B** | Up to 6 lines. Dropped humans still get a callback task. Business-to-business calls are largely exempt from the rule (310.6(b)(7)). |
+| **Consumer** | At most 2 lines. An abandoned-call message (your name and number) is required and is played to a dropped person before the hangup, as 310.4(b)(4)(iii) requires. Cooks tracks the 30-day abandonment rate (dropped ÷ answered by a person) and falls back to one line per batch while it is at or above the 3% safe harbor. |
+
+In both modes prospects on the do-not-call list (do-not-contact flag or a Do-not-call disposition), without a
+phone number, or outside 08:00–21:00 in their time zone are skipped with the reason shown. Ring timeout is
+25 s by default (15–60; the rule asks for at least 15 s or four rings). None of this is legal advice;
+the TCPA and state rules apply on top.
+
+### AMD tuning
+
+Settings → Dialer exposes Twilio's knobs with these defaults: analysis timeout 5 s, speech threshold
+2400 ms, speech-end threshold 1200 ms, silence timeout 3000 ms, and `unknown` → hang up. Twilio's own
+guidance for the shortest wait is a speech threshold of 1800–3000 ms and a speech-end threshold of
+1400–1500 ms. Expect one to four seconds between the prospect's hello and the bridge; that gap is the
+cost of never connecting a voicemail.
+
+### Trying it without Twilio
+
+```bash
+pnpm qa:mock-twilio                     # :18100, auth token qa-auth-token
+TWILIO_API_BASE=http://127.0.0.1:18100 pnpm --filter @cooks/api dev
+TWILIO_API_BASE=http://127.0.0.1:18100 pnpm --filter @cooks/worker dev
+```
+
+Connect Twilio in Settings → Dialer with any Account SID and the token `qa-auth-token`, confirm B2B mode,
+then open the power dialer in phone mode. The mock picks a scenario from the last digit of each
+prospect's number: `…1` human, `…2` answering machine, `…3` no answer, `…4` busy, `…5` slow human.
+
+### API and tools
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET/PUT | `/v1/workspace/dialer/compliance` | Mode, confirmation, lines, AMD tuning, abandonment rate |
+| POST | `/v1/dialSessions` | Start a session (`repMode`, `repPhone`, `maxLines`, `autoDial`, `prospectIds`, `taskIds`) |
+| GET | `/v1/dialSessions`, `/v1/dialSessions/current`, `/v1/dialSessions/{id}` | Sessions and live line status |
+| PATCH | `/v1/dialSessions/{id}` | Auto-dial, lines per batch |
+| POST | `/v1/dialSessions/{id}/actions/queue` | Add prospects or call tasks |
+| POST | `/v1/dialSessions/{id}/actions/dial` | Ring the next batch |
+| POST | `/v1/dialSessions/{id}/actions/hangup` | End the live conversation, stay in the room |
+| POST | `/v1/dialSessions/{id}/actions/end` | End the session |
+| POST | `/telephony/parallel/{rep/voice,rep/status,conference,prospect/voice,prospect/amd,prospect/status}` | Twilio webhooks (signed) |
+
+MCP: `cooks_start_dial_session`, `cooks_dial_next_batch`, `cooks_dial_session_status`,
+`cooks_hangup_dial_line`, `cooks_end_dial_session`, then `cooks_log_call` with the connected line's
+`callId`. Research notes and the sources behind the design are in
+[parallel-dialing-research.md](parallel-dialing-research.md).
 
 ## Speko (AI calls)
 

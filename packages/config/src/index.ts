@@ -62,6 +62,13 @@ const EnvSchema = z.object({
   COOKS_CLERK_DEFAULT_WORKSPACE: z.string().optional(),
   /** Twilio REST base (override for scripts/qa/mock-twilio.mjs). */
   TWILIO_API_BASE: z.string().optional(),
+  /** Optional server-wide Twilio credentials; workspaces without their own connection use them. */
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_FROM_NUMBER: z.string().optional(),
+  TWILIO_API_KEY_SID: z.string().optional(),
+  TWILIO_API_KEY_SECRET: z.string().optional(),
+  TWILIO_TWIML_APP_SID: z.string().optional(),
   /** Server-wide Speko key (workspaces can store their own instead). */
   SPEKO_API_KEY: z.string().optional(),
   SPEKO_API_BASE: z.string().optional(),

@@ -195,3 +195,92 @@ export const telephonyConnections = pgTable(
   },
   (t) => [uniqueIndex('telephony_ws_provider_uq').on(t.workspaceId, t.provider)],
 );
+
+/* ---------------------------------------------------------------- parallel dialer */
+
+/**
+ * One parallel-dialing session: the rep sits in a carrier conference while Cooks dials several
+ * prospects at once. `connectedLineId` is the atomic "first human wins" slot: a line becomes the
+ * winner only by an UPDATE … WHERE connected_line_id IS NULL that returns a row.
+ */
+export const dialSessions = pgTable(
+  'dial_sessions',
+  {
+    id: id(),
+    workspaceId: workspaceId(),
+    ownerId: uuid('owner_id').notNull(),
+    provider: text('provider').notNull().default('twilio'),
+    /** waiting_rep | ready | dialing | connected | wrapping | ended */
+    status: text('status').notNull().default('waiting_rep'),
+    /** browser (Voice SDK) or phone (carrier rings the rep first) */
+    repMode: text('rep_mode').notNull().default('browser'),
+    repPhone: text('rep_phone'),
+    repCallSid: text('rep_call_sid'),
+    fromNumber: text('from_number').notNull(),
+    conferenceName: text('conference_name').notNull(),
+    conferenceSid: text('conference_sid'),
+    maxLines: integer('max_lines').notNull().default(3),
+    /** b2b | consumer, copied from workspace settings when the session starts */
+    complianceMode: text('compliance_mode').notNull().default('b2b'),
+    autoDial: boolean('auto_dial').notNull().default(false),
+    /** AMD and timing options the lines are dialed with (never credentials). */
+    options: jsonb('options').$type<Record<string, unknown>>().notNull().default({}),
+    batch: integer('batch').notNull().default(0),
+    connectedLineId: uuid('connected_line_id'),
+    connectedAt: timestamp('connected_at', { withTimezone: true }),
+    repJoinedAt: timestamp('rep_joined_at', { withTimezone: true }),
+    lastActivityAt: timestamp('last_activity_at', { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endReason: text('end_reason'),
+    stats: jsonb('stats').$type<Record<string, number>>().notNull().default({}),
+    ...timestamps,
+  },
+  (t) => [index('dial_sessions_ws_idx').on(t.workspaceId, t.createdAt), index('dial_sessions_rep_sid_idx').on(t.repCallSid), uniqueIndex('dial_sessions_conf_uq').on(t.conferenceName)],
+);
+
+/** One prospect leg inside a session. Carries its own call row so logging and coaching work as usual. */
+export const dialLines = pgTable(
+  'dial_lines',
+  {
+    id: id(),
+    workspaceId: workspaceId(),
+    sessionId: uuid('session_id')
+      .notNull()
+      .references(() => dialSessions.id, { onDelete: 'cascade' }),
+    batch: integer('batch').notNull().default(0),
+    prospectId: uuid('prospect_id').references(() => prospects.id, { onDelete: 'set null' }),
+    taskId: uuid('task_id'),
+    callId: uuid('call_id').references(() => calls.id, { onDelete: 'set null' }),
+    toNumber: text('to_number'),
+    providerCallSid: text('provider_call_sid'),
+    /** queued | skipped | dialing | ringing | answered | connected | dropped | voicemail | no_answer | busy | failed | canceled | completed */
+    status: text('status').notNull().default('queued'),
+    answeredBy: text('answered_by'),
+    skipReason: text('skip_reason'),
+    endReason: text('end_reason'),
+    recordingSid: text('recording_sid'),
+    callbackTaskId: uuid('callback_task_id'),
+    answeredAt: timestamp('answered_at', { withTimezone: true }),
+    amdAt: timestamp('amd_at', { withTimezone: true }),
+    connectedAt: timestamp('connected_at', { withTimezone: true }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    durationSeconds: integer('duration_seconds'),
+    ...timestamps,
+  },
+  (t) => [index('dial_lines_session_idx').on(t.sessionId, t.batch, t.status), index('dial_lines_sid_idx').on(t.providerCallSid), index('dial_lines_ws_created_idx').on(t.workspaceId, t.createdAt)],
+);
+
+/** Carrier webhook receipts, keyed so a redelivered callback is a no-op. */
+export const dialEvents = pgTable(
+  'dial_events',
+  {
+    id: id(),
+    workspaceId: workspaceId(),
+    sessionId: uuid('session_id').references(() => dialSessions.id, { onDelete: 'cascade' }),
+    dedupeKey: text('dedupe_key').notNull(),
+    kind: text('kind').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('dial_events_dedupe_uq').on(t.workspaceId, t.dedupeKey), index('dial_events_session_idx').on(t.sessionId, t.createdAt)],
+);

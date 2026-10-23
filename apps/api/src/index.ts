@@ -30,7 +30,11 @@ const { app, registry } = createApp({
   msTenant: env.MS_TENANT,
   clerk: env.CLERK_SECRET_KEY ? { gateway: clerkGateway(env.CLERK_SECRET_KEY, { publishableKey: env.CLERK_PUBLISHABLE_KEY, jwtKey: env.CLERK_JWT_KEY }), publishableKey: env.CLERK_PUBLISHABLE_KEY, defaultWorkspaceSlug: env.COOKS_CLERK_DEFAULT_WORKSPACE } : undefined,
   hubspotApp: process.env.HUBSPOT_CLIENT_ID && process.env.HUBSPOT_CLIENT_SECRET ? { clientId: process.env.HUBSPOT_CLIENT_ID, clientSecret: process.env.HUBSPOT_CLIENT_SECRET } : undefined,
-  telephony: { apiBase: env.TWILIO_API_BASE, speko: { apiKey: env.SPEKO_API_KEY, apiBase: env.SPEKO_API_BASE } },
+  telephony: {
+    apiBase: env.TWILIO_API_BASE,
+    speko: { apiKey: env.SPEKO_API_KEY, apiBase: env.SPEKO_API_BASE },
+    twilioEnv: env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN ? { accountSid: env.TWILIO_ACCOUNT_SID, authToken: env.TWILIO_AUTH_TOKEN, fromNumber: env.TWILIO_FROM_NUMBER, apiKeySid: env.TWILIO_API_KEY_SID, apiKeySecret: env.TWILIO_API_KEY_SECRET, twimlAppSid: env.TWILIO_TWIML_APP_SID } : undefined,
+  },
   channels: { inkboxApiBase: env.INKBOX_API_BASE },
   webDir: [join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist'), process.env.COOKS_WEB_DIR ?? ''].find((d) => d && existsSync(join(d, 'index.html'))),
   acceptNooksPrefix: env.COOKS_ACCEPT_NOOKS_PREFIX,

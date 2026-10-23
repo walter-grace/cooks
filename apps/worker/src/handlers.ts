@@ -10,7 +10,8 @@ import {
   type Ctx,
   type JobsPort,
   type MailProvider,
- pollAiCall, InkboxMailProvider, inkboxFor, sendQueuedMessage, runAiCallStep, pollInkboxCall, signalFromMessageEvent } from '@cooks/core';
+  type TwilioEnv,
+ pollAiCall, sweepDialSessions, InkboxMailProvider, inkboxFor, sendQueuedMessage, runAiCallStep, pollInkboxCall, signalFromMessageEvent } from '@cooks/core';
 import { mailboxCredentials, type Db } from '@cooks/db';
 import { accountsDueForScan, classifyReply, coachCall, draftEmailForTask, processCallRecording, researchProspect, scanAccount, type EnvKeys, type TranscribeEnv } from '@cooks/agent';
 import { applyClassification, evaluateSignal, signalFromEmailEvent, loadCreds, logCallToHubspot, logCallTaskToHubspot, logEmailToHubspot, outboundProviderFor, registerOAuthInbound, runAutoEnrollRule, syncMailbox, syncableMailboxIds, type ConnectorApps, type CrmSettings } from '@cooks/core';
@@ -30,6 +31,8 @@ export interface WorkerDeps {
   aiEnv: EnvKeys & TranscribeEnv;
   /** Twilio REST base override (mock) */
   telephonyApiBase?: string;
+  /** Server-wide Twilio credentials (TWILIO_* env) */
+  twilioEnv?: TwilioEnv;
   /** Speko server key + base override (mock) */
   spekoApiKey?: string;
   spekoApiBase?: string;
@@ -184,6 +187,8 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
     return r;
   }, 5);
   void work<Record<string, never>>('enrollment.start_pending', async () => ({ promoted: await startPendingEnrollments(mkCtx(deps, 'system')) }), 1);
+  // Parallel dialer safety net: close idle sessions and settle legs the carrier never reported on.
+  void work<Record<string, never>>('telephony.dial_sweep', async () => sweepDialSessions(deps.db, { ...aiCallDeps, twilioEnv: deps.twilioEnv }), 1);
 }
 
 const hasAi = (e: EnvKeys) => !!(e.ANTHROPIC_API_KEY || e.XAI_API_KEY || e.OPENAI_API_KEY || e.OPENROUTER_API_KEY || e.OLLAMA_BASE_URL);
@@ -208,6 +213,7 @@ export async function registerSchedules(boss: PgBoss) {
   await boss.schedule('crm.poll', '*/5 * * * *', {}, { tz: 'UTC' });
   await boss.schedule('outbox.publish', '* * * * *', {}, { tz: 'UTC' });
   await boss.schedule('signals.scan_due', '15 6 * * *', {}, { tz: 'UTC' });
+  await boss.schedule('telephony.dial_sweep', '* * * * *', {}, { tz: 'UTC' });
 }
 
 /** Low-latency outbox drain between the cron ticks. Safe with several workers (SKIP LOCKED). */

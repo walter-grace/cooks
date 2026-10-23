@@ -632,7 +632,7 @@ export const TOOLS: ToolDef[] = [
   def({
     name: 'cooks_dialer_status',
     title: 'Dialer status',
-    description: 'Which dialers are connected (Twilio for rep calls, Speko for AI-voiced calls), which one the Call button uses, caller ids, and the AI call defaults (script, max duration, daily spend cap).',
+    description: 'Which dialers are connected (Twilio for rep calls, Speko for AI-voiced calls), which one the Call button uses, caller ids, the AI call defaults (script, max duration, daily spend cap), and the parallel dialer settings (compliance mode and whether an admin confirmed it, lines per batch, AMD tuning).',
     readOnly: true,
     input: {},
     run: (api) => api.call('GET', '/workspace/dialer'),
@@ -684,6 +684,55 @@ export const TOOLS: ToolDef[] = [
     description: 'Place a call: Twilio rings the rep\'s phone (repPhone or the owner\'s profile phone) and connects the prospect when they answer. Pass taskId for a sequence call step so logging the call completes the task. Returns the call id to log afterwards.',
     input: { prospectId: uuid.optional(), to: z.string().optional().describe('Phone number when calling someone who is not a prospect'), repPhone: z.string().optional(), fromNumber: z.string().optional(), ownerId: z.string().optional(), taskId: uuid.optional() },
     run: (api, a) => api.call('POST', '/calls/actions/dial', { body: { data: { ...a, mode: 'bridge' } } }),
+  }),
+  // ---- Parallel dialer (first human answer wins) ----
+  def({
+    name: 'cooks_start_dial_session',
+    title: 'Start a parallel dial session',
+    description:
+      'Open a power-dialer session for a rep. Phone mode (default from a bot) rings the rep\'s phone first and parks them in a silent conference; browser mode returns connectParams for the web app. Prospects or call tasks passed here are preflighted (phone, do-not-call list, 08:00–21:00 local) and queued, not dialed. Then call cooks_dial_next_batch. Refused with COMPLIANCE_UNCONFIRMED until an admin confirms B2B or consumer mode under Settings → Dialer, and with 409 if the rep already has an open session.',
+    input: {
+      repMode: z.enum(['phone', 'browser']).optional().describe('Default phone'),
+      repPhone: z.string().optional().describe('E.164; defaults to the owner\'s profile phone'),
+      ownerId: z.string().optional().describe('The rep; defaults to the caller'),
+      fromNumber: z.string().optional(),
+      maxLines: z.number().int().min(1).max(6).optional().describe('Lines per batch (default 3; consumer mode caps at 2)'),
+      autoDial: z.boolean().optional().describe('Ring the next batch automatically when a batch ends with no connect'),
+      prospectIds: z.array(uuid).max(200).optional(),
+      taskIds: z.array(uuid).max(200).optional().describe('Call tasks; logging the connected call completes them'),
+    },
+    run: (api, a) => api.call('POST', '/dialSessions', { body: { data: { repMode: a.repMode ?? 'phone', ...a } } }),
+  }),
+  def({
+    name: 'cooks_dial_next_batch',
+    title: 'Dial the next batch',
+    description:
+      'Ring up to maxLines queued prospects at once. The first leg answering-machine detection reports as human is bridged to the rep instantly; siblings are hung up; a second human is dropped and becomes a high-priority callback task; machines are hung up and logged as No answer. Needs the rep in the room (status ready or wrapping). Errors: REP_NOT_JOINED, LINE_CONNECTED (log or hang up first), BATCH_IN_PROGRESS, NO_QUEUED_LINES. Poll cooks_dial_session_status afterwards.',
+    input: { sessionId: uuid, lines: z.number().int().min(1).max(6).optional(), prospectIds: z.array(uuid).max(200).optional().describe('Queue these first'), taskIds: z.array(uuid).max(200).optional() },
+    run: (api, a) => api.call('POST', `/dialSessions/${a.sessionId}/actions/dial`, { body: { data: { lines: a.lines, prospectIds: a.prospectIds, taskIds: a.taskIds } } }),
+  }),
+  def({
+    name: 'cooks_dial_session_status',
+    title: 'Dial session status',
+    description: 'Session state (waiting_rep, ready, dialing, connected, wrapping, ended), every line with its status (queued, skipped+reason, dialing, ringing, answered, connected, dropped, voicemail, no_answer, busy, failed, canceled, completed), the connected line and its callId to log, and counters. Omit sessionId for the caller\'s open session.',
+    readOnly: true,
+    input: { sessionId: uuid.optional() },
+    run: (api, a) => api.call('GET', a.sessionId ? `/dialSessions/${a.sessionId}` : '/dialSessions/current'),
+  }),
+  def({
+    name: 'cooks_end_dial_session',
+    title: 'End dial session',
+    description: 'Hang up the live conversation and every ringing line, close the conference, release the rep. Queued prospects are left untouched (their tasks stay open). Use cooks_hangup_dial_line to end only the current conversation and keep dialing.',
+    destructive: true,
+    input: { sessionId: uuid },
+    run: (api, a) => api.call('POST', `/dialSessions/${a.sessionId}/actions/end`),
+  }),
+  def({
+    name: 'cooks_hangup_dial_line',
+    title: 'Hang up the live line',
+    description: 'End the current conversation in a dial session; the rep stays in the room. Log the call with cooks_log_call (callId from the connected line) and dial the next batch.',
+    input: { sessionId: uuid },
+    run: (api, a) => api.call('POST', `/dialSessions/${a.sessionId}/actions/hangup`),
   }),
   def({
     name: 'cooks_list_calls',

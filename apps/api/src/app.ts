@@ -21,7 +21,7 @@ import { makeVerifyJwt, mountOAuth } from './oauth/routes.js';
 import { mountConnect } from './routes/connect.js';
 import { clerkBrokers, mountClerkAuth, mountClerkConnectors } from './routes/clerk.js';
 import type { ClerkGateway } from '@cooks/auth';
-import type { ConnectorApps } from '@cooks/core';
+import type { ConnectorApps, TwilioEnv } from '@cooks/core';
 import type { ActiveKey } from '@cooks/auth';
 import { SCOPES, SCOPE_DESCRIPTIONS } from '@cooks/core';
 
@@ -50,7 +50,7 @@ export interface AppDeps {
   /** HubSpot OAuth app (optional; private-app tokens work without it). */
   hubspotApp?: { clientId: string; clientSecret: string };
   /** Twilio: override the API base for mocks; `trustWebhookSignature: false` skips X-Twilio-Signature checks (tests only). */
-  telephony?: { apiBase?: string; trustWebhookSignature?: boolean; speko?: { apiKey?: string; apiBase?: string } };
+  telephony?: { apiBase?: string; trustWebhookSignature?: boolean; speko?: { apiKey?: string; apiBase?: string }; twilioEnv?: TwilioEnv };
   channels?: { inkboxApiBase?: string; trustWebhookSignature?: boolean };
   /** Directory with the built web UI (apps/web/dist). Served at /app with SPA fallback. */
   webDir?: string;
@@ -123,7 +123,7 @@ export function createApp(deps: AppDeps) {
 
   const brokers = deps.clerk ? clerkBrokers(deps.db, deps.clerk.gateway) : undefined;
   const reg: Registrar = { app, store, now: () => clock.now(), registry: [], crmDeps: { kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp, brokerHubspotToken: brokers?.brokerHubspotToken } };
-  const dialer = { kek: deps.kek, fetchImpl: deps.fetchImpl, apiBase: deps.telephony?.apiBase, speko: deps.telephony?.speko, publicUrl };
+  const dialer = { kek: deps.kek, fetchImpl: deps.fetchImpl, apiBase: deps.telephony?.apiBase, speko: deps.telephony?.speko, twilioEnv: deps.telephony?.twilioEnv, publicUrl };
   const channels = { kek: deps.kek, fetchImpl: deps.fetchImpl, inkbox: { apiBase: deps.channels?.inkboxApiBase }, publicUrl };
   mountRoutes(reg, { publicIps: deps.publicIps ?? [], kek: deps.kek, fetchImpl: deps.fetchImpl, keyPrefix: deps.keyPrefix, crm: { db: deps.db, publicUrl, now: () => clock.now(), kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp, brokerHubspotToken: brokers?.brokerHubspotToken }, dialer, channels });
   const secureCookies = deps.oauth?.secureCookies ?? publicUrl.startsWith('https');

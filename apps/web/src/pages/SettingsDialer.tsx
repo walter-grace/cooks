@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { api, currentSession } from '../api.js';
@@ -51,6 +52,7 @@ export function Dialer({ isAdmin }: { isAdmin: boolean }) {
       </div>
       <Speko isAdmin={isAdmin} data={d.speko} reload={dialer.reload} />
       <Twilio isAdmin={isAdmin} t={d.twilio} reload={dialer.reload} />
+      {d.twilio.status === 'connected' && <ParallelCompliance isAdmin={isAdmin} reload={dialer.reload} />}
     </div>
   );
 }
@@ -418,5 +420,106 @@ function Twilio({ isAdmin, t, reload }: { isAdmin: boolean; t: any; reload: () =
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/** Parallel dialer: compliance mode an admin must confirm, line cap, AMD tuning, abandonment rate. */
+function ParallelCompliance({ isAdmin, reload }: { isAdmin: boolean; reload: () => void }) {
+  const cfg = useApi<{ data: any }>('/v1/workspace/dialer/compliance');
+  const c = cfg.data?.data;
+  const [mode, setMode] = useState<'b2b' | 'consumer'>('b2b');
+  const [msg, setMsg] = useState('');
+  const [lines, setLines] = useState('3');
+  const [onUnknown, setOnUnknown] = useState<'hangup' | 'connect'>('hangup');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!c) return;
+    setMode(c.complianceMode);
+    setMsg(c.abandonedCallMessage ?? '');
+    setLines(String(c.maxLines));
+    setOnUnknown(c.onUnknown);
+  }, [c?.confirmedAt, c?.complianceMode]);
+  if (!c) return null;
+  const save = async (confirm: boolean) => {
+    setBusy(true);
+    try {
+      await api('/v1/workspace/dialer/compliance', { method: 'PUT', json: { data: { complianceMode: mode, abandonedCallMessage: msg || null, maxLines: Number(lines), onUnknown, confirm } } });
+      toast(confirm ? 'Compliance mode confirmed' : 'Saved');
+      cfg.reload();
+      reload();
+    } catch (e: any) {
+      toast(e.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const rate = c.abandonment;
+  return (
+    <Card data-testid="parallel-compliance">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          Parallel dialer
+          <Badge variant={c.confirmed ? 'default' : 'outline'}>{c.confirmed ? `${c.complianceMode === 'consumer' ? 'consumer' : 'B2B'} · confirmed` : 'not confirmed'}</Badge>
+        </CardTitle>
+        <CardDescription>
+          Dialing several prospects at once means a second person who answers is dropped. For calls to US consumers that is an abandoned call under the FTC Telemarketing Sales Rule (16 CFR 310.4), which allows at most 3% abandoned over 30 days and requires a recorded message with your name and number. Business-to-business calls are largely exempt. Pick the mode that matches who your reps call and confirm it. This is not legal advice.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-2">
+            <Label>Who you call</Label>
+            <Select value={mode} onValueChange={(v) => setMode(v as 'b2b' | 'consumer')} disabled={!isAdmin}>
+              <SelectTrigger data-testid="pc-mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="b2b">Businesses (B2B)</SelectItem>
+                <SelectItem value="consumer">Consumers</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>Lines per batch (max {mode === 'consumer' ? 2 : 6})</Label>
+            <Input type="number" min={1} max={mode === 'consumer' ? 2 : 6} value={lines} onChange={(e) => setLines(e.target.value)} disabled={!isAdmin} data-testid="pc-lines" />
+          </div>
+          <div className="grid gap-2">
+            <Label>When detection is unsure</Label>
+            <Select value={onUnknown} onValueChange={(v) => setOnUnknown(v as 'hangup' | 'connect')} disabled={!isAdmin}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="hangup">Hang up (safer)</SelectItem>
+                <SelectItem value="connect">Connect to the rep</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        {mode === 'consumer' && (
+          <div className="grid gap-2">
+            <Label>Abandoned-call message (played to a dropped person)</Label>
+            <Textarea rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="This was Acme calling. Reach us at 555 000 1111." disabled={!isAdmin} data-testid="pc-message" />
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          {rate && (
+            <span className="text-muted-foreground" data-testid="pc-rate">
+              Last {rate.windowDays} days: {rate.humansAnswered} people answered, {rate.dropped} dropped{rate.ratePct !== null ? ` (${rate.ratePct}%)` : ''}. Safe harbor {rate.safeHarborMaxPct}%.
+            </span>
+          )}
+          {isAdmin && (
+            <span className="ml-auto flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => save(false)} disabled={busy}>
+                Save
+              </Button>
+              <Button size="sm" onClick={() => save(true)} disabled={busy} data-testid="pc-confirm">
+                {c.confirmed && c.complianceMode === mode ? 'Re-confirm' : 'Confirm mode'}
+              </Button>
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

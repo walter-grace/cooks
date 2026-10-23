@@ -25,6 +25,19 @@ export class TwilioError extends Error {
   }
 }
 
+/** Twilio answering-machine detection tuning (see docs/dialer.md, "Parallel dialing"). */
+export interface AmdOptions {
+  mode?: 'Enable' | 'DetectMessageEnd';
+  /** Seconds Twilio keeps analysing before giving up with `unknown` (3–59). */
+  timeoutSeconds?: number;
+  /** Speech longer than this is a machine greeting (1000–6000 ms). */
+  speechThresholdMs?: number;
+  /** Silence after speech that ends a human greeting (500–5000 ms). */
+  speechEndThresholdMs?: number;
+  /** Initial silence that counts as a machine (2000–10000 ms). */
+  silenceTimeoutMs?: number;
+}
+
 export class TwilioClient {
   private base: string;
   private f: typeof fetch;
@@ -84,6 +97,49 @@ export class TwilioClient {
   /** End a live leg. */
   hangup(sid: string): Promise<{ sid: string; status: string }> {
     return this.form(`/Calls/${sid}.json`, { Status: 'completed' });
+  }
+  /** Cancel a leg that is still queued or ringing (Twilio rejects `canceled` once answered). */
+  cancel(sid: string): Promise<{ sid: string; status: string }> {
+    return this.form(`/Calls/${sid}.json`, { Status: 'canceled' });
+  }
+  /** Redirect a live leg to new TwiML (inline) or a URL. */
+  redirect(sid: string, p: { twiml?: string; url?: string }): Promise<{ sid: string; status: string }> {
+    return this.form(`/Calls/${sid}.json`, p.twiml ? { Twiml: p.twiml } : { Url: p.url, Method: 'POST' });
+  }
+  /**
+   * Outbound leg with asynchronous answering-machine detection. The call connects to `url`
+   * immediately; the verdict (`AnsweredBy`) is posted to `amdCallback` a few seconds later.
+   */
+  createAmdCall(p: { to: string; from: string; url: string; statusCallback: string; amdCallback: string; timeoutSeconds: number; amd: AmdOptions }): Promise<{ sid: string; status: string }> {
+    return this.form('/Calls.json', {
+      To: p.to,
+      From: p.from,
+      Url: p.url,
+      Method: 'POST',
+      StatusCallback: p.statusCallback,
+      StatusCallbackMethod: 'POST',
+      StatusCallbackEvent: 'initiated ringing answered completed',
+      Timeout: String(p.timeoutSeconds),
+      MachineDetection: p.amd.mode ?? 'Enable',
+      AsyncAmd: 'true',
+      AsyncAmdStatusCallback: p.amdCallback,
+      AsyncAmdStatusCallbackMethod: 'POST',
+      MachineDetectionTimeout: String(p.amd.timeoutSeconds ?? 5),
+      MachineDetectionSpeechThreshold: p.amd.speechThresholdMs !== undefined ? String(p.amd.speechThresholdMs) : undefined,
+      MachineDetectionSpeechEndThreshold: p.amd.speechEndThresholdMs !== undefined ? String(p.amd.speechEndThresholdMs) : undefined,
+      MachineDetectionSilenceTimeout: p.amd.silenceTimeoutMs !== undefined ? String(p.amd.silenceTimeoutMs) : undefined,
+    });
+  }
+  /** Start recording a live call (dual channel: this leg left, the other party right). */
+  startRecording(callSid: string, p: { statusCallback: string }): Promise<{ sid: string; status: string }> {
+    return this.form(`/Calls/${callSid}/Recordings.json`, { RecordingChannels: 'dual', RecordingStatusCallback: p.statusCallback, RecordingStatusCallbackEvent: 'completed', RecordingTrack: 'both' });
+  }
+  stopRecording(callSid: string, recordingSid = 'Twilio.CURRENT'): Promise<{ sid: string; status: string }> {
+    return this.form(`/Calls/${callSid}/Recordings/${recordingSid}.json`, { Status: 'stopped' });
+  }
+  /** End a conference and every participant in it. */
+  endConference(conferenceSid: string): Promise<{ sid: string; status: string }> {
+    return this.form(`/Conferences/${conferenceSid}.json`, { Status: 'completed' });
   }
   /** Download a recording as WAV (dual channel when recorded that way). */
   async recordingWav(recordingSid: string): Promise<Buffer> {
@@ -163,6 +219,27 @@ export function dialTwiml(o: DialTwimlOpts): string {
   const say = o.sayFirst ? `<Say voice="Polly.Joanna">${esc(o.sayFirst)}</Say>` : '';
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${say}<Dial callerId="${esc(o.callerId)}" answerOnBridge="true" timeLimit="${o.timeLimitSeconds ?? 3600}"${rec}><Number statusCallback="${esc(o.statusCallback)}" statusCallbackEvent="initiated ringing answered completed">${esc(o.to)}</Number></Dial></Response>`;
 }
+
+export interface ConferenceTwimlOpts {
+  name: string;
+  /** The rep starts the room and ends it when they leave; prospects join silently and never start it. */
+  role: 'rep' | 'prospect';
+  statusCallback?: string;
+  label?: string;
+  /** Seconds the leg may stay bridged (default 4 hours). */
+  timeLimitSeconds?: number;
+}
+
+/** `<Dial><Conference>` with no beep, no announcement and no hold music. */
+export function conferenceTwiml(o: ConferenceTwimlOpts): string {
+  const rep = o.role === 'rep';
+  const cb = o.statusCallback ? ` statusCallback="${esc(o.statusCallback)}" statusCallbackMethod="POST" statusCallbackEvent="start end join leave"` : '';
+  const label = o.label ? ` participantLabel="${esc(o.label)}"` : '';
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Dial timeLimit="${o.timeLimitSeconds ?? 14_400}"><Conference beep="false" startConferenceOnEnter="${rep}" endConferenceOnExit="${rep}" waitUrl=""${cb}${label}>${esc(o.name)}</Conference></Dial></Response>`;
+}
+
+/** Silent hold while async AMD decides; falls through to a hangup so a lost callback never strands the callee. */
+export const pauseTwiml = (seconds: number) => `<?xml version="1.0" encoding="UTF-8"?><Response><Pause length="${Math.max(1, Math.min(600, Math.round(seconds)))}"/><Hangup/></Response>`;
 
 export const hangupTwiml = (message?: string) => `<?xml version="1.0" encoding="UTF-8"?><Response>${message ? `<Say>${esc(message)}</Say>` : ''}<Hangup/></Response>`;
 

@@ -105,6 +105,25 @@ export function useDialer() {
     [ensureDevice, poll],
   );
 
+  /** Parallel dialer: join the session conference from the browser. Resolves once the SDK call is accepted. */
+  const joinConference = useCallback(
+    async (params: Record<string, string>, onDisconnect?: () => void) => {
+      const d = await ensureDevice();
+      const c = await d.connect({ params });
+      sdkCall.current = c;
+      c.on('disconnect', () => {
+        sdkCall.current = null;
+        onDisconnect?.();
+      });
+      c.on('error', () => {
+        sdkCall.current = null;
+        onDisconnect?.();
+      });
+      return c;
+    },
+    [ensureDevice],
+  );
+
   const hangup = useCallback(() => {
     sdkCall.current?.disconnect();
     sdkCall.current = null;
@@ -116,7 +135,7 @@ export function useDialer() {
     setActive(null);
   }, []);
 
-  return { active, dial, hangup, clear, softphoneReady, muted: () => sdkCall.current?.isMuted() ?? false, mute: (m: boolean) => sdkCall.current?.mute(m) };
+  return { active, dial, joinConference, hangup, clear, softphoneReady, connected: () => !!sdkCall.current, muted: () => sdkCall.current?.isMuted() ?? false, mute: (m: boolean) => sdkCall.current?.mute(m) };
 }
 
 export const OUTCOMES = [
@@ -134,6 +153,30 @@ export const OUTCOMES = [
 export const fmtDuration = (s: number | null | undefined) => {
   const n = Math.max(0, Math.round(s ?? 0));
   return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+};
+
+export const LINE_LABEL: Record<string, string> = {
+  queued: 'Queued',
+  skipped: 'Skipped',
+  dialing: 'Dialing',
+  ringing: 'Ringing',
+  answered: 'Answered, screening',
+  connected: 'Connected to you',
+  dropped: 'Dropped (callback made)',
+  voicemail: 'Voicemail',
+  no_answer: 'No answer',
+  busy: 'Busy',
+  failed: 'Failed',
+  canceled: 'Canceled',
+  completed: 'Done',
+};
+export const SESSION_LABEL: Record<string, string> = {
+  waiting_rep: 'Waiting for you to join',
+  ready: 'Ready to dial',
+  dialing: 'Dialing',
+  connected: 'Live',
+  wrapping: 'Log the call, then dial again',
+  ended: 'Ended',
 };
 
 export const STATUS_LABEL: Record<string, string> = {

@@ -15,6 +15,7 @@ import { requireTelephony, telephonyFor, type TelephonyDeps } from './connection
 import { dialTwiml, hangupTwiml, normalizePhone, voiceAccessToken } from './twilio.js';
 import { DialerError, TwilioProvider } from '../dialer/providers/index.js';
 import { aiRecordingResponse } from './ai-call.js';
+import { parallelRepVoice } from './parallel.js';
 
 export interface DialerDeps extends TelephonyDeps {
   publicUrl: string;
@@ -211,6 +212,8 @@ export async function bridgeTwiml(ctx: Ctx, callId: string, params: Record<strin
 
 /** Browser softphone placed a call: Twilio asks what to do with it. */
 export async function softphoneTwiml(ctx: Ctx, params: Record<string, string>, d: DialerDeps) {
+  // Parallel dialer: the rep's browser leg joins the session conference instead of dialing anyone.
+  if (params.kind === 'parallel' && params.sessionId) return parallelRepVoice(ctx, params.sessionId, params, d);
   const callId = params.callId ?? '';
   const tel = await telephonyFor(ctx, d);
   if (!tel) return hangupTwiml('Telephony is not configured.');
@@ -300,7 +303,7 @@ export async function logCall(ctx: Ctx, callId: string, input: LogCallInput) {
   const disp = await dispositionFor(ctx, { dispositionId: input.callDisposition?.id, outcome: input.outcome, name: input.dispositionName });
   if (!disp) throw unprocessable('Pass callDisposition.id, outcome or dispositionName', { field: 'callDisposition' });
   const now = ctx.clock.now();
-  const terminal = ['completed', 'busy', 'no_answer', 'failed', 'canceled'].includes(row.status) || row.status.startsWith('rep_');
+  const terminal = ['completed', 'busy', 'no_answer', 'failed', 'canceled', 'voicemail', 'abandoned'].includes(row.status) || row.status.startsWith('rep_');
   const [updated] = await ctx.db
     .update(calls)
     .set({
