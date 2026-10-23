@@ -171,8 +171,8 @@ export function createApp(deps: AppDeps) {
       title: 'Cooks API',
       version: deps.version ?? '0.1.0',
       description:
-        'Open-source sales engagement API. Wire-compatible with the public Nooks Sequencing API: ' +
-        'switch the base URL and existing clients keep working. Cooks is an independent project and is not affiliated with Nooks.',
+        'Open-source sales engagement API. Wire-compatible with the public sequencing API it mirrors (see docs/api-compat.md): ' +
+        'switch the base URL and existing clients keep working. Cooks is an independent project with no vendor affiliation.',
       license: { name: 'MIT' },
     },
     servers: [{ url: `${publicUrl}/v1` }],

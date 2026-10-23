@@ -390,7 +390,7 @@ export function landingBody(opts: LandingOptions): string {
     <h1>Let your reps <em>cook</em>.</h1>
     <p class="lead">Cooks is open-source sales engagement you host yourself: sequences, a parallel dialer, buying signals and call coaching on one Postgres. Point Claude, Grok or any MCP client at it and the bot does the typing.</p>
     <div class="ctas"><a class="cta fill" href="${esc(app)}">Open the app</a><a class="cta" href="#selfhost">Self-host in five minutes <span aria-hidden="true">↓</span></a></div>
-    <p class="fine"><span>MIT licensed</span><span>One Postgres, no Redis</span><span>66 MCP tools</span><span>Independent of Nooks</span></p>
+    <p class="fine"><span>MIT licensed</span><span>One Postgres, no Redis</span><span>66 MCP tools</span><span>Yours to fork</span></p>
   </section>
 
   <section class="feats" id="features">

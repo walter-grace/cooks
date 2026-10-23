@@ -40,7 +40,7 @@ Every callback is verified with `X-Twilio-Signature` against your auth token.
 ## Parallel dialing (power dialer)
 
 The power dialer at `/app/dialer` rings several prospects at once and connects the first person who
-answers to the rep, with no beep, announcement or AI voice. It is the Nooks-style flow, built on
+answers to the rep, with no beep, announcement or AI voice. It is the flow the commercial parallel dialers sell, built on
 Twilio Programmable Voice and Twilio's asynchronous answering-machine detection (AMD).
 
 ![Power dialer with one line connected, one voicemail, one canceled](screenshots/power-dialer.png)

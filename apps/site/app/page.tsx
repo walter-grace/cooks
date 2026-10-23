@@ -32,7 +32,7 @@ export default function Page() {
             <a className="cta fill" href={QUICKSTART}>Get the code</a>
             <a className="cta" href="#selfhost">Self-host in five minutes <span aria-hidden="true">↓</span></a>
           </div>
-          <p className="fine"><span>MIT licensed</span><span>One Postgres, no Redis</span><span>66 MCP tools</span><span>Independent of Nooks</span></p>
+          <p className="fine"><span>MIT licensed</span><span>One Postgres, no Redis</span><span>66 MCP tools</span><span>Yours to fork</span></p>
         </section>
 
         <section className="feats" id="features">

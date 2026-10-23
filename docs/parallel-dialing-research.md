@@ -7,7 +7,7 @@ marked UNVERIFIED. Nothing here is legal advice.
 
 ## What we were looking for
 
-A Nooks-style dialer: the rep joins first and waits; the system dials three or four prospects at once; the
+A parallel power dialer in the style of the commercial products: the rep joins first and waits; the system dials three or four prospects at once; the
 first person who says hello is connected to the rep with no beep, no announcement and no AI voice; every
 other line hangs up at once; a second human who answers in the same moment is dropped and turned into a
 callback; answering machines are detected and hung up, never connected.
