@@ -30,16 +30,24 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 
 function css(asset: string) {
   return `
-  /* Layout: one column of calm prose on paper; sections separated by hairlines, not cards; the footer is a single-ink river scene the text sits above. */
+  /* Layout: one column of calm prose on paper. Every size comes from one type scale and every gap from one
+     spacing scale (4px base); columns sit on a four-column grid with a 32px gutter so each second column shares
+     the same left edge. The footer is a single-ink river scene the text sits above. */
   :root {
     --paper: #fffbf9;          /* page ground: white with a breath of warmth */
-    --paper-2: #fff1ee;        /* code blocks, table bands */
+    --paper-2: #fff1ee;        /* code blocks, panels */
     --ink: #c41e3a;            /* the one illustration/link ink */
     --ink-strong: #3b0d15;     /* headings and body copy */
-    --ink-soft: #a06a72;       /* muted copy, labels */
+    --ink-soft: #8a515b;       /* muted copy and labels (6:1 on paper) */
     --line: rgba(196, 30, 58, .2);
     --font: "Newsreader", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    /* type scale */
+    --t-eyebrow: 13px; --t-cap: 14px; --t-small: 16px; --t-body: 17px; --t-h3: 22px;
+    --t-lead: clamp(18px, 1.6vw, 22px); --t-h2: clamp(30px, 3.6vw, 46px); --t-h1: clamp(42px, 7vw, 84px);
+    /* spacing scale */
+    --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px; --s9: 96px;
+    --gut: 32px; --sec: 80px;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -56,106 +64,169 @@ function css(asset: string) {
   html { scroll-behavior: smooth; }
   body {
     margin: 0; background: var(--paper); color: var(--ink-strong);
-    font-family: var(--font); font-size: 17px; line-height: 1.5;
+    font-family: var(--font); font-size: var(--t-body); line-height: 1.5;
     -webkit-font-smoothing: antialiased; overflow-x: hidden;
   }
   a { color: var(--ink); text-decoration: none; }
   a:hover { text-decoration: underline; text-underline-offset: .18em; }
   a:focus-visible, button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 2px; }
   code { font-family: var(--mono); font-size: .88em; }
+  p { margin: 0; }
   .wrap {
     max-width: 1240px; margin: 0 auto;
     padding-left: max(24px, env(safe-area-inset-left, 0px));
     padding-right: max(24px, env(safe-area-inset-right, 0px));
   }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
   /* ---------- the scene behind the page ---------- */
   .bgart { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
   .bgart .scene {
     position: absolute; left: 50%; top: 46%; width: 150vw; max-width: 2300px; aspect-ratio: 1600 / 679; transform: translate(-50%, -50%);
-    background: var(--ink); opacity: .075;
+    background: var(--ink); opacity: .055;
     -webkit-mask: url(${asset}/scene.png) no-repeat center / 100% auto; mask: url(${asset}/scene.png) no-repeat center / 100% auto;
   }
   .bgart .fade { position: absolute; inset: 0; background: linear-gradient(to bottom, var(--paper) 0, transparent 28%, transparent 72%, var(--paper) 100%); }
-  .bgart .sky { top: 9%; height: 18%; opacity: .55; }
+  .bgart .sky { top: 9%; height: 18%; opacity: .5; }
   header.top, main { position: relative; z-index: 1; }
 
   /* ---------- header ---------- */
-  header.top { padding-block: 22px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
-  .brand { display: inline-flex; align-items: center; gap: 12px; color: var(--ink-strong); font-size: 22px; font-weight: 500; letter-spacing: .01em; }
+  header.top { padding-block: var(--s4); display: flex; justify-content: space-between; align-items: center; gap: var(--s4); flex-wrap: wrap; }
+  .brand { display: inline-flex; align-items: center; gap: var(--s3); color: var(--ink-strong); font-size: var(--t-h3); font-weight: 500; letter-spacing: .01em; }
   .brand:hover { text-decoration: none; }
   .brand svg { width: 44px; height: 30px; display: block; color: var(--ink); }
-  nav.top { display: flex; flex-wrap: wrap; gap: 6px 26px; font-size: 16px; }
+  nav.top { display: flex; flex-wrap: wrap; gap: 0 var(--s4); font-size: var(--t-small); }
+  nav.top a { display: inline-block; padding: var(--s2) var(--s1); min-height: 40px; line-height: 24px; }
 
   /* ---------- hero ---------- */
-  .hero { padding-block: 10vh 8vh; max-width: 780px; }
-  .hero h1 { font-size: clamp(42px, 7vw, 84px); line-height: .98; font-weight: 400; margin: 0 0 22px; letter-spacing: -.015em; text-wrap: balance; }
+  .hero { padding-block: var(--s9) var(--s9); max-width: 780px; }
+  .hero h1 { font-size: var(--t-h1); line-height: .98; font-weight: 400; margin: 0 0 var(--s5); letter-spacing: -.015em; text-wrap: balance; }
   .hero h1 em { font-style: italic; color: var(--ink); }
-  .hero p { font-size: clamp(18px, 1.6vw, 22px); color: var(--ink-soft); max-width: 34em; margin: 0 0 30px; }
-  .ctas { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-  .cta { display: inline-flex; align-items: center; gap: 10px; border: 1px solid var(--ink); color: var(--ink); padding: 11px 20px; border-radius: 999px; font-size: 16px; }
+  .hero .lead { font-size: var(--t-lead); line-height: 1.45; color: var(--ink-soft); max-width: 34em; margin: 0 0 var(--s6); }
+  .ctas { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center; }
+  .cta { display: inline-flex; align-items: center; gap: var(--s2); border: 1px solid var(--ink); color: var(--ink); padding: 11px 20px; min-height: 44px; border-radius: 999px; font-size: var(--t-small); }
   .cta:hover { background: var(--ink); color: var(--paper); text-decoration: none; }
   .cta.fill { background: var(--ink); color: var(--paper); }
   .cta.fill:hover { background: var(--ink-strong); border-color: var(--ink-strong); }
-  .fine { margin: 28px 0 0; font-size: 14px; color: var(--ink-soft); letter-spacing: .01em; display: flex; flex-wrap: wrap; gap: 4px 0; }
+  .hero .fine { margin: var(--s5) 0 0; font-size: var(--t-cap); color: var(--ink-soft); letter-spacing: .01em; display: flex; flex-wrap: wrap; gap: var(--s1) 0; }
   .fine span { white-space: nowrap; }
   .fine span:not(:last-child)::after { content: "·"; margin: 0 .6em; }
 
-  /* ---------- pillars ---------- */
-  .feats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; padding-block: 28px 10vh; border-top: 1px solid var(--line); }
-  .feats > div { min-width: 0; }
-  .feats h3 { margin: 20px 0 8px; font-weight: 500; font-size: 22px; line-height: 1.15; text-wrap: balance; }
-  .feats p { margin: 0; color: var(--ink-soft); font-size: 16px; }
-  .n { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
-
-  /* ---------- editorial sections ---------- */
-  .sec { border-top: 1px solid var(--line); padding-block: 8vh; }
-  .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: start; }
+  /* ---------- shared editorial pieces ---------- */
+  .n { font-size: var(--t-eyebrow); line-height: 1.4; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
+  .n + h2, .n + h3 { margin-top: var(--s3); }
+  .sec { border-top: 1px solid var(--line); padding-block: var(--sec); }
+  .sec h2 { font-size: var(--t-h2); line-height: 1.05; font-weight: 400; margin: 0 0 var(--s4); letter-spacing: -.01em; text-wrap: balance; max-width: 16em; }
+  .sec h2.wide { max-width: none; }
+  .sec .n + h2, .sec .n + h3 { margin-top: var(--s3); }
+  .sec h2 + .split, .sec h2 + .box, .sec h2 + .compare { margin-top: var(--s6); }
+  .sec p { max-width: 30em; }
+  .sec p + p, .sec p + table, .sec p + blockquote, .sec p + .panel { margin-top: var(--s4); }
+  .sec p.soft, p.cap, cite { color: var(--ink-soft); }
+  p.cap { font-size: var(--t-cap); line-height: 1.45; }
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--gut); align-items: start; }
   .split > * { min-width: 0; }
-  .sec h2 { font-size: clamp(30px, 3.6vw, 46px); line-height: 1.05; font-weight: 400; margin: 10px 0 18px; letter-spacing: -.01em; text-wrap: balance; }
-  .sec p { margin: 0 0 16px; max-width: 36em; }
-  .sec p.soft { color: var(--ink-soft); }
-  .sec p:last-child { margin-bottom: 0; }
-  .shot { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--paper-2); box-shadow: 0 30px 60px -40px rgba(59, 13, 21, .45); max-width: 100%; }
-  .shot img { display: block; width: 100%; height: auto; }
-  .cap { margin-top: 10px; font-size: 14px; color: var(--ink-soft); }
-  table.t { width: 100%; border-collapse: collapse; margin: 22px 0 6px; font-variant-numeric: tabular-nums; }
-  table.t th, table.t td { text-align: left; padding: 10px 0; border-bottom: 1px solid var(--line); font-weight: 400; }
-  table.t th { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
+
+  /* ---------- pillars ---------- */
+  .feats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s7) var(--gut); padding-block: var(--s6) var(--sec); border-top: 1px solid var(--line); }
+  .feats > div { min-width: 0; }
+  .feats h3 { margin: var(--s3) 0 var(--s2); font-weight: 500; font-size: var(--t-h3); line-height: 1.15; text-wrap: balance; }
+  .feats p, .box p { color: var(--ink-soft); font-size: var(--t-small); line-height: 1.5; }
+
+  /* ---------- tables, code, quotes ---------- */
+  table.t { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.t th, table.t td { text-align: left; padding: var(--s3) 0; border-bottom: 1px solid var(--line); font-weight: 400; vertical-align: baseline; }
+  table.t th { font-size: var(--t-eyebrow); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); padding-top: 0; }
   table.t td:last-child, table.t th:last-child { text-align: right; }
-  table.t td:last-child { font-size: 22px; color: var(--ink); }
+  table.t td:last-child { font-size: var(--t-h3); color: var(--ink); white-space: nowrap; }
   table.t tr.amd td { color: var(--ink-soft); }
-  table.t tr.amd td:last-child { color: var(--ink-soft); }
-  pre { margin: 0; background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 13.5px/1.6 var(--mono); color: var(--ink-strong); }
+  table.t + p.cap, .compare + p.cap, .panel + p.cap { margin-top: var(--s3); }
+  pre { margin: 0; background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; padding: var(--s4) 20px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: var(--t-cap)/1.6 var(--mono); color: var(--ink-strong); }
   pre .c { color: var(--ink-soft); }
-  blockquote { margin: 22px 0 0; padding-left: 18px; border-left: 2px solid var(--ink); font-size: 21px; line-height: 1.35; font-style: italic; color: var(--ink-strong); max-width: 30em; }
-  blockquote cite { display: block; margin-top: 10px; font-size: 14px; font-style: normal; color: var(--ink-soft); }
-  /* agent fields */
-  .agents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 40px; margin-top: 40px; padding-top: 34px; border-top: 1px solid var(--line); }
+  blockquote { margin: 0; padding-left: var(--s4); border-left: 2px solid var(--ink); font-size: 21px; line-height: 1.35; font-style: italic; color: var(--ink-strong); max-width: 30em; }
+  blockquote cite { display: block; margin-top: var(--s3); font-size: var(--t-cap); line-height: 1.45; font-style: normal; }
+  figure { margin: 0; }
+  figure .cap { margin-top: var(--s3); }
+
+  /* ---------- product panels: the UI drawn in the page's own ink ---------- */
+  .panel { border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: 0 30px 60px -44px rgba(59, 13, 21, .5); overflow: hidden; font-size: var(--t-cap); line-height: 1.4; color: var(--ink-strong); max-width: 100%; }
+  .panel .bar { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); padding: var(--s3) var(--s4); border-bottom: 1px solid var(--line); background: var(--paper-2); font-size: var(--t-eyebrow); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+  .panel .bar b { font-weight: 500; color: var(--ink-strong); letter-spacing: 0; text-transform: none; font-size: var(--t-cap); }
+  .panel .live { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); letter-spacing: .08em; }
+  .panel .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ink); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .panel .rows { display: grid; }
+  .panel .row { display: grid; grid-template-columns: 1.2fr 1fr 4em; gap: var(--s3); align-items: baseline; padding: var(--s3) var(--s4); border-bottom: 1px solid var(--line); }
+  .panel .row:last-child { border-bottom: 0; }
+  .panel .row .who { font-weight: 500; }
+  .panel .row .who small { display: block; font-weight: 400; color: var(--ink-soft); font-size: var(--t-eyebrow); letter-spacing: 0; font-family: var(--mono); margin-top: 2px; }
+  .panel .row .st { color: var(--ink-soft); }
+  .panel .row .st q { quotes: "\\201C" "\\201D"; font-style: italic; color: var(--ink-strong); }
+  .panel .row .t { font-family: var(--mono); font-size: var(--t-eyebrow); color: var(--ink-soft); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .panel .row.on { background: var(--paper-2); }
+  .panel .row.on .st { color: var(--ink); }
+  .panel .row.on .t { color: var(--ink); }
+  .panel .foot { display: flex; flex-wrap: wrap; gap: var(--s2); padding: var(--s3) var(--s4); border-top: 1px solid var(--line); }
+  .panel .chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: var(--t-eyebrow); color: var(--ink-soft); }
+  .panel .chip.fill { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .panel .sig { display: grid; grid-template-columns: 7.5em 1fr 5.5em; gap: var(--s3); align-items: start; padding: var(--s3) var(--s4); border-bottom: 1px solid var(--line); }
+  .panel .sig:last-of-type { border-bottom: 0; }
+  .panel .sig .k { font-size: var(--t-eyebrow); letter-spacing: .08em; text-transform: uppercase; color: var(--ink); padding-top: 2px; }
+  .panel .sig .k.soft { color: var(--ink-soft); }
+  .panel .sig .d small { display: block; color: var(--ink-soft); margin-top: 2px; }
+  .panel .sig .t { font-family: var(--mono); font-size: var(--t-eyebrow); color: var(--ink-soft); white-space: nowrap; text-align: right; }
+  .panel .rule { padding: var(--s3) var(--s4); border-top: 1px solid var(--line); background: var(--paper-2); color: var(--ink-soft); }
+  .panel .rule b { color: var(--ink-strong); font-weight: 500; }
+  .panel .chat { padding: var(--s4); display: grid; gap: var(--s3); }
+  .panel .msg { max-width: 92%; padding: var(--s2) var(--s3); border-radius: 12px; border: 1px solid var(--line); }
+  .panel .msg.me { justify-self: end; background: var(--paper-2); border-color: transparent; }
+  .panel .msg .tool { display: inline-block; font-family: var(--mono); font-size: var(--t-eyebrow); color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; margin: 2px 4px 2px 0; }
+
+  /* ---------- comparison ---------- */
+  .compare { width: 100%; border-collapse: collapse; font-size: var(--t-small); }
+  .compare th, .compare td { text-align: left; padding: var(--s3) var(--s3) var(--s3) 0; border-bottom: 1px solid var(--line); vertical-align: top; font-weight: 400; }
+  .compare th { font-size: var(--t-eyebrow); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); padding-top: 0; }
+  .compare th:first-child { width: 18%; }
+  .compare th:nth-child(2) { width: 40%; }
+  .compare td:first-child { color: var(--ink-soft); }
+  .compare td.us { color: var(--ink-strong); }
+  .compare td.us b { color: var(--ink); font-weight: 500; }
+  .compare td.us::before { content: ""; }
+  .compare .src { font-size: var(--t-eyebrow); color: var(--ink-soft); letter-spacing: 0; text-transform: none; }
+  .sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s6) var(--gut); margin-top: var(--s7); padding-top: var(--s6); border-top: 1px solid var(--line); }
+  .sum > div { min-width: 0; }
+  .sum .big { font-size: var(--t-h2); line-height: 1; color: var(--ink); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .sum .big small { font-size: var(--t-small); color: var(--ink-soft); letter-spacing: 0; margin-left: 4px; }
+  .sum p { margin-top: var(--s3); color: var(--ink-soft); font-size: var(--t-small); }
+  .sum .n { margin-bottom: var(--s2); }
+
+  /* ---------- agent fields ---------- */
+  .agents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s7) var(--gut); margin-top: var(--s7); padding-top: var(--s7); border-top: 1px solid var(--line); }
   .agents > div { min-width: 0; }
-  .agents h3 { margin: 0 0 12px; font-weight: 500; font-size: 20px; line-height: 1.2; }
-  .agents h3 small { font-weight: 400; color: var(--ink-soft); font-size: 15px; margin-left: 10px; }
-  .agents p { margin: 10px 0 0; color: var(--ink-soft); font-size: 15.5px; max-width: none; }
-  .tools { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; font-size: 16px; }
-  .tools li { padding-left: 16px; position: relative; color: var(--ink-soft); }
+  .agents h3 { margin: 0 0 var(--s3); font-weight: 500; font-size: var(--t-h3); line-height: 1.15; }
+  .agents h3 small { font-weight: 400; color: var(--ink-soft); font-size: var(--t-small); margin-left: var(--s2); }
+  .agents pre + p { margin-top: var(--s3); color: var(--ink-soft); font-size: var(--t-small); max-width: 32em; }
+  .tools { list-style: none; margin: var(--s3) 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3) var(--gut); font-size: var(--t-small); line-height: 1.5; }
+  .tools li { padding-left: var(--s4); position: relative; color: var(--ink-soft); }
   .tools li::before { content: ""; position: absolute; left: 0; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
   .tools b { font-weight: 500; color: var(--ink-strong); }
-  .guard { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--line); font-size: 15.5px; color: var(--ink-soft); max-width: 48em; }
+  .guard { margin-top: var(--s7); padding-top: var(--s5); border-top: 1px solid var(--line); font-size: var(--t-small); color: var(--ink-soft); max-width: 44em; }
 
   /* ---------- "also in the box" ---------- */
-  .box { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 36px 32px; margin-top: 34px; }
+  .box { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s7) var(--gut); }
   .box > div { min-width: 0; }
-  .box h3 { margin: 0 0 8px; font-weight: 500; font-size: 20px; line-height: 1.2; }
-  .box p { margin: 0; color: var(--ink-soft); font-size: 16px; }
+  .box h3 { margin: 0 0 var(--s2); font-weight: 500; font-size: var(--t-h3); line-height: 1.15; }
 
   /* ---------- footer ---------- */
   footer { position: relative; z-index: 2; overflow: hidden; border-top: 1px solid var(--line); background: var(--paper); }
-  .fwrap { position: relative; z-index: 3; display: grid; grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, .6fr)); gap: 40px; padding-top: 56px; }
+  .fwrap { position: relative; z-index: 3; display: grid; grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, .6fr)); gap: var(--s6) var(--gut); padding-top: var(--s8); }
   .fwrap > * { min-width: 0; }
-  .fbrand p { color: var(--ink-soft); max-width: 26em; margin: 14px 0 0; font-size: 15.5px; }
-  .fbrand .copy { margin-top: 56px; color: var(--ink); font-size: 15px; }
-  .col h4 { margin: 0 0 14px; font-weight: 400; font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
-  .col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; font-size: 18px; }
+  .fbrand p { color: var(--ink-soft); max-width: 26em; margin: var(--s4) 0 0; font-size: var(--t-small); }
+  .fbrand .copy { margin-top: var(--s7); color: var(--ink); font-size: var(--t-cap); }
+  .col h4 { margin: 0 0 var(--s3); font-weight: 400; font-size: var(--t-eyebrow); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.4; }
+  .col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); font-size: var(--t-body); }
+  .col a { display: inline-block; padding: 6px 0; }
+  .col ul { gap: 0; }
 
   /* the illustration stack */
   .art { position: relative; margin-top: -4.5vw; width: 100%; max-width: 100%; aspect-ratio: 1600 / 679; z-index: 1; pointer-events: none; }
@@ -207,27 +278,44 @@ function css(asset: string) {
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes textIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
-  .replay { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: 14px; z-index: 4; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 999px; font: 500 13px/1 var(--font); padding: 9px 14px; cursor: pointer; letter-spacing: .04em; }
+  .replay { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: 14px; z-index: 4; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 999px; font: 500 var(--t-eyebrow)/1 var(--font); padding: 9px 14px; cursor: pointer; letter-spacing: .04em; }
   .replay:hover { border-color: var(--ink); }
 
+  @media (min-width: 1081px) {
+    .feats h3 { min-height: 2.3em; }   /* room for two title lines, so the four paragraphs start on one line */
+  }
   @media (max-width: 1080px) {
     .feats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .box { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .agents { grid-template-columns: 1fr; }
-    .fwrap { grid-template-columns: 1fr 1fr; gap: 28px; }
+    .sum { grid-template-columns: 1fr; }
+    .fwrap { grid-template-columns: 1fr 1fr; }
     .fbrand { grid-column: 1 / -1; }
   }
   @media (max-width: 820px) {
-    .hero { padding-block: 7vh 6vh; }
-    .split { grid-template-columns: 1fr; gap: 30px; }
+    :root { --sec: 56px; }
+    .hero { padding-block: var(--s7) var(--s8); }
+    .hero h1 { margin-bottom: var(--s4); }
+    .hero .lead { margin-bottom: var(--s5); }
+    nav.top a.sub { display: none; }       /* phone nav: API, GitHub, Sign in */
+    .split { grid-template-columns: 1fr; gap: var(--s6); }
     .split.rev > :first-child { order: 2; }
-    .feats { grid-template-columns: 1fr; gap: 12px; }
-    .box { grid-template-columns: 1fr; gap: 24px; }
+    .feats { grid-template-columns: 1fr; gap: var(--s6); }
+    .box { grid-template-columns: 1fr; gap: var(--s5); }
     .tools { grid-template-columns: 1fr; }
-    .bgart .scene { width: 230vw; top: 40%; }
-    .fbrand .copy { margin-top: 24px; }
-    nav.top { gap: 4px 18px; font-size: 15px; }
-    .art { margin-top: 24px; aspect-ratio: auto; height: 78vw; max-height: 560px; }
+    .agents { gap: var(--s6); }
+    pre { white-space: pre; overflow-wrap: normal; padding: var(--s3) var(--s4); font-size: 13px; }   /* code scrolls sideways rather than wrapping mid-flag */
+    blockquote { font-size: 19px; }
+    .panel .row { grid-template-columns: 1fr 4em; }
+    .panel .sig { grid-template-columns: 6.5em 1fr; }
+    .panel .sig .t { grid-column: 2; text-align: left; }
+    .panel .row .st { grid-column: 1 / -1; }
+    .compare { display: block; overflow-x: auto; }
+    .compare table { min-width: 560px; }
+    .bgart .scene { width: 230vw; top: 40%; opacity: .045; }
+    .bgart .sky { display: none; }
+    .fbrand .copy { margin-top: var(--s5); }
+    .art { margin-top: var(--s5); aspect-ratio: auto; height: 78vw; max-height: 560px; }
     .layer { -webkit-mask-size: auto 100%; mask-size: auto 100%; -webkit-mask-position: 36% bottom; mask-position: 36% bottom; }
     .boat { width: 26%; bottom: 1%; }
     .boat.far { width: 17%; bottom: 10%; }
@@ -236,7 +324,7 @@ function css(asset: string) {
   }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
-    .flock, .boat, .boat .bob, .shimmer, footer.in * { animation: none !important; }
+    .flock, .boat, .boat .bob, .shimmer, .panel .live::before, footer.in * { animation: none !important; }
     .boat { left: 22%; } .boat.far { left: 62%; }
     .flock { left: 30%; } .flock.b { left: 58%; }
   }
@@ -280,18 +368,19 @@ export function landingBody(opts: LandingOptions): string {
 
 <header class="top wrap" id="top">
   ${brand('Cooks home')}
-  <nav class="top"><a href="#features">Features</a><a href="#dialer">Dialer</a><a href="#assistant">Assistant</a><a href="#selfhost">Self-host</a><a href="${esc(docs)}">API</a><a href="${GITHUB}">GitHub</a><a href="${esc(app)}">Sign in</a></nav>
+  <nav class="top"><a class="sub" href="#features">Features</a><a class="sub" href="#dialer">Dialer</a><a class="sub" href="#assistant">Assistant</a><a class="sub" href="#compare">Compare</a><a class="sub" href="#selfhost">Self-host</a><a href="${esc(docs)}">API</a><a href="${GITHUB}">GitHub</a><a href="${esc(app)}">Sign in</a></nav>
 </header>
 
 <main class="wrap">
   <section class="hero">
     <h1>Let your reps <em>cook</em>.</h1>
-    <p>Cooks is open-source sales engagement you host yourself: sequences, a parallel dialer, buying signals and call coaching on one Postgres. Point Claude, Grok or any MCP client at it and the bot does the typing.</p>
+    <p class="lead">Cooks is open-source sales engagement you host yourself: sequences, a parallel dialer, buying signals and call coaching on one Postgres. Point Claude, Grok or any MCP client at it and the bot does the typing.</p>
     <div class="ctas"><a class="cta fill" href="${esc(app)}">Open the app</a><a class="cta" href="#selfhost">Self-host in five minutes <span aria-hidden="true">↓</span></a></div>
     <p class="fine"><span>MIT licensed</span><span>One Postgres, no Redis</span><span>66 MCP tools</span><span>Independent of Nooks</span></p>
   </section>
 
   <section class="feats" id="features">
+    <h2 class="sr">What Cooks does</h2>
     <div><div class="n">Sequencing</div><h3>Cadences that respect the clock</h3><p>Email, call, LinkedIn and manual steps with per-prospect time zones, send windows and daily caps per mailbox. Reply and bounce detection, A/B variants, one-click unsubscribe. AI drafts any email step and hands it to a person when unsure.</p></div>
     <div><div class="n">Dialer</div><h3>Four lines ring, one person answers</h3><p>Reps call on Twilio from the browser or a bridge to their phone. The power dialer rings three or four prospects at once and drops the first human into the rep's ear, with no beep and no message. Machines are hung up before anyone hears them.</p></div>
     <div><div class="n">Signals</div><h3>One feed of reasons to call</h3><p>Email engagement, web research, CRM changes and anything your bot pushes in, as one stream. Rules turn a matching signal into an enrollment or a task. Accounts in active sequences get a web scan every seven days.</p></div>
@@ -316,9 +405,42 @@ export function landingBody(opts: LandingOptions): string {
         <p class="cap">Measured on the mock carrier that ships with the repo. Your numbers will depend on the recognizer you pick: OpenAI Realtime, a local Nemotron model through sherpa-onnx, or none.</p>
       </div>
       <div>
-        <figure style="margin:0">
-          <div class="shot"><img src="${asset}/power-dialer.png" alt="The power dialer console with one prospect connected, two lines settled as voicemail and no answer, and the words the gate heard" width="1360" height="900" loading="lazy"></div>
-          <figcaption class="cap">The console shows which detector won and the first words heard. Voicemail drop and dispositions sit one keystroke away.</figcaption>
+        <figure>
+          <div class="panel" role="img" aria-label="The power dialer during one batch: one person connected after 0.8 seconds, one voicemail detected, one line hung up, one no answer">
+            <div class="bar"><b>Power dialer</b><span class="live">Live · batch 3 of 12</span></div>
+            <div class="rows">
+              <div class="row on"><div class="who">Maya Chen<small>+1 415 555 0142 · Globex</small></div><div class="st">person · heard <q>Hello?</q></div><div class="t">0.8 s</div></div>
+              <div class="row"><div class="who">Dev Patel<small>+1 312 555 0199 · Initech</small></div><div class="st">voicemail · heard <q>you've reached</q></div><div class="t">1.0 s</div></div>
+              <div class="row"><div class="who">Sam Okafor<small>+1 646 555 0127 · Hooli</small></div><div class="st">hung up, rep is busy</div><div class="t">0:06</div></div>
+              <div class="row"><div class="who">Lena Fischer<small>+1 206 555 0163 · Vandelay</small></div><div class="st">no answer · callback task made</div><div class="t">0:31</div></div>
+            </div>
+            <div class="foot"><span class="chip fill">Talking to Maya Chen</span><span class="chip">Meeting booked</span><span class="chip">Left voicemail</span><span class="chip">Not interested</span><span class="chip">Hang up</span></div>
+          </div>
+          <figcaption class="cap">One batch as the rep sees it, with example names. The line that won shows which detector settled it and the first words heard. Dispositions sit one keystroke away.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="signals">
+    <div class="split">
+      <div>
+        <div class="n">Signals</div>
+        <h2>Call when there is a reason.</h2>
+        <p>Every engagement event, web find, CRM change and reply lands in one feed with the prospect and account attached. Rules watch the feed and act: a second click in a week enrolls the prospect in a follow-up and puts a task in front of the owner.</p>
+        <p class="soft">Your bot can push its own signals through the API, so research it does in the morning shows up as reasons to call in the afternoon.</p>
+      </div>
+      <div>
+        <figure>
+          <div class="panel" role="img" aria-label="The signals feed with four recent signals and the rule that acts on them">
+            <div class="bar"><b>Signals</b><span>This week · 14 new</span></div>
+            <div class="sig"><div class="k">Clicked ×2</div><div class="d">Maya Chen opened the pricing link twice<small>Q4 outbound, step 3 · Globex</small></div><div class="t">2 h ago</div></div>
+            <div class="sig"><div class="k soft">Hiring</div><div class="d">Initech posted three SDR roles<small>Weekly web scan · careers page</small></div><div class="t">Yesterday</div></div>
+            <div class="sig"><div class="k soft">Deal stage</div><div class="d">Hooli moved to Evaluation<small>HubSpot sync</small></div><div class="t">Mon</div></div>
+            <div class="sig"><div class="k soft">Replied</div><div class="d">Lena Fischer: "loop in my VP"<small>Classified as a referral, confidence 0.92</small></div><div class="t">Mon</div></div>
+            <div class="rule"><b>Rule</b> · clicked twice within 7 days → enroll in Hot follow-up, task for the owner</div>
+          </div>
+          <figcaption class="cap">The feed and one rule. Example data.</figcaption>
         </figure>
       </div>
     </div>
@@ -331,7 +453,14 @@ export function landingBody(opts: LandingOptions): string {
       <div>
         <p>Cooks ships an MCP server, so the assistant you already pay for can research an account, enroll the prospect, draft the email, place the call and log the outcome. It is a thin client over the REST API: it runs on a laptop against a hosted Cooks, or next to the API for the whole team. In that mode Cooks spends no tokens of its own.</p>
         <p class="soft">Prefer hosted agents? Give a workspace its own key on Anthropic, xAI, OpenAI, OpenRouter or Ollama. Drafts, reply classification and research then run in the worker with a ledger of every run's tokens and cost.</p>
-        <blockquote>"Find the three accounts with the strongest signals this week, enroll their champions in the Q4 sequence, and call the one who clicked twice."<cite>Something you can say once the server is connected. Cooks does it with your rules, your mailboxes and your audit trail.</cite></blockquote>
+        <div class="panel" role="img" aria-label="A chat with an assistant that uses Cooks tools to find accounts, enroll prospects and place a call">
+          <div class="bar"><b>Claude Code</b><span>cooks · 66 tools</span></div>
+          <div class="chat">
+            <div class="msg me">Find the three accounts with the strongest signals this week, enroll their champions in the Q4 sequence, and call the one who clicked twice.</div>
+            <div class="msg">Strongest this week: Globex, Initech, Hooli. <span class="tool">cooks_list_signals</span><br>Enrolled Maya Chen, Dev Patel and Sam Okafor in Q4 outbound. <span class="tool">cooks_enroll_prospect</span> ×3<br>Maya clicked twice, so I'm ringing her now and will log the outcome. <span class="tool">cooks_dial</span></div>
+          </div>
+        </div>
+        <p class="cap">What a session looks like once the server is connected. Cooks does the work with your rules, your mailboxes and your audit trail.</p>
       </div>
       <div>
         <div class="n">What the tools cover</div>
@@ -390,16 +519,41 @@ export function landingBody(opts: LandingOptions): string {
 
   <section class="sec" id="more">
     <div class="n">Also in the box</div>
-    <h2>Everything a floor needs, on one database.</h2>
+    <h2 class="wide">Everything a floor needs, on one database.</h2>
     <div class="box">
-      <div><h3>Mailboxes</h3><p>Gmail, Microsoft 365 and plain SMTP, with inbound sync for replies and bounces. Threading, tracking and suppression lists are built in.</p></div>
-      <div><h3>Inkbox channels</h3><p>Every rep or agent gets an email address, an SMS number and an iMessage line. Replies land in one inbox, texts respect consent and quiet hours, and STOP opts the prospect out.</p></div>
-      <div><h3>HubSpot</h3><p>Contact and company sync, auto-enroll from a list or a deal stage, notes and email and call logging on the timeline. Salesforce teams run their own MCP next to this one.</p></div>
-      <div><h3>Voice agents</h3><p>Let a Speko agent place the call from a script and bring back the outcome, the transcript and the recording. Dispositions close the linked task either way.</p></div>
-      <div><h3>Drop-in API</h3><p>Same paths, envelopes, cursor paging, scopes and rate-limit headers as the commercial API it mirrors. Existing clients work by changing the base URL. A conformance diff runs in CI.</p></div>
-      <div><h3>Webhooks</h3><p>Signed and retried events for calls, emails, enrollments, tasks and prospects. The call.logged payload is byte-compatible with the upstream one.</p></div>
-      <div><h3>Sign-in your way</h3><p>Workspace API keys, OAuth 2.1 with PKCE and dynamic client registration, or Clerk SSO where organizations become workspaces. Secrets are encrypted at rest with a key you hold.</p></div>
-      <div><h3>Web app</h3><p>Task queue, prospects, accounts, sequences, emails, calls, the power dialer, signals and settings, built on shadcn/ui. Light and dark.</p></div>
+      <div><h3>Mailboxes</h3><p>Gmail, Microsoft 365 or SMTP, with inbound sync for replies and bounces.</p></div>
+      <div><h3>Inkbox channels</h3><p>An email address, an SMS number and an iMessage line per rep, with one inbox and STOP honored.</p></div>
+      <div><h3>HubSpot</h3><p>Contact and company sync, auto-enroll from a list or deal stage, calls and email on the timeline.</p></div>
+      <div><h3>Voice agents</h3><p>A Speko agent places the call from a script and brings back the outcome, transcript and recording.</p></div>
+      <div><h3>Drop-in API</h3><p>Same paths, envelopes and paging as the commercial API it mirrors. Existing clients change one base URL.</p></div>
+      <div><h3>Webhooks</h3><p>Signed, retried events for calls, emails, enrollments, tasks and prospects.</p></div>
+      <div><h3>Sign-in your way</h3><p>API keys, OAuth 2.1 with PKCE, or Clerk SSO. Secrets encrypted at rest with a key you hold.</p></div>
+      <div><h3>Web app</h3><p>Tasks, prospects, sequences, emails, calls, dialer, signals and settings. Light and dark.</p></div>
+    </div>
+  </section>
+
+  <section class="sec" id="compare">
+    <div class="n">Compared</div>
+    <h2 class="wide">What a floor pays to dial.</h2>
+    <p>Nooks and Orum are good products that charge per seat behind a sales call. Cooks is the same shape of product under MIT, so what recurs is the phone company's bill and whatever runs your server.</p>
+    <table class="compare">
+      <thead><tr><th scope="col"></th><th scope="col">Cooks</th><th scope="col">Nooks</th><th scope="col">Orum</th></tr></thead>
+      <tbody>
+        <tr><td>License</td><td class="us"><b>Free, MIT.</b> No per-seat fee.</td><td>Custom quote</td><td>Custom quote</td></tr>
+        <tr><td>Pricing published</td><td class="us">This page</td><td>No, "get in touch"</td><td>No, "based on package and users"</td></tr>
+        <tr><td>Minimum seats</td><td class="us">None</td><td>Not published</td><td>Nine</td></tr>
+        <tr><td>Parallel dialer</td><td class="us">Four lines, first person wins, hears the pickup</td><td>Yes</td><td>Yes, on the Ascend plan</td></tr>
+        <tr><td>Telephony</td><td class="us">Twilio at its published rate: $0.014 a minute in the US, $1.15 a month per number</td><td>Not published</td><td>Not published</td></tr>
+        <tr><td>Try it</td><td class="us">Whole product, locally, against a mock carrier, for as long as you like</td><td>Not published</td><td>Trial capped at 500 dials</td></tr>
+        <tr><td>Where the data lives</td><td class="us">Your Postgres, your server</td><td>Their cloud</td><td>Their cloud</td></tr>
+        <tr><td>Driven by your assistant</td><td class="us">66 MCP tools for Claude, Grok, Cursor</td><td>Not on their public pages</td><td>Not on their public pages</td></tr>
+      </tbody>
+    </table>
+    <p class="cap">Nooks, Orum and Twilio facts read from their pricing pages in October 2026, linked in the footer. Check them before you buy, since they change.</p>
+    <div class="sum">
+      <div><div class="n">Ten seats, reported</div><div class="big">$7.8k–18k<small>a year on Nooks</small></div><p>Buyers report $65 to $150 per user per month (Vendr, February 2026). The list quote is said to run higher.</p></div>
+      <div><div class="n">Ten seats, reported</div><div class="big">$12k–24k<small>a year on Orum</small></div><p>Buyers report $100 to $200 per user per month (Vendr, February 2026), and nine seats is the floor.</p></div>
+      <div><div class="n">Ten seats on Cooks</div><div class="big">$0<small>a year in licenses</small></div><p>100,000 outbound minutes cost about $1,400 at Twilio's rate, ten numbers $138, plus whatever your server costs.</p></div>
     </div>
   </section>
 
@@ -418,10 +572,6 @@ createdb cooks &amp;&amp; cp .env.example .env
 pnpm bootstrap --email you@example.com --workspace "My Team"
 pnpm --filter @cooks/api dev    <span class="c"># http://localhost:8080</span>
 pnpm --filter @cooks/worker dev <span class="c"># engine, mail, webhooks, AI</span></pre>
-        <figure style="margin:28px 0 0">
-          <div class="shot"><img src="${asset}/signals.png" alt="The signals feed: a list of buying signals with sources and the rules that act on them" width="1280" height="1141" loading="lazy"></div>
-          <figcaption class="cap">The signals feed. A rule on the right turns a matching signal into an enrollment or a task.</figcaption>
-        </figure>
       </div>
     </div>
   </section>
@@ -436,7 +586,7 @@ pnpm --filter @cooks/worker dev <span class="c"># engine, mail, webhooks, AI</sp
     </div>
     <div class="col"><h4>Product</h4><ul><li><a href="${esc(app)}">Open the app</a></li><li><a href="${esc(docs)}">API reference</a></li><li><a href="${GITHUB}">GitHub</a></li><li><a href="${GITHUB}/releases/latest">Releases</a></li></ul></div>
     <div class="col"><h4>Guides</h4><ul><li><a href="${DOC('self-host')}">Self-hosting</a></li><li><a href="${DOC('mcp')}">Connect an assistant</a></li><li><a href="${DOC('dialer')}">Dialer</a></li><li><a href="${DOC('coaching')}">Coaching</a></li><li><a href="${DOC('signals')}">Signals</a></li></ul></div>
-    <div class="col"><h4>Project</h4><ul><li><a href="${GITHUB}/blob/main/LICENSE">MIT License</a></li><li><a href="${GITHUB}/blob/main/SECURITY.md">Security</a></li><li><a href="${GITHUB}/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="${DOC('api-compat')}">API compatibility</a></li></ul></div>
+    <div class="col"><h4>Project</h4><ul><li><a href="https://www.nooks.ai/pricing">Nooks pricing</a></li><li><a href="https://www.orum.com/pricing">Orum pricing</a></li><li><a href="https://www.twilio.com/en-us/voice/pricing/us">Twilio voice rates</a></li><li><a href="${GITHUB}/blob/main/LICENSE">MIT License</a></li><li><a href="${GITHUB}/blob/main/SECURITY.md">Security</a></li><li><a href="${GITHUB}/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="${DOC('api-compat')}">API compatibility</a></li></ul></div>
   </div>
 
   <div class="art" aria-hidden="true">

@@ -12,13 +12,13 @@ describe('landing page', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
     const html = await res.text();
-    for (const id of ['features', 'dialer', 'assistant', 'more', 'selfhost', 'footer']) expect(html).toContain(`id="${id}"`);
+    for (const id of ['features', 'dialer', 'signals', 'assistant', 'more', 'compare', 'selfhost', 'footer']) expect(html).toContain(`id="${id}"`);
     expect(html).toContain('claude mcp add cooks');
     expect(html).toContain('not affiliated with or endorsed by Nooks');
     expect(html).not.toContain('cooks-api-' + 'XXXX'); // no real key shapes leak into the page
   });
-  it('serves the footer art and screenshots from /landing, nothing else', async () => {
-    for (const f of ['scene.png', 'boat.png', 'power-dialer.png', 'signals.png']) {
+  it('serves the footer art from /landing, nothing else', async () => {
+    for (const f of ['scene.png', 'boat.png']) {
       const res = await t.app.request(`/landing/${f}`);
       expect(res.status, f).toBe(200);
       expect(res.headers.get('content-type')).toBe('image/png');
