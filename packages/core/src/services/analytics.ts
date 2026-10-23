@@ -7,6 +7,8 @@ export function emptyAnalytics(): Analytics {
     email: { delivered: 0, opened: 0, clicked: 0, replied: 0, bounced: 0, unsubscribed: 0 },
     calls: { dialed: 0, connected: 0, meetings: 0 },
     linkedIn: { connectionRequestsSent: 0, connectionRequestsAccepted: 0, messagesSent: 0, repliesReceived: null },
+    messages: { sent: 0, delivered: 0, replied: 0, blocked: 0 },
+    inbox: { replies: 0 },
   };
 }
 

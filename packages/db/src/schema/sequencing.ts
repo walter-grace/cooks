@@ -17,6 +17,9 @@ export const STEP_ACTIONS = [
   'manual_sms',
   'auto_sms',
   'manual_whatsapp',
+  'manual_imessage',
+  'auto_imessage',
+  'auto_ai_call',
 ] as const;
 export type StepAction = (typeof STEP_ACTIONS)[number];
 
@@ -117,6 +120,8 @@ export const sequenceSteps = pgTable(
     emailTemplateId: uuid('email_template_id').references(() => emailTemplates.id, { onDelete: 'set null' }),
     aiEmail: jsonb('ai_email').$type<AiEmailConfig>(),
     hasAbVariants: boolean('has_ab_variants').notNull().default(false),
+    /** Message text for SMS / iMessage steps, or the task brief for AI call steps (Liquid merge fields). */
+    body: text('body'),
   },
   (t) => [
     index('sequence_steps_seq_order_idx').on(t.sequenceId, t.order),

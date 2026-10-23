@@ -55,6 +55,8 @@ export const prospects = pgTable(
     emailStatus: emailStatus('email_status').notNull().default('unknown'),
     unsubscribedAt: timestamp('unsubscribed_at', { withTimezone: true }),
     doNotContact: boolean('do_not_contact').notNull().default(false),
+    /** Set when the prospect texted STOP (or was opted out through the API). Blocks SMS and iMessage. */
+    smsOptOutAt: timestamp('sms_opt_out_at', { withTimezone: true }),
     ownerId: uuid('owner_id'),
   },
   (t) => [

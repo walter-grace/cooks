@@ -21,3 +21,4 @@ export * from './ai.js';
 export * from './research.js';
 export * from './crm.js';
 export * from './signals.js';
+export * from './messages.js';

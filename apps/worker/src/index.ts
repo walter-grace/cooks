@@ -49,6 +49,7 @@ const workerDeps = {
   telephonyApiBase: env.TWILIO_API_BASE,
   spekoApiKey: env.SPEKO_API_KEY,
   spekoApiBase: env.SPEKO_API_BASE,
+  inkboxApiBase: env.INKBOX_API_BASE,
   log: (msg: string, data?: Record<string, unknown>) => console.log(`[worker] ${msg}`, data ? JSON.stringify(data) : ''),
 };
 registerHandlers(boss, workerDeps);

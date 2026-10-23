@@ -49,6 +49,8 @@ through the REST API.
 | --- | --- | --- |
 | `call.logged` | A call is logged with a disposition (dialer or manual) | `callData` |
 | `email.sent` / `email.delivered` / `email.opened` / `email.clicked` / `email.replied` / `email.bounced` | Outbound email lifecycle | `emailId`, `prospectId`, `sequenceStateId` |
+| `message.sent` / `message.received` / `message.replied` / `message.failed` | SMS, iMessage and agent messages through Inkbox | `messageId`, `channel`, `prospectId`, `textPreview` |
+| `prospect.opted_out` | A prospect texted STOP | `prospectId`, `channel`, `from` |
 | `email.failed` | Delivery gave up: a permanent provider error, or a transient one after the last retry | `emailId`, `prospectId`, `sequenceStateId`, `attempts`, `transient`, `error` |
 | `prospect.created` / `prospect.updated` / `prospect.unsubscribed` | Prospect changes | `prospectId` |
 | `sequence_state.created` / `.paused` / `.resumed` / `.finished` | Enrollment changes | `sequenceStateId`, `prospectId`, `sequenceId`, `reason` |

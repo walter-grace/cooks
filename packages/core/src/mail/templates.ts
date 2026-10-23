@@ -117,3 +117,12 @@ export function buildMergeContext(args: {
     unsubscribeUrl: args.unsubscribeUrl,
   };
 }
+
+/** Render a plain-text template (SMS, iMessage, call briefs) with the same strict Liquid engine. */
+export async function renderText(tpl: string, ctx: MergeContext): Promise<string> {
+  try {
+    return (await engine.parseAndRender(tpl, ctx)).replace(/[ \t]+\n/g, '\n').trim();
+  } catch (e) {
+    throw new TemplateError(`Message template failed: ${(e as Error).message}`, 'body');
+  }
+}

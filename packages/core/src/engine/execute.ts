@@ -1,13 +1,17 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { emails, sequenceStates, sequenceSteps, sequences, stepExecutions, tasks } from '@cooks/db';
+import { emails, messages, sequenceStates, sequenceSteps, sequences, stepExecutions, tasks } from '@cooks/db';
 import type { Ctx } from '../context.js';
 import { emitEvent } from '../events.js';
 import { advanceEnrollment } from './advance.js';
 
-export type ExecuteResult = 'task_created' | 'email_queued' | 'skipped' | 'already_done';
+export type ExecuteResult = 'task_created' | 'email_queued' | 'message_queued' | 'call_queued' | 'skipped' | 'already_done';
 
 /** Step actions that run without a human. Everything else materializes a Task. */
 export const AUTO_EMAIL_ACTIONS = new Set(['auto_email', 'auto_email_reply']);
+/** Text channels delivered through Inkbox by the worker (`message.send`). */
+export const AUTO_MESSAGE_ACTIONS = new Set(['auto_sms', 'auto_imessage']);
+/** Hosted AI call placed through Inkbox by the worker (`inkbox.call`). */
+export const AUTO_CALL_ACTIONS = new Set(['auto_ai_call']);
 
 /**
  * Fire a scheduled step. Idempotent: the (enrollment, step) execution row is unique,
@@ -69,6 +73,34 @@ export async function executeStep(ctx: Ctx, stateId: string, stepId: string): Pr
     await ctx.db.update(sequenceStates).set({ stepPhase: 'executing' }).where(eq(sequenceStates.id, stateId));
     await ctx.jobs.send('email.send', { emailId: email!.id, executionId: execution.id, workspaceId: state.workspaceId }, { singletonKey: `email:${email!.id}` });
     return 'email_queued';
+  }
+
+  if (AUTO_MESSAGE_ACTIONS.has(step.action)) {
+    const [m] = await ctx.db
+      .insert(messages)
+      .values({
+        workspaceId: state.workspaceId,
+        prospectId: state.prospectId,
+        accountId: state.accountId,
+        ownerId: state.ownerId,
+        sequenceId: state.sequenceId,
+        sequenceStateId: stateId,
+        sequenceStepId: stepId,
+        channel: step.action === 'auto_imessage' ? 'imessage' : 'sms',
+        direction: 'outbound',
+        status: 'queued',
+        body: step.body ?? step.note ?? '',
+        provider: 'inkbox',
+      })
+      .returning({ id: messages.id });
+    await ctx.db.update(sequenceStates).set({ stepPhase: 'executing' }).where(eq(sequenceStates.id, stateId));
+    await ctx.jobs.send('message.send', { messageId: m!.id, workspaceId: state.workspaceId }, { singletonKey: `msg:${m!.id}` });
+    return 'message_queued';
+  }
+  if (AUTO_CALL_ACTIONS.has(step.action)) {
+    await ctx.db.update(sequenceStates).set({ stepPhase: 'executing' }).where(eq(sequenceStates.id, stateId));
+    await ctx.jobs.send('inkbox.call', { stateId, stepId, workspaceId: state.workspaceId }, { singletonKey: `inkcall:${stateId}:${stepId}` });
+    return 'call_queued';
   }
 
   const [task] = await ctx.db

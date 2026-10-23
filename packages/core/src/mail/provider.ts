@@ -46,7 +46,7 @@ export interface InboundProvider {
 }
 
 export interface MailProvider {
-  readonly kind: 'smtp' | 'gmail' | 'ms_graph' | 'memory';
+  readonly kind: 'smtp' | 'gmail' | 'ms_graph' | 'memory' | 'inkbox';
   send(msg: OutboundMessage): Promise<SendResult>;
   verify?(): Promise<void>;
 }

@@ -29,7 +29,7 @@
 
 Cooks is the sales engagement stack a team would build for itself if it had the time: a sequencing engine with real send windows and reply detection, a Twilio dialer with recordings, a feed of buying signals, and an AI coach that scores every recorded call. It runs on your own server under the MIT license, and it speaks the same REST contract as the commercial platform it mirrors, so existing clients and docs carry over by changing a base URL.
 
-The part that makes it different is the brain. Cooks ships an MCP server with 57 tools, so Claude, Grok, Cursor or any MCP-capable assistant can work your pipeline directly: research an account, enroll the prospect, draft the email, place the call, log the outcome. In that mode Cooks spends no tokens of its own.
+The part that makes it different is the brain. Cooks ships an MCP server with 61 tools, so Claude, Grok, Cursor or any MCP-capable assistant can work your pipeline directly: research an account, enroll the prospect, draft the email, place the call, log the outcome. In that mode Cooks spends no tokens of its own.
 
 ## What you get
 
@@ -64,6 +64,7 @@ The part that makes it different is the brain. Cooks ships an MCP server with 57
 
 - A web app at `/app` built on shadcn/ui: task queue, prospects, accounts, sequences, emails, calls, signals, settings. Light and dark.
 - Gmail, Microsoft 365 and plain SMTP mailboxes, with inbound sync for replies and bounces.
+- Inkbox as a channel: every rep or agent gets an email address, an SMS number and an iMessage line. Sequences send through them, replies come back through a signed webhook into one inbox, texts respect consent and quiet hours, and STOP opts the prospect out.
 - HubSpot connector: contact and company sync, list and deal-stage auto-enroll, notes and email/call logging. Salesforce users run the Salesforce MCP next to the Cooks MCP in the same bot today.
 - Hosted AI per workspace on Anthropic, xAI, OpenAI, OpenRouter or Ollama, with a run ledger that records tokens and cost.
 - Workspace API keys and OAuth 2.1 with PKCE and dynamic client registration. Clerk SSO when you want it, where organizations become workspaces.
@@ -159,6 +160,7 @@ Details and the list of deliberately mirrored behaviors are in [docs/api-compat.
 | Signals and rules | [docs/signals.md](docs/signals.md) |
 | Call coaching and transcription | [docs/coaching.md](docs/coaching.md) |
 | HubSpot and CRM | [docs/crm.md](docs/crm.md) |
+| Inkbox channels: email, SMS, iMessage, hosted calls | [docs/inkbox.md](docs/inkbox.md) |
 | Webhooks and signatures | [docs/webhooks.md](docs/webhooks.md) |
 | API compatibility and conformance | [docs/api-compat.md](docs/api-compat.md), [docs/conformance.md](docs/conformance.md) |
 

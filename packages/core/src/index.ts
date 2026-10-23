@@ -16,3 +16,4 @@ export * from './webhooks/index.js';
 export * from './crm/index.js';
 export * from './dialer/index.js';
 export * from './telephony/index.js';
+export * from './channels/index.js';

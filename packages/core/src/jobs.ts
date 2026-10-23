@@ -27,6 +27,9 @@ export type JobName =
   | 'signals.scan_due'
   | 'telephony.recording'
   | 'telephony.ai_poll'
+  | 'message.send'
+  | 'inkbox.call'
+  | 'inkbox.call_poll'
   | 'ai.coach_call';
 
 export interface JobsPort {

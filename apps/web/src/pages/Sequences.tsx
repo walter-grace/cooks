@@ -14,7 +14,9 @@ import { useApi, toast } from '../hooks.js';
 import { Link, navigate } from '../router.js';
 import { Empty, PageHeader, StateBadge } from '../components/layout.js';
 
-const ACTIONS = ['auto_email', 'manual_email', 'call', 'manual_email_reply', 'auto_email_reply', 'basic_task', 'linkedin_connection_request', 'manual_linkedin_message', 'manual_sms', 'auto_sms', 'manual_whatsapp'];
+const ACTIONS = ['auto_email', 'manual_email', 'call', 'manual_email_reply', 'auto_email_reply', 'basic_task', 'linkedin_connection_request', 'manual_linkedin_message', 'manual_sms', 'auto_sms', 'manual_imessage', 'auto_imessage', 'auto_ai_call', 'manual_whatsapp'];
+const BODY_ACTIONS = new Set(['auto_sms', 'auto_imessage', 'auto_ai_call', 'manual_sms', 'manual_imessage']);
+const BODY_LABEL: Record<string, string> = { auto_sms: 'Text message (sent automatically through Inkbox)', auto_imessage: 'iMessage (sent automatically through Inkbox)', auto_ai_call: 'Brief for the Inkbox call agent (what to accomplish)', manual_sms: 'Suggested text for the rep', manual_imessage: 'Suggested iMessage for the rep' };
 
 export function Sequences() {
   const { data, error, loading, reload } = useApi<{ data: any[] }>('/v1/sequences?include=owner&page[size]=100');
@@ -83,7 +85,7 @@ export function Sequences() {
 export function SequenceDetail({ id }: { id: string }) {
   const { data, error, reload } = useApi<{ data: any }>(`/v1/sequences/${id}?include=sequenceSteps,owner`);
   const states = useApi<{ data: any[] }>(`/v1/sequenceStates${q({ 'filter[sequence][id]': id, include: 'prospect,sequenceStep', 'page[size]': 100 })}`);
-  const [step, setStep] = useState({ action: 'auto_email', intervalDays: '2', name: '', note: '', emailSubject: '', emailBody: '', aiPrompt: '' });
+  const [step, setStep] = useState({ action: 'auto_email', intervalDays: '2', name: '', note: '', emailSubject: '', emailBody: '', aiPrompt: '', body: '' });
   const s = data?.data;
 
   const addStep = async (e: React.FormEvent) => {
@@ -101,10 +103,11 @@ export function SequenceDetail({ id }: { id: string }) {
             emailSubject: step.action.includes('email') ? step.emailSubject : undefined,
             emailBody: step.action.includes('email') ? step.emailBody : undefined,
             aiEmail: step.aiPrompt && step.action.includes('email') ? { promptOverride: step.aiPrompt } : undefined,
+            body: BODY_ACTIONS.has(step.action) && step.body ? step.body : undefined,
           },
         },
       });
-      setStep({ ...step, name: '', note: '', emailSubject: '', emailBody: '', aiPrompt: '' });
+      setStep({ ...step, name: '', note: '', emailSubject: '', emailBody: '', aiPrompt: '', body: '' });
       toast('Step added');
       reload();
     } catch (err: any) {
@@ -138,6 +141,9 @@ export function SequenceDetail({ id }: { id: string }) {
     ['Replied', s.analytics.email.replied],
     ['Bounced', s.analytics.email.bounced],
     ['Unsubscribed', s.analytics.email.unsubscribed],
+    ['Texts sent', s.analytics.messages?.sent ?? 0],
+    ['Text replies', s.analytics.messages?.replied ?? 0],
+    ['Inkbox replies', s.analytics.inbox?.replies ?? 0],
   ];
   return (
     <>
@@ -255,6 +261,18 @@ export function SequenceDetail({ id }: { id: string }) {
                 <div className="grid gap-2">
                   <Label>AI drafting instructions (optional)</Label>
                   <Input value={step.aiPrompt} onChange={(e) => setStep({ ...step, aiPrompt: e.target.value })} placeholder="e.g. Reference their recent funding and ask for 15 minutes." />
+                </div>
+              </>
+            ) : BODY_ACTIONS.has(step.action) ? (
+              <>
+                <div className="grid gap-2">
+                  <Label>{BODY_LABEL[step.action]}</Label>
+                  <Textarea rows={4} value={step.body} onChange={(e) => setStep({ ...step, body: e.target.value })} placeholder={step.action === 'auto_ai_call' ? 'Call {{ prospect.firstName }} at {{ account.name }} and confirm Thursday at 10.' : 'Hi {{ prospect.firstName }}, …'} data-testid="step-body" />
+                  {step.action.startsWith('auto_') && <p className="text-xs text-muted-foreground">Goes out through the Inkbox identity mapped to the enrollment owner. Texts need consent on file and only send 08:00 to 21:00 in the prospect's zone; blocked recipients are skipped with the reason recorded.</p>}
+                </div>
+                <div className="grid gap-2">
+                  <Label>Note for the rep (optional)</Label>
+                  <Input value={step.note} onChange={(e) => setStep({ ...step, note: e.target.value })} />
                 </div>
               </>
             ) : (

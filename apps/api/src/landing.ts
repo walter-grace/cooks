@@ -41,13 +41,13 @@ export function landingHtml(opts: { publicUrl: string; release: string }) {
 <div class="card"><h3>Coaching</h3><p>Transcripts, talk ratio and an AI scorecard for every recorded call, with the provider and model you choose.</p></div>
 </div>
 <section class="two">
-<div><h2>Your bot is the brain</h2><p class="lead">One command adds 57 tools to Claude Code, Claude Desktop, Cursor or Grok. Cooks spends none of its own tokens in this mode.</p>
+<div><h2>Your bot is the brain</h2><p class="lead">One command adds 61 tools to Claude Code, Claude Desktop, Cursor or Grok. Cooks spends none of its own tokens in this mode.</p>
 <pre>claude mcp add cooks \\
   -e COOKS_API_URL=${publicUrl} \\
   -e COOKS_API_KEY=cooks-api-... \\
   -- npx -y ${release}</pre></div>
 <div><h2>Drop-in API</h2><p class="lead">Same paths, envelopes, paging, scopes and webhook signature as the commercial API it mirrors, so existing clients work by changing the base URL.</p>
-<ul class="plain"><li>OAuth 2.1 with PKCE and dynamic client registration</li><li>Gmail, Microsoft 365 and SMTP mailboxes</li><li>HubSpot sync, notes and timeline logging</li><li>Clerk SSO, or plain passwords</li><li>Anthropic, xAI, OpenAI, OpenRouter or Ollama per workspace</li></ul></div>
+<ul class="plain"><li>OAuth 2.1 with PKCE and dynamic client registration</li><li>Gmail, Microsoft 365 and SMTP mailboxes, or Inkbox identities with email, SMS and iMessage</li><li>HubSpot sync, notes and timeline logging</li><li>Clerk SSO, or plain passwords</li><li>Anthropic, xAI, OpenAI, OpenRouter or Ollama per workspace</li></ul></div>
 </section>
 <footer>Cooks is an independent open-source project and is not affiliated with or endorsed by Nooks. <a href="https://github.com/walter-grace/cooks/blob/main/LICENSE">MIT License</a> · <a href="/docs">OpenAPI</a> · <a href="/.well-known/oauth-authorization-server">OAuth metadata</a></footer>
 </div></body></html>`;

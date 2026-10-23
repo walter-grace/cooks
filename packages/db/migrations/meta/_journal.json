@@ -36,6 +36,13 @@
       "when": 1792711855039,
       "tag": "0004_speko",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792713209361,
+      "tag": "0005_inkbox",
+      "breakpoints": true
     }
   ]
 }

@@ -65,6 +65,8 @@ const EnvSchema = z.object({
   /** Server-wide Speko key (workspaces can store their own instead). */
   SPEKO_API_KEY: z.string().optional(),
   SPEKO_API_BASE: z.string().optional(),
+  /** Inkbox base override (mocks); keys are per workspace. */
+  INKBOX_API_BASE: z.string().optional(),
   /** OpenAI-compatible speech-to-text for call transcripts (any whisper server). */
   TRANSCRIBE_API_BASE: z.string().optional(),
   TRANSCRIBE_API_KEY: z.string().optional(),

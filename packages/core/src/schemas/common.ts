@@ -57,6 +57,8 @@ export const Analytics = z
       unsubscribed: z.number().int(),
     }),
     calls: z.object({ dialed: z.number().int(), connected: z.number().int(), meetings: z.number().int() }),
+    messages: z.object({ sent: z.number().int(), delivered: z.number().int(), replied: z.number().int(), blocked: z.number().int() }).optional().describe('Cooks: SMS and iMessage sent through Inkbox'),
+    inbox: z.object({ replies: z.number().int() }).optional().describe('Cooks: replies that arrived through Inkbox (email, SMS, iMessage)'),
     linkedIn: z.object({
       connectionRequestsSent: z.number().int(),
       connectionRequestsAccepted: z.number().int(),

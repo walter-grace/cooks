@@ -22,6 +22,8 @@ export function channelOf(action: string): string {
   if (action === 'call') return 'call';
   if (action.includes('linkedin')) return 'linkedin';
   if (action.includes('sms')) return 'sms';
+  if (action.includes('imessage')) return 'imessage';
+  if (action === 'auto_ai_call') return 'ai_call';
   if (action.includes('whatsapp')) return 'whatsapp';
   return 'task';
 }
@@ -37,6 +39,7 @@ export function serializeStep(s: StepRow, analytics: Analytics | undefined, temp
     sequence: ref('sequences', s.sequenceId),
     template: template ? serializeTemplate(template) : refOrNull('emailTemplates', s.emailTemplateId),
     hasAbVariants: s.hasAbVariants,
+    body: s.body,
     analytics: analytics ?? emptyAnalytics(),
     createdAt: isoReq(s.createdAt),
     updatedAt: isoReq(s.updatedAt),
@@ -130,6 +133,8 @@ export interface CreateStepInput {
   emailSubject?: string;
   emailBody?: string;
   aiEmail?: { agent?: { id: string }; promptOverride?: string };
+  /** SMS / iMessage text, or the brief for auto_ai_call. */
+  body?: string | null;
 }
 
 async function assertSingleConnectionRequest(ctx: Ctx, sequenceId: string, exceptStepId?: string) {
@@ -194,6 +199,7 @@ export async function createSequenceStep(ctx: Ctx, input: CreateStepInput) {
         intervalMinutes: input.interval,
         emailTemplateId: templateId,
         aiEmail: input.aiEmail ?? null,
+        body: input.body ?? null,
       })
       .returning();
     return s!;
@@ -209,6 +215,7 @@ export interface UpdateStepInput {
   emailSubject?: string;
   emailBody?: string;
   aiEmail?: { agent?: { id: string }; promptOverride?: string } | null;
+  body?: string | null;
 }
 
 export async function updateSequenceStep(ctx: Ctx, id: string, input: UpdateStepInput) {
@@ -241,6 +248,7 @@ export async function updateSequenceStep(ctx: Ctx, id: string, input: UpdateStep
         ...(input.interval !== undefined ? { intervalMinutes: input.interval } : {}),
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.note !== undefined ? { note: input.note } : {}),
+        ...(input.body !== undefined ? { body: input.body } : {}),
         ...(input.aiEmail !== undefined ? { aiEmail: input.aiEmail } : {}),
       })
       .where(eq(sequenceSteps.id, id))

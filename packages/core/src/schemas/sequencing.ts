@@ -16,6 +16,9 @@ export const STEP_ACTION_VALUES = [
   'manual_sms',
   'auto_sms',
   'manual_whatsapp',
+  'manual_imessage',
+  'auto_imessage',
+  'auto_ai_call',
 ] as const;
 export const StepActionEnum = z.enum(STEP_ACTION_VALUES);
 
@@ -32,6 +35,9 @@ export const CREATE_STEP_ACTIONS = [
   'manual_sms',
   'auto_sms',
   'manual_whatsapp',
+  'manual_imessage',
+  'auto_imessage',
+  'auto_ai_call',
 ] as const;
 export const UPDATE_STEP_ACTIONS = [...CREATE_STEP_ACTIONS, 'manual_linkedin_connection_request'] as const;
 export const TASK_CREATE_ACTIONS = [
@@ -43,6 +49,7 @@ export const TASK_CREATE_ACTIONS = [
   'manual_linkedin_connection_request',
   'manual_linkedin_message',
   'manual_sms',
+  'manual_imessage',
 ] as const;
 
 export const PrivacyEnum = z.enum(['private', 'team_visible', 'team_editable']);
@@ -118,6 +125,7 @@ export const CreateStepBody = z.object({
     emailSubject: z.string().max(998).optional(),
     emailBody: z.string().max(200_000).optional(),
     aiEmail: AiEmail.optional(),
+    body: z.string().max(20_000).optional().describe('Cooks: message text for SMS / iMessage steps or the brief for auto_ai_call steps; Liquid merge fields'),
   }),
 });
 export const UpdateStepBody = z.object({
@@ -130,6 +138,7 @@ export const UpdateStepBody = z.object({
       emailSubject: z.string().max(998).optional(),
       emailBody: z.string().max(200_000).optional(),
       aiEmail: AiEmail.nullable().optional(),
+      body: z.string().max(20_000).nullable().optional(),
     })
     .refine((d) => Object.keys(d).length > 0, { message: 'Provide at least one field to update' }),
 });

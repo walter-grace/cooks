@@ -72,7 +72,7 @@ async function storeInbound(ctx: Ctx, mailbox: InboundMailbox, msg: InboundMessa
       sequenceStepId: outbound?.sequenceStepId ?? null,
       mailboxId: mailbox.id,
       ownerId: mailbox.userId,
-      type: mailbox.provider === 'gmail' ? 'gmail' : mailbox.provider === 'ms_graph' ? 'outlook' : 'smtp',
+      type: mailbox.provider === 'gmail' ? 'gmail' : mailbox.provider === 'ms_graph' ? 'outlook' : mailbox.provider === 'inkbox' ? 'inkbox' : 'smtp',
       direction: 'inbound',
       status: 'received',
       fromAddr: msg.from,
@@ -90,6 +90,28 @@ async function storeInbound(ctx: Ctx, mailbox: InboundMailbox, msg: InboundMessa
     })
     .returning();
   return row!;
+}
+
+/**
+ * A reply arrived: finish or pause the enrollment it answers (or every active enrollment of the
+ * prospect when no specific outbound matched), per the enrollment or workspace reply policy.
+ */
+export async function applyReplyPolicy(ctx: Ctx, ws: string, prospectId: string | null, stateId: string | null): Promise<'finish' | 'pause' | 'continue' | 'none'> {
+  let action: 'finish' | 'pause' | 'continue' | 'none' = 'none';
+  const [w] = await ctx.db.select({ settings: workspaces.settings }).from(workspaces).where(eq(workspaces.id, ws)).limit(1);
+  const affected = stateId
+    ? await ctx.db.select().from(sequenceStates).where(eq(sequenceStates.id, stateId)).limit(1)
+    : prospectId
+      ? await ctx.db.select().from(sequenceStates).where(and(eq(sequenceStates.workspaceId, ws), eq(sequenceStates.prospectId, prospectId), isNull(sequenceStates.deletedAt), sql`${sequenceStates.state} <> 'finished'`))
+      : [];
+  for (const st of affected) {
+    const policy = st.replyBehavior ?? w?.settings.replyBehavior ?? 'finish';
+    if (st.state === 'finished') continue;
+    action = policy;
+    if (policy === 'finish') await finishEnrollment(ctx, st.id, 'replied');
+    else if (policy === 'pause') await pauseEnrollment(ctx, st.id);
+  }
+  return action;
 }
 
 /**
@@ -182,21 +204,8 @@ export async function processInbound(ctx: Ctx, mailbox: InboundMailbox, msg: Inb
     }
     await emitEvent(ctx.db, { workspaceId: ws, type: 'email.replied', aggregateType: 'email', aggregateId: outbound.id, payload: { emailId: outbound.id, inboundEmailId: stored.id, prospectId: outbound.prospectId, from: msg.from, subject: msg.subject }, dedupeKey: `${outbound.id}:replied:${stored.id}` });
   }
-  let action: 'finish' | 'pause' | 'continue' | 'none' = 'none';
   const stateId = outbound?.sequenceStateId;
-  const [w] = await ctx.db.select({ settings: workspaces.settings }).from(workspaces).where(eq(workspaces.id, ws)).limit(1);
-  const affected = stateId
-    ? await ctx.db.select().from(sequenceStates).where(eq(sequenceStates.id, stateId)).limit(1)
-    : prospectId
-      ? await ctx.db.select().from(sequenceStates).where(and(eq(sequenceStates.workspaceId, ws), eq(sequenceStates.prospectId, prospectId), isNull(sequenceStates.deletedAt), sql`${sequenceStates.state} <> 'finished'`))
-      : [];
-  for (const st of affected) {
-    const policy = st.replyBehavior ?? w?.settings.replyBehavior ?? 'finish';
-    if (st.state === 'finished') continue;
-    action = policy;
-    if (policy === 'finish') await finishEnrollment(ctx, st.id, 'replied');
-    else if (policy === 'pause') await pauseEnrollment(ctx, st.id);
-  }
+  const action = await applyReplyPolicy(ctx, ws, prospectId, stateId ?? null);
   if (prospectId) {
     const ownerId = outbound?.ownerId ?? mailbox.userId;
     const [task] = await ctx.db

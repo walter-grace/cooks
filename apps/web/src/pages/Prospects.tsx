@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Phone, ExternalLink, Search, Sparkles } from 'lucide-react';
+import { Phone, ExternalLink, MessageSquare, Search, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { Link, navigate } from '../router.js';
 import { Empty, PageHeader, StateBadge } from '../components/layout.js';
 import { AiCallDialog, DialDialog, LogCallDialog } from '../components/dialer.jsx';
 import { fmtDuration } from '../dialer.js';
+import { ComposeMessageDialog, InboxItemRow } from './Inbox.js';
 
 export function Prospects() {
   const [search, setSearch] = useState('');
@@ -163,6 +164,9 @@ export function ProspectDetail({ id }: { id: string }) {
   const [logCall, setLogCall] = useState(false);
   const dialer = useApi<{ data: any }>('/v1/workspace/dialer');
   const callsList = useApi<{ data: any[] }>(`/v1/calls${q({ 'filter[prospect][id]': id, include: 'callDisposition,owner', 'page[size]': 20 })}`);
+  const inbox = useApi<{ data: any[] }>(`/v1/prospects/${id}/inbox?limit=40`);
+  const channels = useApi<{ data: any }>('/v1/workspace/channels/inkbox');
+  const [compose, setCompose] = useState(false);
   const p = data?.data;
   const dp = dialer.data?.data;
 
@@ -212,6 +216,11 @@ export function ProspectDetail({ id }: { id: string }) {
         description={[p.title, p.primaryEmail, p.phone].filter(Boolean).join(' · ')}
         actions={
           <div className="flex gap-2">
+            {channels.data?.data?.status === 'connected' && (
+              <Button variant="outline" onClick={() => setCompose(true)} data-testid="prospect-message">
+                <MessageSquare className="size-4" /> Message
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setLogCall(true)} data-testid="prospect-log-call">
               Log a call
             </Button>
@@ -231,6 +240,7 @@ export function ProspectDetail({ id }: { id: string }) {
       <DialDialog open={dial} onOpenChange={setDial} target={{ prospectId: p.id, name: p.name, phone: p.phone }} onLogged={() => { tasks.reload(); callsList.reload(); }} />
       <AiCallDialog open={aiCall} onOpenChange={setAiCall} target={{ prospectId: p.id, name: p.name, phone: p.phone }} onDone={() => { tasks.reload(); callsList.reload(); }} />
       <LogCallDialog open={logCall} onOpenChange={setLogCall} prospectId={p.id} onLogged={() => tasks.reload()} />
+      <ComposeMessageDialog open={compose} onOpenChange={setCompose} prospectId={p.id} phone={p.phone} onSent={() => inbox.reload()} />
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -369,22 +379,15 @@ export function ProspectDetail({ id }: { id: string }) {
       </Card>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <Card>
+        <Card data-testid="prospect-inbox">
           <CardHeader>
-            <CardTitle className="text-base">Emails</CardTitle>
+            <CardTitle className="text-base">Inbox</CardTitle>
+            <CardDescription>Email, texts, iMessages and calls with this prospect, newest first.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2 text-sm">
-            {emails.data?.data.length === 0 && <p className="text-muted-foreground">None yet.</p>}
-            {emails.data?.data.map((e) => (
-              <div key={e.id} className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="truncate">{e.subject || '(no subject)'}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {fmtDate(e.date ?? e.createdAt)} {e.openCount ? `· ${e.openCount} opens` : ''} {e.clickCount ? `· ${e.clickCount} clicks` : ''} {e.repliedAt ? '· replied' : ''}
-                  </div>
-                </div>
-                <StateBadge state={e.status} />
-              </div>
+            {inbox.data?.data.length === 0 && <p className="text-muted-foreground">Nothing yet.</p>}
+            {inbox.data?.data.map((it) => (
+              <InboxItemRow key={`${it.kind}-${it.id}`} it={it} />
             ))}
           </CardContent>
         </Card>

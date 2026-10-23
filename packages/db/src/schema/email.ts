@@ -3,7 +3,7 @@ import { id, tenant, timestamps, workspaceId } from './_base.js';
 import { prospects } from './crm.js';
 import { sequenceStates, sequenceSteps, sequences, tasks } from './sequencing.js';
 
-export const mailboxProvider = pgEnum('mailbox_provider', ['smtp', 'gmail', 'ms_graph']);
+export const mailboxProvider = pgEnum('mailbox_provider', ['smtp', 'gmail', 'ms_graph', 'inkbox']);
 export const emailDirection = pgEnum('email_direction', ['outbound', 'inbound']);
 export const emailSendStatus = pgEnum('email_send_status', [
   'draft',

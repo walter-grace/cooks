@@ -2,6 +2,7 @@ import type { Registrar } from '../register.js';
 import { mountAccounts } from './accounts.js';
 import { mountAi } from './ai.js';
 import { mountCalls } from './calls.js';
+import { mountChannels } from './channels.js';
 import { mountCrm } from './crm.js';
 import { mountEmails } from './emails.js';
 import { mountMailboxes } from './mailboxes.js';
@@ -19,7 +20,7 @@ import { mountUsers } from './users.js';
 import { mountWebhooks } from './webhooks.js';
 import { mountWorkspace } from './workspace.js';
 
-export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: string; fetchImpl?: typeof fetch; keyPrefix?: 'cooks' | 'nooks'; crm?: Parameters<typeof mountCrm>[1]; dialer?: Parameters<typeof mountTelephony>[1] }) {
+export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: string; fetchImpl?: typeof fetch; keyPrefix?: 'cooks' | 'nooks'; crm?: Parameters<typeof mountCrm>[1]; dialer?: Parameters<typeof mountTelephony>[1]; channels?: Parameters<typeof mountChannels>[1] }) {
   mountMe(reg, opts);
   mountUsers(reg);
   mountAccounts(reg);
@@ -35,6 +36,7 @@ export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: s
   mountCalls(reg);
   mountSignals(reg);
   if (opts.dialer) mountTelephony(reg, opts.dialer);
+  if (opts.channels) mountChannels(reg, opts.channels);
   mountWebhooks(reg, { kek: opts.kek, fetchImpl: opts.fetchImpl });
   mountWorkspace(reg, { keyPrefix: opts.keyPrefix ?? 'cooks' });
   mountAi(reg, { kek: opts.kek });

@@ -31,6 +31,7 @@ const { app, registry } = createApp({
   clerk: env.CLERK_SECRET_KEY ? { gateway: clerkGateway(env.CLERK_SECRET_KEY, { publishableKey: env.CLERK_PUBLISHABLE_KEY, jwtKey: env.CLERK_JWT_KEY }), publishableKey: env.CLERK_PUBLISHABLE_KEY, defaultWorkspaceSlug: env.COOKS_CLERK_DEFAULT_WORKSPACE } : undefined,
   hubspotApp: process.env.HUBSPOT_CLIENT_ID && process.env.HUBSPOT_CLIENT_SECRET ? { clientId: process.env.HUBSPOT_CLIENT_ID, clientSecret: process.env.HUBSPOT_CLIENT_SECRET } : undefined,
   telephony: { apiBase: env.TWILIO_API_BASE, speko: { apiKey: env.SPEKO_API_KEY, apiBase: env.SPEKO_API_BASE } },
+  channels: { inkboxApiBase: env.INKBOX_API_BASE },
   webDir: [join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist'), process.env.COOKS_WEB_DIR ?? ''].find((d) => d && existsSync(join(d, 'index.html'))),
   acceptNooksPrefix: env.COOKS_ACCEPT_NOOKS_PREFIX,
   publicIps: env.COOKS_PUBLIC_IPS.split(',').map((s) => s.trim()).filter(Boolean),

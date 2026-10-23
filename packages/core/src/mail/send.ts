@@ -275,7 +275,7 @@ export async function sendQueuedEmail(ctx: Ctx, emailId: string, deps: SendDeps)
         ...(res.messageId ? { messageId: res.messageId } : {}),
         threadId: res.threadId ?? email.threadId ?? (inReplyTo ? undefined : res.messageId ?? messageId),
         inReplyTo: inReplyTo ?? null,
-        type: mailbox?.provider === 'gmail' ? 'gmail' : mailbox?.provider === 'ms_graph' ? 'outlook' : 'smtp',
+        type: mailbox?.provider === 'gmail' ? 'gmail' : mailbox?.provider === 'ms_graph' ? 'outlook' : mailbox?.provider === 'inkbox' ? 'inkbox' : 'smtp',
         mailboxId: mailbox?.id ?? null,
       })
       .where(eq(emails.id, emailId));

@@ -81,6 +81,7 @@ Discovery: `/.well-known/oauth-authorization-server`, `/.well-known/jwks.json`.
 | `cooks_enroll_prospect`, `cooks_list_enrollments`, `cooks_pause_enrollment`, `cooks_resume_enrollment`, `cooks_finish_enrollment` | Enrollments |
 | `cooks_list_tasks`, `cooks_create_task`, `cooks_complete_task`, `cooks_skip_task` | Task queue |
 | `cooks_dialer_status`, `cooks_dial`, `cooks_place_ai_call`, `cooks_get_call_transcript`, `cooks_hangup_call`, `cooks_dialer_balance`, `cooks_log_call`, `cooks_record_call` | Dialer: rep calls on Twilio, AI-voiced calls on Speko (queued, then polled to an outcome and transcript), balance and spend |
+| `cooks_inbox_list`, `cooks_send_sms`, `cooks_send_imessage`, `cooks_import_message` | Inkbox channels: unified inbox, texting with consent and quiet-hours checks, importing inbound messages |
 | `cooks_list_emails`, `cooks_create_email`, `cooks_import_email` | Emails: list, draft or send, and record mail sent or received outside Cooks (an imported reply runs the normal reply pipeline) |
 | `cooks_list_email_templates`, `cooks_list_tags`, `cooks_create_tag`, `cooks_add_note` | Templates, tags, CRM notes |
 

@@ -12,6 +12,7 @@ import { Emails } from './pages/Emails.js';
 import { Settings } from './pages/Settings.js';
 import { Signals } from './pages/Signals.js';
 import { CallDetail, Calls } from './pages/Calls.js';
+import { Inbox } from './pages/Inbox.js';
 
 export function App() {
   const path = useRoute();
@@ -55,6 +56,7 @@ export function App() {
   else if (path === '/emails') page = <Emails />;
   else if ((p = match(path, '/calls/:id'))) page = <CallDetail id={p.id!} />;
   else if (path === '/calls') page = <Calls />;
+  else if (path === '/inbox') page = <Inbox />;
   else if (path === '/signals') page = <Signals />;
   else if (path === '/settings') page = <Settings authMode={auth.mode} />;
   else page = <Tasks />;

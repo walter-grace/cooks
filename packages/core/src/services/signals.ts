@@ -24,6 +24,8 @@ export const SIGNAL_INCLUDES = ['prospect', 'account'] as const;
 
 /** Well-known kinds. Any `category.type` string is accepted on push. */
 export const SIGNAL_KIND_CATALOG: Record<string, string> = {
+  'sms.replied': 'Replied by text message',
+  'imessage.replied': 'Replied by iMessage',
   'email.clicked': 'Prospect clicked a link in a sequence email',
   'email.engaged': 'Prospect opened the same email three or more times',
   'email.replied': 'Prospect replied to a sequence email',
@@ -349,3 +351,12 @@ export async function signalFromEmailEvent(ctx: Ctx, eventType: string, payload:
 }
 
 export { conflict as _signalConflict };
+
+/** A text or iMessage reply is a strong buying signal (mirrors `email.replied`). */
+export async function signalFromMessageEvent(ctx: Ctx, payload: Record<string, unknown>) {
+  const prospectId = typeof payload.prospectId === 'string' ? payload.prospectId : null;
+  if (!prospectId) return null;
+  const channel = String(payload.channel ?? 'sms');
+  const key = String(payload.inboundMessageId ?? payload.messageId ?? '');
+  return pushSignal(ctx, { prospect: { id: prospectId }, source: 'inkbox', kind: `${channel}.replied`, title: `Replied by ${channel === 'imessage' ? 'iMessage' : 'text'}${typeof payload.textPreview === 'string' && payload.textPreview ? `: “${payload.textPreview.slice(0, 80)}”` : ''}`, score: 0.9, dedupeKey: `message:${key}:replied`, payload: { messageId: payload.messageId ?? null, inboundMessageId: payload.inboundMessageId ?? null } });
+}

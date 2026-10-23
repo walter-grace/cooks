@@ -10,7 +10,7 @@ import {
   type Ctx,
   type JobsPort,
   type MailProvider,
- pollAiCall } from '@cooks/core';
+ pollAiCall, InkboxMailProvider, inkboxFor, sendQueuedMessage, runAiCallStep, pollInkboxCall, signalFromMessageEvent } from '@cooks/core';
 import { mailboxCredentials, type Db } from '@cooks/db';
 import { accountsDueForScan, classifyReply, coachCall, draftEmailForTask, processCallRecording, researchProspect, scanAccount, type EnvKeys, type TranscribeEnv } from '@cooks/agent';
 import { applyClassification, evaluateSignal, signalFromEmailEvent, loadCreds, logCallToHubspot, logCallTaskToHubspot, logEmailToHubspot, outboundProviderFor, registerOAuthInbound, runAutoEnrollRule, syncMailbox, syncableMailboxIds, type ConnectorApps, type CrmSettings } from '@cooks/core';
@@ -33,6 +33,8 @@ export interface WorkerDeps {
   /** Speko server key + base override (mock) */
   spekoApiKey?: string;
   spekoApiBase?: string;
+  /** Inkbox base override (mock) */
+  inkboxApiBase?: string;
   connectorApps: ConnectorApps;
   hubspotApp?: { clientId: string; clientSecret: string };
   brokerToken?: (userId: string, provider: 'google' | 'microsoft' | 'hubspot') => Promise<{ refreshToken: string; accessToken?: string; expiresAt?: number; viaClerk?: boolean } | null>;
@@ -76,10 +78,16 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
   void work<{ stateId: string; stepId: string; workspaceId: string }>('step.execute', (job) => executeStep(mkCtx(deps, job.data.workspaceId), job.data.stateId, job.data.stepId));
   registerOAuthInbound({ db: deps.db, kek: deps.kek, apps: deps.connectorApps, brokerToken: deps.brokerToken });
   const providerCache = new Map<string, MailProvider>();
+  const channelDeps = { kek: deps.kek, inkbox: { apiBase: deps.inkboxApiBase }, publicUrl: deps.publicUrl };
   const providerFor = async (mailbox: Parameters<typeof outboundProviderFor>[1] | null): Promise<MailProvider> => {
     if (!mailbox) return deps.mailProvider;
     const cached = providerCache.get(mailbox.id);
     if (cached) return cached;
+    if (mailbox.provider === 'inkbox') {
+      const h = await inkboxFor(mkCtx(deps, mailbox.workspaceId), channelDeps);
+      if (!h) throw new Error('Inkbox is not connected for this workspace');
+      return new InkboxMailProvider(h.client, mailbox.email); // not cached: the key can be rotated
+    }
     const creds = await loadCreds(mkCtx(deps, mailbox.workspaceId), mailbox.id, deps.kek);
     const p = outboundProviderFor({ db: deps.db, kek: deps.kek, apps: deps.connectorApps, fallback: deps.mailProvider, brokerToken: deps.brokerToken }, mailbox, creds);
     providerCache.set(mailbox.id, p);
@@ -160,6 +168,14 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
   const coachDeps = { db: deps.db, env: deps.aiEnv, now: () => new Date(), publicUrl: deps.publicUrl, telephony: { kek: deps.kek, apiBase: deps.telephonyApiBase }, jobs: deps.jobs };
   void work<{ callId: string; workspaceId: string; force?: boolean }>('telephony.recording', (job) => processCallRecording(coachDeps, job.data.callId, { force: job.data.force }), 1);
   void work<{ callId: string; workspaceId: string; force?: boolean }>('ai.coach_call', (job) => coachCall(coachDeps, job.data.callId, { force: job.data.force }), 1);
+  void work<{ messageId: string; workspaceId: string }>('message.send', (job) => sendQueuedMessage(mkCtx(deps, job.data.workspaceId), job.data.messageId, channelDeps), 2);
+  void work<{ stateId: string; stepId: string; workspaceId: string }>('inkbox.call', (job) => runAiCallStep(mkCtx(deps, job.data.workspaceId), job.data.stateId, job.data.stepId, channelDeps), 1);
+  void work<{ callId: string; workspaceId: string; attempt?: number }>('inkbox.call_poll', async (job) => {
+    const attempt = job.data.attempt ?? 1;
+    const r = await pollInkboxCall(mkCtx(deps, job.data.workspaceId), job.data.callId, channelDeps, { attempt });
+    if (!r.done) await deps.jobs.send('inkbox.call_poll', { callId: job.data.callId, workspaceId: job.data.workspaceId, attempt: attempt + 1 }, { startAfter: new Date(Date.now() + (r.nextDelaySeconds ?? 15) * 1000), singletonKey: `inkpoll:${job.data.callId}:${attempt + 1}` });
+    return r;
+  }, 5);
   const aiCallDeps = { kek: deps.kek, apiBase: deps.telephonyApiBase, speko: { apiKey: deps.spekoApiKey, apiBase: deps.spekoApiBase }, publicUrl: deps.publicUrl };
   void work<{ callId: string; workspaceId: string; attempt?: number }>('telephony.ai_poll', async (job) => {
     const attempt = job.data.attempt ?? 1;
@@ -177,6 +193,9 @@ async function dispatchInternal(deps: WorkerDeps, ev: { workspaceId: string; eve
   if (ev.eventType === 'email.sent' && ev.payload.emailId) await deps.jobs.send('crm.sync', { workspaceId: ev.workspaceId, emailId: ev.payload.emailId }, { singletonKey: `crm:email:${ev.payload.emailId}` });
   if (ev.eventType === 'task.completed' && ev.payload.taskId) await deps.jobs.send('crm.sync', { workspaceId: ev.workspaceId, taskId: ev.payload.taskId }, { singletonKey: `crm:task:${ev.payload.taskId}` });
   if (ev.eventType === 'call.logged' && ev.payload.callId) await deps.jobs.send('crm.sync', { workspaceId: ev.workspaceId, callId: ev.payload.callId }, { singletonKey: `crm:call:${ev.payload.callId}` });
+  if (ev.eventType === 'message.replied' && typeof ev.payload.prospectId === 'string') {
+    await signalFromMessageEvent(mkCtx(deps, ev.workspaceId), ev.payload).catch((e) => deps.log('signal derive failed', { error: (e as Error).message }));
+  }
   if ((ev.eventType === 'email.opened' || ev.eventType === 'email.clicked' || ev.eventType === 'email.replied') && typeof ev.payload.emailId === 'string') {
     const [em] = await deps.db.select({ id: emailsTable.id, prospectId: emailsTable.prospectId, subject: emailsTable.subject, openCount: emailsTable.openCount }).from(emailsTable).where(eq(emailsTable.id, ev.payload.emailId)).limit(1);
     await signalFromEmailEvent(mkCtx(deps, ev.workspaceId), ev.eventType, ev.payload, em ?? null).catch((e) => deps.log('signal derive failed', { error: (e as Error).message }));

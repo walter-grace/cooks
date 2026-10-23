@@ -12,6 +12,7 @@ import { api, currentSession, fmtDate } from '../api.js';
 import { useApi, toast } from '../hooks.js';
 import { PageHeader } from '../components/layout.js';
 import { Dialer } from './SettingsDialer.js';
+import { Channels } from './SettingsChannels.js';
 import { SignalRules } from './Signals.js';
 
 const RELEASE = 'https://github.com/walter-grace/cooks/releases/latest/download/cooks-mcp.tgz';
@@ -40,6 +41,9 @@ export function Settings({ authMode }: { authMode: 'password' | 'clerk' }) {
           <TabsTrigger value="dialer" data-testid="tab-dialer">
             Dialer
           </TabsTrigger>
+          <TabsTrigger value="channels" data-testid="tab-channels">
+            Channels
+          </TabsTrigger>
           <TabsTrigger value="signals" data-testid="tab-signals">
             Signals
           </TabsTrigger>
@@ -56,6 +60,9 @@ export function Settings({ authMode }: { authMode: 'password' | 'clerk' }) {
         </TabsContent>
         <TabsContent value="dialer">
           <Dialer isAdmin={!!isAdmin} />
+        </TabsContent>
+        <TabsContent value="channels">
+          <Channels isAdmin={!!isAdmin} />
         </TabsContent>
         <TabsContent value="signals">
           <SignalRules isAdmin={!!isAdmin} />

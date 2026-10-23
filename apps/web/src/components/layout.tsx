@@ -1,4 +1,4 @@
-import { CheckSquare, Users, GitBranch, Mail, Phone, Radar, Settings as SettingsIcon, BookOpen, LogOut } from 'lucide-react';
+import { CheckSquare, Users, GitBranch, Mail, Phone, Radar, Inbox as InboxIcon, Settings as SettingsIcon, BookOpen, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -12,6 +12,7 @@ const NAV = [
   { to: '/prospects', label: 'Prospects', icon: Users },
   { to: '/sequences', label: 'Sequences', icon: GitBranch },
   { to: '/emails', label: 'Emails', icon: Mail },
+  { to: '/inbox', label: 'Inbox', icon: InboxIcon },
   { to: '/signals', label: 'Signals', icon: Radar },
   { to: '/calls', label: 'Calls', icon: Phone },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
