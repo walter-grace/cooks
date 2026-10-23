@@ -69,6 +69,17 @@ function css(asset: string) {
     padding-right: max(24px, env(safe-area-inset-right, 0px));
   }
 
+  /* ---------- the scene behind the page ---------- */
+  .bgart { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .bgart .scene {
+    position: absolute; left: 50%; top: 46%; width: 150vw; max-width: 2300px; aspect-ratio: 1600 / 679; transform: translate(-50%, -50%);
+    background: var(--ink); opacity: .075;
+    -webkit-mask: url(${asset}/scene.png) no-repeat center / 100% auto; mask: url(${asset}/scene.png) no-repeat center / 100% auto;
+  }
+  .bgart .fade { position: absolute; inset: 0; background: linear-gradient(to bottom, var(--paper) 0, transparent 28%, transparent 72%, var(--paper) 100%); }
+  .bgart .sky { top: 9%; height: 18%; opacity: .55; }
+  header.top, main { position: relative; z-index: 1; }
+
   /* ---------- header ---------- */
   header.top { padding-block: 22px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
   .brand { display: inline-flex; align-items: center; gap: 12px; color: var(--ink-strong); font-size: 22px; font-weight: 500; letter-spacing: .01em; }
@@ -86,14 +97,14 @@ function css(asset: string) {
   .cta:hover { background: var(--ink); color: var(--paper); text-decoration: none; }
   .cta.fill { background: var(--ink); color: var(--paper); }
   .cta.fill:hover { background: var(--ink-strong); border-color: var(--ink-strong); }
-  .fine { margin: 26px 0 0; font-size: 14.5px; color: var(--ink-soft); letter-spacing: .01em; display: flex; flex-wrap: wrap; gap: 4px 0; }
+  .fine { margin: 28px 0 0; font-size: 14px; color: var(--ink-soft); letter-spacing: .01em; display: flex; flex-wrap: wrap; gap: 4px 0; }
   .fine span { white-space: nowrap; }
-  .fine span + span::before { content: "·"; margin: 0 .6em; }
+  .fine span:not(:last-child)::after { content: "·"; margin: 0 .6em; }
 
   /* ---------- pillars ---------- */
   .feats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; padding-block: 28px 10vh; border-top: 1px solid var(--line); }
   .feats > div { min-width: 0; }
-  .feats h3 { margin: 22px 0 8px; font-weight: 500; font-size: 21px; line-height: 1.2; text-wrap: balance; }
+  .feats h3 { margin: 20px 0 8px; font-weight: 500; font-size: 22px; line-height: 1.15; text-wrap: balance; }
   .feats p { margin: 0; color: var(--ink-soft); font-size: 16px; }
   .n { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
 
@@ -115,11 +126,21 @@ function css(asset: string) {
   table.t td:last-child { font-size: 22px; color: var(--ink); }
   table.t tr.amd td { color: var(--ink-soft); }
   table.t tr.amd td:last-child { color: var(--ink-soft); }
-  pre { margin: 0; background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; overflow-x: auto; font: 13.5px/1.6 var(--mono); color: var(--ink-strong); }
+  pre { margin: 0; background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 13.5px/1.6 var(--mono); color: var(--ink-strong); }
   pre .c { color: var(--ink-soft); }
   blockquote { margin: 22px 0 0; padding-left: 18px; border-left: 2px solid var(--ink); font-size: 21px; line-height: 1.35; font-style: italic; color: var(--ink-strong); max-width: 30em; }
   blockquote cite { display: block; margin-top: 10px; font-size: 14px; font-style: normal; color: var(--ink-soft); }
-  .logos { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 22px; font-size: 15px; color: var(--ink-soft); }
+  /* agent fields */
+  .agents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 40px; margin-top: 40px; padding-top: 34px; border-top: 1px solid var(--line); }
+  .agents > div { min-width: 0; }
+  .agents h3 { margin: 0 0 12px; font-weight: 500; font-size: 20px; line-height: 1.2; }
+  .agents h3 small { font-weight: 400; color: var(--ink-soft); font-size: 15px; margin-left: 10px; }
+  .agents p { margin: 10px 0 0; color: var(--ink-soft); font-size: 15.5px; max-width: none; }
+  .tools { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; font-size: 16px; }
+  .tools li { padding-left: 16px; position: relative; color: var(--ink-soft); }
+  .tools li::before { content: ""; position: absolute; left: 0; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
+  .tools b { font-weight: 500; color: var(--ink-strong); }
+  .guard { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--line); font-size: 15.5px; color: var(--ink-soft); max-width: 48em; }
 
   /* ---------- "also in the box" ---------- */
   .box { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 36px 32px; margin-top: 34px; }
@@ -128,7 +149,7 @@ function css(asset: string) {
   .box p { margin: 0; color: var(--ink-soft); font-size: 16px; }
 
   /* ---------- footer ---------- */
-  footer { position: relative; overflow: hidden; border-top: 1px solid var(--line); }
+  footer { position: relative; z-index: 2; overflow: hidden; border-top: 1px solid var(--line); background: var(--paper); }
   .fwrap { position: relative; z-index: 3; display: grid; grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, .6fr)); gap: 40px; padding-top: 56px; }
   .fwrap > * { min-width: 0; }
   .fbrand p { color: var(--ink-soft); max-width: 26em; margin: 14px 0 0; font-size: 15.5px; }
@@ -192,6 +213,7 @@ function css(asset: string) {
   @media (max-width: 1080px) {
     .feats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .box { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .agents { grid-template-columns: 1fr; }
     .fwrap { grid-template-columns: 1fr 1fr; gap: 28px; }
     .fbrand { grid-column: 1 / -1; }
   }
@@ -201,6 +223,8 @@ function css(asset: string) {
     .split.rev > :first-child { order: 2; }
     .feats { grid-template-columns: 1fr; gap: 12px; }
     .box { grid-template-columns: 1fr; gap: 24px; }
+    .tools { grid-template-columns: 1fr; }
+    .bgart .scene { width: 230vw; top: 40%; }
     .fbrand .copy { margin-top: 24px; }
     nav.top { gap: 4px 18px; font-size: 15px; }
     .art { margin-top: 24px; aspect-ratio: auto; height: 78vw; max-height: 560px; }
@@ -251,6 +275,9 @@ export function landingBody(opts: LandingOptions): string {
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&display=swap">
 <style>${css(asset)}</style>
 
+<div class="bgart" aria-hidden="true"><div class="scene"></div><div class="fade"></div><div class="sky">${flocks}
+</div></div>
+
 <header class="top wrap" id="top">
   ${brand('Cooks home')}
   <nav class="top"><a href="#features">Features</a><a href="#dialer">Dialer</a><a href="#assistant">Assistant</a><a href="#selfhost">Self-host</a><a href="${esc(docs)}">API</a><a href="${GITHUB}">GitHub</a><a href="${esc(app)}">Sign in</a></nav>
@@ -265,10 +292,10 @@ export function landingBody(opts: LandingOptions): string {
   </section>
 
   <section class="feats" id="features">
-    <div><div class="n">Sequencing</div><h3>Cadences that respect the clock</h3><p>Email, call, LinkedIn and manual steps with per-prospect time zones, send windows, daily caps and spacing per mailbox. Merge fields in strict templates, A/B variants, reply and bounce detection, out-of-office handling and one-click unsubscribe. AI drafts any email step and hands it to a person when it is unsure.</p></div>
-    <div><div class="n">Dialer</div><h3>Four lines ring, one person answers</h3><p>Reps call on Twilio from the browser or through a bridge that rings their phone first. The power dialer rings three or four prospects at once and drops the first human into the rep's ear with no beep and no message. Machines are hung up before anyone hears them.</p></div>
-    <div><div class="n">Signals</div><h3>One feed of reasons to call</h3><p>Email engagement, web research, CRM changes and anything your bot pushes in through the API, in one stream. Rules turn a matching signal into an enrollment or a task. Accounts in active sequences get a web scan every seven days.</p></div>
-    <div><div class="n">Coaching</div><h3>Every call gets a scorecard</h3><p>Recorded calls are split by speaker, transcribed through any OpenAI-compatible endpoint, and scored on six parts: opener, discovery, listening, value, objections, next step. Talk ratio, monologues, questions asked and one concrete tip per call.</p></div>
+    <div><div class="n">Sequencing</div><h3>Cadences that respect the clock</h3><p>Email, call, LinkedIn and manual steps with per-prospect time zones, send windows and daily caps per mailbox. Reply and bounce detection, A/B variants, one-click unsubscribe. AI drafts any email step and hands it to a person when unsure.</p></div>
+    <div><div class="n">Dialer</div><h3>Four lines ring, one person answers</h3><p>Reps call on Twilio from the browser or a bridge to their phone. The power dialer rings three or four prospects at once and drops the first human into the rep's ear, with no beep and no message. Machines are hung up before anyone hears them.</p></div>
+    <div><div class="n">Signals</div><h3>One feed of reasons to call</h3><p>Email engagement, web research, CRM changes and anything your bot pushes in, as one stream. Rules turn a matching signal into an enrollment or a task. Accounts in active sequences get a web scan every seven days.</p></div>
+    <div><div class="n">Coaching</div><h3>Every call gets a scorecard</h3><p>Recorded calls are split by speaker, transcribed, and scored on six parts: opener, discovery, listening, value, objections, next step. Talk ratio, monologues, questions asked and one concrete tip per call.</p></div>
   </section>
 
   <section class="sec" id="dialer">
@@ -298,23 +325,67 @@ export function landingBody(opts: LandingOptions): string {
   </section>
 
   <section class="sec" id="assistant">
-    <div class="split rev">
+    <div class="n">Your bot is the brain</div>
+    <h2>Sixty-six tools, zero tokens of ours.</h2>
+    <div class="split">
       <div>
-        <pre><span class="c"># Claude Code, Claude Desktop, Cursor or Grok</span>
-claude mcp add cooks \\
-  -e COOKS_API_URL=${esc(opts.publicUrl)} \\
-  -e COOKS_API_KEY=cooks-api-... \\
-  -- npx -y ${esc(opts.release)}</pre>
+        <p>Cooks ships an MCP server, so the assistant you already pay for can research an account, enroll the prospect, draft the email, place the call and log the outcome. It is a thin client over the REST API: it runs on a laptop against a hosted Cooks, or next to the API for the whole team. In that mode Cooks spends no tokens of its own.</p>
+        <p class="soft">Prefer hosted agents? Give a workspace its own key on Anthropic, xAI, OpenAI, OpenRouter or Ollama. Drafts, reply classification and research then run in the worker with a ledger of every run's tokens and cost.</p>
         <blockquote>"Find the three accounts with the strongest signals this week, enroll their champions in the Q4 sequence, and call the one who clicked twice."<cite>Something you can say once the server is connected. Cooks does it with your rules, your mailboxes and your audit trail.</cite></blockquote>
       </div>
       <div>
-        <div class="n">Your bot is the brain</div>
-        <h2>Sixty-six tools, zero tokens of ours.</h2>
-        <p>Cooks ships an MCP server, so the assistant you already pay for can research an account, enroll the prospect, draft the email, place the call and log the outcome. In that mode Cooks spends no tokens of its own.</p>
-        <p class="soft">Prefer hosted agents? Give a workspace its own key on Anthropic, xAI, OpenAI, OpenRouter or Ollama. Drafts, reply classification and research run in the worker, with a ledger of every run's tokens and cost, and anything the model is unsure about becomes a task for a human.</p>
-        <div class="logos"><span>Claude Code</span><span>Claude Desktop</span><span>claude.ai connectors</span><span>Cursor</span><span>Grok</span></div>
+        <div class="n">What the tools cover</div>
+        <ul class="tools">
+          <li><b>Prospects and accounts.</b> Find, create, update, tag, add notes.</li>
+          <li><b>Sequences and steps.</b> Build, edit, reorder; draft a whole sequence from a brief.</li>
+          <li><b>Enrollments.</b> Enroll, pause, resume, finish, with the rules enforced.</li>
+          <li><b>Task queue.</b> List, complete and skip what is due today.</li>
+          <li><b>Dialer.</b> Place a call, hand one to a Speko voice agent, fetch the transcript, log it.</li>
+          <li><b>Power dialer.</b> Start a session, dial the next batch, see who answered.</li>
+          <li><b>Inbox.</b> Read the unified inbox, send SMS and iMessage with consent checks.</li>
+          <li><b>Email.</b> Draft, send, and import mail that happened outside Cooks.</li>
+        </ul>
       </div>
     </div>
+
+    <div class="agents">
+      <div>
+        <h3>Claude Code</h3>
+        <pre>claude mcp add cooks \\
+  -e COOKS_API_URL=${esc(opts.publicUrl)} \\
+  -e COOKS_API_KEY=cooks-api-... \\
+  -- npx -y ${esc(opts.release)}</pre>
+        <p>Create the key under Settings, then API keys. The tarball on GitHub Releases is the distribution; nothing is published to npm.</p>
+      </div>
+      <div>
+        <h3>Claude Desktop <small>and Cursor</small></h3>
+        <pre>{
+  "mcpServers": {
+    "cooks": {
+      "command": "npx",
+      "args": ["-y", "${esc(opts.release)}"],
+      "env": { "COOKS_API_URL": "${esc(opts.publicUrl)}", "COOKS_API_KEY": "cooks-api-..." }
+    }
+  }
+}</pre>
+        <p>Paste into <code>claude_desktop_config.json</code> or <code>.cursor/mcp.json</code>. Windsurf and Codex take the same shape.</p>
+      </div>
+      <div>
+        <h3>Grok</h3>
+        <pre>pnpm --filter cooks-mcp dev          <span class="c"># hosts https://your-host/mcp</span>
+<span class="c"># In Grok: add a custom MCP connector</span>
+<span class="c">#   URL    https://your-host/mcp</span>
+<span class="c">#   Auth   Bearer cooks-api-...</span></pre>
+        <p>Grok talks to the hosted server over streamable HTTP with a workspace key. The connector screen changes often, so check xAI's current docs for where the fields live.</p>
+      </div>
+      <div>
+        <h3>claude.ai <small>and remote clients</small></h3>
+        <pre>claude mcp add --transport http cooks https://your-host/mcp
+<span class="c"># or paste https://your-host/mcp as a claude.ai connector</span></pre>
+        <p>No key to share. The client gets a 401 with OAuth discovery, registers itself, and each person signs in and approves scopes for one workspace. Tokens carry their role, so a rep cannot delete a sequence they do not own.</p>
+      </div>
+    </div>
+    <p class="guard">Nothing goes to a prospect unless a person confirms the draft, and suppression lists, unsubscribes and daily caps are enforced in the send pipeline where the model cannot reach them. Tool errors carry the API's error envelope, so the assistant sees "already enrolled" and recovers on its own.</p>
   </section>
 
   <section class="sec" id="more">
