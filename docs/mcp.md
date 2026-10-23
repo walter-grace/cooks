@@ -56,14 +56,14 @@ Any client that can send an `Authorization: Bearer` header can connect with a Co
 claude mcp add --transport http cooks http://localhost:8081/mcp --header "Authorization: Bearer cooks-api-..."
 ```
 
-Grok: add a custom MCP connector pointing at `https://<your host>/mcp` and supply the bearer token in the connector's auth settings. The exact UI changes often; check xAI's current connector docs.
+Grok: at [grok.com/connectors](https://grok.com/connectors) choose **New connector → Custom** and enter `https://<your host>/mcp`. Grok runs the OAuth sign-in in a pop-up, so each person signs in (password or Clerk) and approves scopes; no key is pasted. Grok's servers connect from the public internet, so the host must be reachable there (a tunnel such as ngrok works for a laptop). Details: [docs.x.ai/grok/connectors](https://docs.x.ai/grok/connectors).
 
 ### OAuth (per-user access for hosted connectors)
 
 Unauthenticated requests get a `401` with `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource"`. OAuth-capable clients (Claude.ai connectors, Claude Code remote MCP, Cursor) follow that to the API's authorization server and run the standard flow:
 
 1. Dynamic client registration at `POST /oauth/register` (on by default, `COOKS_OAUTH_DCR=false` to disable).
-2. `GET /oauth/authorize` with PKCE S256. The user signs in with email + password (`pnpm bootstrap --password ...` sets one) and approves the requested scopes for one workspace.
+2. `GET /oauth/authorize` with PKCE S256. The user signs in the same way as the web UI (the password page, or `/app/login` with Clerk SSO when `CLERK_SECRET_KEY` is set) and approves the requested scopes for one workspace.
 3. `POST /oauth/token` returns a 1-hour ES256 access token plus a 90-day rotating refresh token. Reusing a rotated refresh token revokes the whole family.
 4. Tokens carry the user's role and scopes, so a `user` cannot delete steps in sequences they do not own, and a token without `prospects:write` gets `INSUFFICIENT_SCOPE`.
 

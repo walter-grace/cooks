@@ -516,10 +516,10 @@ export function landingBody(opts: LandingOptions): string {
       <div>
         <h3>Grok</h3>
         <pre>pnpm --filter cooks-mcp dev          <span class="c"># hosts https://your-host/mcp</span>
-<span class="c"># In Grok: add a custom MCP connector</span>
+<span class="c"># grok.com/connectors → New connector → Custom</span>
 <span class="c">#   URL    https://your-host/mcp</span>
-<span class="c">#   Auth   Bearer cooks-api-...</span></pre>
-        <p>Grok talks to the hosted server over streamable HTTP with a workspace key. The connector screen changes often, so check xAI's current docs for where the fields live.</p>
+<span class="c">#   then sign in when Grok asks</span></pre>
+        <p>Grok runs the OAuth sign-in in a pop-up, so each person signs in with their own account and approves scopes. The host has to be reachable from the public internet.</p>
       </div>
       <div>
         <h3>claude.ai <small>and remote clients</small></h3>

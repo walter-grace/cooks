@@ -146,7 +146,7 @@ export function createApp(deps: AppDeps) {
   mountTelephonyWebhooks(app, { db: deps.db, jobs, clock, publicUrl, dialer, trustSignature: deps.telephony?.trustWebhookSignature === false, upgradeWebSocket, fetchImpl: deps.fetchImpl });
   mountInkboxWebhook(app, { db: deps.db, jobs, clock, publicUrl, channels, trustSignature: deps.channels?.trustWebhookSignature === false });
   mountConnect(app, { db: deps.db, publicUrl, kek: deps.kek, apps: deps.connectorApps ?? {}, msTenant: deps.msTenant, fetchImpl: deps.fetchImpl, now: () => clock.now() });
-  if (deps.oauth) mountOAuth(app, { db: deps.db, issuer: publicUrl, key: deps.oauth.key, clock, dcrEnabled: deps.oauth.dcrEnabled ?? true, secureCookies: deps.oauth.secureCookies ?? publicUrl.startsWith('https') });
+  if (deps.oauth) mountOAuth(app, { db: deps.db, issuer: publicUrl, key: deps.oauth.key, clock, dcrEnabled: deps.oauth.dcrEnabled ?? true, loginUrl: deps.clerk ? '/app/login' : undefined, secureCookies: deps.oauth.secureCookies ?? publicUrl.startsWith('https') });
 
   // OpenAPI document, served at the same paths as upstream (/openapi.yml) plus JSON and docs.
   app.openAPIRegistry.registerComponent('securitySchemes', 'BearerAuth', {

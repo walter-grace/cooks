@@ -8,10 +8,21 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { loadSession, type Session } from '../api.js';
 import { navigate } from '../router.js';
 
+/** `?next=` is set when an OAuth consent screen (a Claude or Grok connector) sent the user here to sign in. Same-origin paths only. */
+function nextAfterLogin(): string | null {
+  const n = new URLSearchParams(location.search).get('next');
+  return n && n.startsWith('/') && !n.startsWith('//') ? n : null;
+}
+function finishLogin() {
+  const n = nextAfterLogin();
+  if (n) location.assign(n);
+  else navigate('/');
+}
+
 export function Login({ onLogin, mode, clerkKey }: { onLogin: (s: Session) => void; mode: 'password' | 'clerk'; clerkKey: string | null }) {
   if (mode === 'clerk' && clerkKey) {
     return (
-      <ClerkProvider publishableKey={clerkKey} afterSignOutUrl="/app/login" signInUrl="/app/login" signInFallbackRedirectUrl="/app/login">
+      <ClerkProvider publishableKey={clerkKey} afterSignOutUrl="/app/login" signInUrl="/app/login" signInFallbackRedirectUrl={location.pathname + location.search}>
         <ClerkBridge onLogin={onLogin} />
       </ClerkProvider>
     );
@@ -36,7 +47,7 @@ function ClerkBridge({ onLogin }: { onLogin: (s: Session) => void }) {
       const s = await loadSession(undefined, true);
       if (s) {
         onLogin(s);
-        navigate('/');
+        finishLogin();
       }
     })();
   }, [isLoaded, isSignedIn, getToken, onLogin]);
@@ -72,7 +83,7 @@ function PasswordLogin({ onLogin }: { onLogin: (s: Session) => void }) {
     setBusy(false);
     if (s) {
       onLogin(s);
-      navigate('/');
+      finishLogin();
     } else setErr('Signed in, but no workspace membership was found.');
   };
   return (

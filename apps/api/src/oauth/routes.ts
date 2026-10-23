@@ -34,6 +34,8 @@ export interface OAuthDeps {
   clock: Clock;
   dcrEnabled: boolean;
   secureCookies: boolean;
+  /** Where an anonymous browser is sent to sign in before consent. Defaults to the password page; Clerk mode points it at the web UI. */
+  loginUrl?: string;
 }
 
 async function formOrJson(c: { req: { header: (n: string) => string | undefined; parseBody: () => Promise<Record<string, unknown>>; json: () => Promise<unknown> } }): Promise<Record<string, string>> {
@@ -62,6 +64,8 @@ async function issueSessionAccessToken(d: OAuthDeps, a: { userId: string; worksp
 export function mountOAuth(app: OpenAPIHono<AppEnv>, d: OAuthDeps) {
   const roleOf = (ws: string, uid: string) => memberRole(d.db, ws, uid);
   const cookieOpts = { httpOnly: true, sameSite: 'Lax' as const, secure: d.secureCookies, path: '/' };
+  const loginUrl = d.loginUrl ?? '/auth/login';
+  const toLogin = (next: string) => `${loginUrl}?next=${encodeURIComponent(next)}`;
 
   // ---- discovery
   app.get('/.well-known/oauth-authorization-server', (c) => c.json(authorizationServerMetadata(d.issuer, SCOPES, { dcr: d.dcrEnabled })));
@@ -69,7 +73,11 @@ export function mountOAuth(app: OpenAPIHono<AppEnv>, d: OAuthDeps) {
   app.get('/.well-known/jwks.json', async (c) => c.json(await publicJwks(d.db), 200, { 'cache-control': 'public, max-age=300' }));
 
   // ---- session login (email + password)
-  app.get('/auth/login', (c) => c.html(loginPage(safeNext(c.req.query('next')))));
+  app.get('/auth/login', (c) => {
+    const next = safeNext(c.req.query('next'));
+    if (loginUrl !== '/auth/login') return c.redirect(toLogin(next), 302);
+    return c.html(loginPage(next));
+  });
   app.post('/auth/login', async (c) => {
     const body = await formOrJson(c);
     const next = safeNext(body.next);
@@ -123,7 +131,7 @@ export function mountOAuth(app: OpenAPIHono<AppEnv>, d: OAuthDeps) {
     const user = await getSessionUser(d.db, getCookie(c, SESSION_COOKIE), d.clock.now());
     if (!user) {
       const back = `/oauth/authorize?${new URLSearchParams(query).toString()}`;
-      return c.redirect(`/auth/login?next=${encodeURIComponent(back)}`, 302);
+      return c.redirect(toLogin(back), 302);
     }
     const memberships = await d.db
       .select({ id: workspaces.id, name: workspaces.name })
