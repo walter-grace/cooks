@@ -2,7 +2,7 @@ import { createApiKey, ensureSigningKey, hashPassword } from '@cooks/auth';
 import { MemoryJobs } from '@cooks/core';
 import { users, workspaceMembers, workspaces } from '@cooks/db';
 import { createTestDb } from '@cooks/db/test';
-import { createApp } from '../app.js';
+import { createApp, type AppDeps } from '../app.js';
 import { MemoryRateLimitStore } from '../middleware/rate-limit.js';
 
 export interface FakeClock {
@@ -16,7 +16,7 @@ export function fakeClock(start = new Date('2026-03-02T15:00:00Z')): FakeClock {
   return { now: () => t, set: (d) => (t = d), advance: (ms) => (t = new Date(t.getTime() + ms)) };
 }
 
-export async function createTestApp(opts: { fetchImpl?: typeof fetch; telephony?: { apiBase?: string; trustWebhookSignature?: boolean; speko?: { apiKey?: string; apiBase?: string } }; channels?: { inkboxApiBase?: string; trustWebhookSignature?: boolean } } = {}) {
+export async function createTestApp(opts: { fetchImpl?: typeof fetch; telephony?: AppDeps['telephony']; channels?: AppDeps['channels'] } = {}) {
   const t = await createTestDb();
   const [ws] = await t.db.insert(workspaces).values({ name: 'Acme', slug: 'acme' }).returning();
   const pw = await hashPassword('hunter22');
