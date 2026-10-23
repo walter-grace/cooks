@@ -43,6 +43,8 @@ The power dialer at `/app/dialer` rings several prospects at once and connects t
 answers to the rep, with no beep, announcement or AI voice. It is the Nooks-style flow, built on
 Twilio Programmable Voice and Twilio's asynchronous answering-machine detection (AMD).
 
+![Power dialer with one line connected, one voicemail, one canceled](screenshots/power-dialer.png)
+
 How a batch works:
 
 1. **The rep joins first.** From the browser (Voice SDK, needs the API key pair and TwiML App) or by
