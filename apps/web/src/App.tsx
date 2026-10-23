@@ -5,6 +5,7 @@ import { useAuthConfig } from './hooks.js';
 import { match, navigate, useRoute } from './router.js';
 import { Shell } from './components/layout.js';
 import { Login } from './pages/Login.js';
+import { Practice } from './pages/Practice.js';
 import { Tasks } from './pages/Tasks.js';
 import { ProspectDetail, Prospects } from './pages/Prospects.js';
 import { SequenceDetail, Sequences } from './pages/Sequences.js';
@@ -62,6 +63,7 @@ export function App() {
   else if ((p = match(path, '/calls/:id'))) page = <CallDetail id={p.id!} />;
   else if (path === '/calls') page = <Calls />;
   else if (path === '/dialer') page = <PowerDialer />;
+  else if (path === '/practice') page = <Practice />;
   else if (path === '/inbox') page = <Inbox />;
   else if (path === '/signals') page = <Signals />;
   else if (path === '/settings') page = <Settings authMode={auth.mode} />;

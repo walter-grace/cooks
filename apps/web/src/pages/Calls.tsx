@@ -73,7 +73,7 @@ export function Calls() {
                   <TableCell>
                     <StateBadge state={c.outcome ?? c.status} />
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{c.mode === 'ai' ? 'AI · Speko' : c.provider === 'twilio' ? `Twilio · ${c.mode}` : 'logged'}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{c.mode === 'practice' ? 'Practice' : c.mode === 'ai' ? 'AI · Speko' : c.provider === 'twilio' ? `Twilio · ${c.mode}` : 'logged'}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtDuration(c.duration)}</TableCell>
                   <TableCell>{c.callDisposition?.name ? <Badge variant="outline">{c.callDisposition.name}</Badge> : c.loggedAt ? '' : <span className="text-xs text-muted-foreground">not logged</span>}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">
@@ -141,7 +141,7 @@ export function CallDetail({ id }: { id: string }) {
         ← Calls
       </Link>
       <PageHeader
-        title={c.prospect?.name ? `Call with ${c.prospect.name}` : `Call to ${c.to ?? ''}`}
+        title={c.practice ? `Practice: ${c.practice.title}` : c.prospect?.name ? `Call with ${c.prospect.name}` : `Call to ${c.to ?? ''}`}
         description={`${fmtDate(c.time)} · ${STATUS_LABEL[c.status] ?? c.status} · ${fmtDuration(c.duration)}${c.owner?.name ? ` · ${c.owner.name}` : ''}`}
         actions={
           <div className="flex gap-2">
@@ -166,7 +166,7 @@ export function CallDetail({ id }: { id: string }) {
           <CardContent className="grid gap-2 text-sm">
             <Row k="Disposition" v={c.callDisposition?.name ?? (c.loggedAt ? '' : 'not logged')} />
             {c.outcome && <Row k="Outcome" v={String(c.outcome).replace(/_/g, ' ')} />}
-            {c.provider && <Row k="Via" v={c.mode === 'ai' ? 'Speko AI agent' : `${c.provider} · ${c.mode}`} />}
+            {c.provider && <Row k="Via" v={c.mode === 'practice' ? 'Practice call · AI prospect' : c.mode === 'ai' ? 'Speko AI agent' : `${c.provider} · ${c.mode}`} />}
             {c.costUsd !== null && c.costUsd !== undefined && <Row k="Cost" v={`$${Number(c.costUsd).toFixed(2)}`} />}
             {c.endReason && <Row k="End reason" v={c.endReason} />}
             <Row k="Direction" v={c.direction} />
@@ -300,7 +300,7 @@ export function CallDetail({ id }: { id: string }) {
             {i.transcript.segments.map((s: any, k: number) => (
               <div key={k} className={`flex gap-3 ${s.speaker === 'rep' ? '' : 'text-muted-foreground'}`}>
                 <span className="w-10 shrink-0 font-mono text-xs text-muted-foreground">{fmtDuration(s.start)}</span>
-                <span className="w-16 shrink-0 font-medium">{s.speaker === 'rep' ? (c.mode === 'ai' ? 'Agent' : 'Rep') : 'Prospect'}</span>
+                <span className="w-16 shrink-0 font-medium">{s.speaker === 'rep' ? (c.mode === 'ai' ? 'Agent' : c.mode === 'practice' ? 'You' : 'Rep') : c.mode === 'practice' ? 'AI prospect' : 'Prospect'}</span>
                 <span>{s.text}</span>
               </div>
             ))}

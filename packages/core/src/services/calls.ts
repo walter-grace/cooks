@@ -52,7 +52,14 @@ export function serializeCall(c: CallRow, x: Record<string, unknown> = {}) {
     endReason: c.endReason,
     costUsd: c.costUsd === null ? null : Number(c.costUsd),
     providerSessionId: c.spekoSessionId,
+    /** Practice calls: the scenario the rep rehearsed (never the partner's instructions). */
+    practice: practiceSummary(c.aiConfig),
   };
+}
+
+function practiceSummary(cfg: Record<string, unknown> | null) {
+  const p = (cfg as { practice?: { scenarioId?: string; title?: string; brief?: string; persona?: unknown; difficulty?: string } } | null)?.practice;
+  return p ? { scenarioId: p.scenarioId ?? null, title: p.title ?? null, brief: p.brief ?? null, persona: p.persona ?? null, difficulty: p.difficulty ?? null } : null;
 }
 
 async function serializeCalls(ctx: Ctx, rows: CallRow[], includes: string[]) {

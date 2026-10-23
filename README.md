@@ -56,7 +56,7 @@ The part that makes it different is the brain. Cooks ships an MCP server with 66
     </td>
     <td width="50%" valign="top">
       <h3>Coaching</h3>
-      Every recorded call is split by speaker, transcribed through any OpenAI-compatible speech-to-text endpoint, and scored on a six-part rubric: opener, discovery, listening, value, objections, next step. Talk ratio, monologues, questions asked, and one concrete tip per call.
+      Every recorded call is split by speaker, transcribed through any OpenAI-compatible speech-to-text endpoint, and scored on a six-part rubric: opener, discovery, listening, value, objections, next step. Talk ratio, monologues, questions asked, and one concrete tip per call. Reps rehearse against an AI prospect that interrupts and objects, and the practice call gets the same scorecard.
     </td>
   </tr>
 </table>
@@ -176,6 +176,7 @@ Details and the list of deliberately mirrored behaviors are in [docs/api-compat.
 | Parallel dialing research notes | [docs/parallel-dialing-research.md](docs/parallel-dialing-research.md) |
 | Signals and rules | [docs/signals.md](docs/signals.md) |
 | Call coaching and transcription | [docs/coaching.md](docs/coaching.md) |
+| Practice calls against an AI prospect | [docs/practice.md](docs/practice.md) |
 | HubSpot and CRM | [docs/crm.md](docs/crm.md) |
 | Inkbox channels: email, SMS, iMessage, hosted calls | [docs/inkbox.md](docs/inkbox.md) |
 | Webhooks and signatures | [docs/webhooks.md](docs/webhooks.md) |

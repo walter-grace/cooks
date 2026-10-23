@@ -35,6 +35,7 @@ const { app, registry, injectWebSocket } = createApp({
     speko: { apiKey: env.SPEKO_API_KEY, apiBase: env.SPEKO_API_BASE },
     twilioEnv: env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN ? { accountSid: env.TWILIO_ACCOUNT_SID, authToken: env.TWILIO_AUTH_TOKEN, fromNumber: env.TWILIO_FROM_NUMBER, apiKeySid: env.TWILIO_API_KEY_SID, apiKeySecret: env.TWILIO_API_KEY_SECRET, twimlAppSid: env.TWILIO_TWIML_APP_SID } : undefined,
     speech: { provider: env.SPEECH_PROVIDER, apiKey: env.SPEECH_API_KEY ?? env.OPENAI_API_KEY, apiBase: env.SPEECH_API_BASE, model: env.SPEECH_MODEL, modelDir: env.SPEECH_MODEL_DIR, jev: { apiKey: env.OPENROUTER_API_KEY, model: env.SPEECH_JEV_MODEL } },
+    practice: { provider: env.PRACTICE_PROVIDER, apiKey: env.PRACTICE_API_KEY ?? env.OPENAI_API_KEY, apiBase: env.PRACTICE_API_BASE, model: env.PRACTICE_MODEL, voice: env.PRACTICE_VOICE, localUrl: env.PRACTICE_LOCAL_URL, maxSeconds: env.PRACTICE_MAX_SECONDS },
   },
   channels: { inkboxApiBase: env.INKBOX_API_BASE },
   webDir: [join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist'), process.env.COOKS_WEB_DIR ?? ''].find((d) => d && existsSync(join(d, 'index.html'))),

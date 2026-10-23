@@ -1,6 +1,7 @@
 # Call coaching
 
-Every recorded dialer call can get a transcript, talk statistics and an AI scorecard.
+Every recorded dialer call can get a transcript, talk statistics and an AI scorecard. Practice
+calls against an AI prospect (`docs/practice.md`) get the same scorecard.
 
 ## Pipeline
 

@@ -5,7 +5,7 @@ import { accounts, prospects } from './crm.js';
 import { sequenceStates, sequenceSteps, sequences } from './sequencing.js';
 
 export const callDirection = pgEnum('call_direction', ['inbound', 'outbound']);
-export const callSource = pgEnum('call_source', ['dialer', 'manual', 'sequence', 'inbound', 'api']);
+export const callSource = pgEnum('call_source', ['dialer', 'manual', 'sequence', 'inbound', 'api', 'practice']);
 export const callOutcome = pgEnum('call_outcome', [
   'connected',
   'not_connected',
@@ -69,7 +69,7 @@ export const calls = pgTable(
     /** answered | voicemail | no_answer | failed, written once the provider reports the call ended. */
     outcome: text('outcome'),
     /** Speaker-labelled transcript entries from the provider (AI calls). */
-    transcript: jsonb('transcript').$type<Array<{ index: number; role: 'agent' | 'user' | 'system'; text: string; startedAt: string; endedAt?: string | null }>>(),
+    transcript: jsonb('transcript').$type<Array<{ index: number; role: 'agent' | 'user' | 'system' | 'rep' | 'prospect'; text: string; startedAt: string; endedAt?: string | null }>>(),
     summary: text('summary'),
     endReason: text('end_reason'),
     costUsd: numeric('cost_usd', { precision: 10, scale: 4 }),

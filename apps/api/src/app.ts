@@ -22,8 +22,9 @@ import { mountInkboxWebhook } from './routes/channels.js';
 import { makeVerifyJwt, mountOAuth } from './oauth/routes.js';
 import { mountConnect } from './routes/connect.js';
 import { clerkBrokers, mountClerkAuth, mountClerkConnectors } from './routes/clerk.js';
+import { mountPractice, mountPracticeSocket } from './routes/practice.js';
 import type { ClerkGateway } from '@cooks/auth';
-import type { ConnectorApps, SpeechConfig, TwilioEnv } from '@cooks/core';
+import type { ConnectorApps, PracticeConfig, SpeechConfig, TwilioEnv } from '@cooks/core';
 import type { ActiveKey } from '@cooks/auth';
 import { SCOPES, SCOPE_DESCRIPTIONS } from '@cooks/core';
 
@@ -52,7 +53,7 @@ export interface AppDeps {
   /** HubSpot OAuth app (optional; private-app tokens work without it). */
   hubspotApp?: { clientId: string; clientSecret: string };
   /** Twilio: override the API base for mocks; `trustWebhookSignature: false` skips X-Twilio-Signature checks (tests only). */
-  telephony?: { apiBase?: string; trustWebhookSignature?: boolean; speko?: { apiKey?: string; apiBase?: string }; twilioEnv?: TwilioEnv; speech?: SpeechConfig };
+  telephony?: { apiBase?: string; trustWebhookSignature?: boolean; speko?: { apiKey?: string; apiBase?: string }; twilioEnv?: TwilioEnv; speech?: SpeechConfig; practice?: PracticeConfig };
   channels?: { inkboxApiBase?: string; trustWebhookSignature?: boolean };
   /** Directory with the built web UI (apps/web/dist). Served at /app with SPA fallback. */
   webDir?: string;
@@ -144,6 +145,9 @@ export function createApp(deps: AppDeps) {
   if (deps.clerk) mountClerkConnectors(reg, { gateway: deps.clerk.gateway, publishableKey: deps.clerk.publishableKey, defaultWorkspaceSlug: deps.clerk.defaultWorkspaceSlug, db: deps.db, kek: deps.kek, clock, secureCookies, crm: reg.crmDeps });
   mountTracking(app, { db: deps.db, secret: deps.kek ?? 'cooks-dev', clock, jobs, publicUrl });
   mountTelephonyWebhooks(app, { db: deps.db, jobs, clock, publicUrl, dialer, trustSignature: deps.telephony?.trustWebhookSignature === false, upgradeWebSocket, fetchImpl: deps.fetchImpl });
+  const practice = { db: deps.db, jobs, clock, publicUrl, kek: deps.kek, practice: deps.telephony?.practice };
+  mountPractice(reg, practice);
+  mountPracticeSocket(app, { ...practice, upgradeWebSocket });
   mountInkboxWebhook(app, { db: deps.db, jobs, clock, publicUrl, channels, trustSignature: deps.channels?.trustWebhookSignature === false });
   mountConnect(app, { db: deps.db, publicUrl, kek: deps.kek, apps: deps.connectorApps ?? {}, msTenant: deps.msTenant, fetchImpl: deps.fetchImpl, now: () => clock.now() });
   if (deps.oauth) mountOAuth(app, { db: deps.db, issuer: publicUrl, key: deps.oauth.key, clock, dcrEnabled: deps.oauth.dcrEnabled ?? true, loginUrl: deps.clerk ? '/app/login' : undefined, secureCookies: deps.oauth.secureCookies ?? publicUrl.startsWith('https') });

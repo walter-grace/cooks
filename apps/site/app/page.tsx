@@ -40,7 +40,7 @@ export default function Page() {
           <div><div className="n">Sequencing</div><h3>Cadences that respect the clock</h3><p>Email, call, LinkedIn and manual steps with per-prospect time zones, send windows and daily caps per mailbox. Reply and bounce detection, A/B variants, one-click unsubscribe. AI drafts any email step and hands it to a person when unsure.</p></div>
           <div><div className="n">Dialer</div><h3>Four lines ring, one person answers</h3><p>Reps call on Twilio from the browser or a bridge to their phone. The power dialer rings three or four prospects at once and drops the first human into the rep&apos;s ear, with no beep and no message. Machines are hung up before anyone hears them.</p></div>
           <div><div className="n">Signals</div><h3>One feed of reasons to call</h3><p>Email engagement, web research, CRM changes and anything your bot pushes in, as one stream. Rules turn a matching signal into an enrollment or a task. Accounts in active sequences get a web scan every seven days.</p></div>
-          <div><div className="n">Coaching</div><h3>Every call gets a scorecard</h3><p>Recorded calls are split by speaker, transcribed, and scored on six parts: opener, discovery, listening, value, objections, next step. Talk ratio, monologues, questions asked and one concrete tip per call.</p></div>
+          <div><div className="n">Coaching</div><h3>Every call gets a scorecard</h3><p>Recorded calls are split by speaker, transcribed, and scored on six parts: opener, discovery, listening, value, objections, next step. Talk ratio, monologues, questions asked and one concrete tip per call. Reps rehearse against an AI prospect before the real call.</p></div>
         </section>
 
         <section className="sec" id="dialer">

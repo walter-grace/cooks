@@ -77,6 +77,15 @@ const EnvSchema = z.object({
   SPEECH_MODEL_DIR: z.string().optional(),
   /** Jev decision model id on OpenRouter for the tie-breaker (OPENROUTER_API_KEY). */
   SPEECH_JEV_MODEL: z.string().default('typesafe/jev-1.14'),
+  /** Practice calls (rep rehearses against an AI prospect): off | mock | openai | local. */
+  PRACTICE_PROVIDER: z.enum(['off', 'mock', 'openai', 'local']).default('off'),
+  PRACTICE_API_KEY: z.string().optional(),
+  PRACTICE_API_BASE: z.string().optional(),
+  PRACTICE_MODEL: z.string().optional(),
+  PRACTICE_VOICE: z.string().optional(),
+  /** `local`: WebSocket URL of a full-duplex runner speaking the Cooks duplex protocol (docs/practice.md). */
+  PRACTICE_LOCAL_URL: z.string().optional(),
+  PRACTICE_MAX_SECONDS: z.coerce.number().int().min(30).max(3600).default(600),
   /** Server-wide Speko key (workspaces can store their own instead). */
   SPEKO_API_KEY: z.string().optional(),
   SPEKO_API_BASE: z.string().optional(),
