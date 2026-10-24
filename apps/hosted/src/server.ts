@@ -36,6 +36,8 @@ log('app ready');
 
 // The MCP transport sits in front of the API and calls it in-process, with the caller's token.
 const root = new Hono();
+// The hosted product's front door is the app; the API's self-host landing page stays at /docs and /openapi.json.
+root.get('/', (c) => c.redirect('/app', 302));
 root.route('/', createMcpHttpApp({ apiUrl: 'http://cooks.internal', publicUrl: env.COOKS_PUBLIC_URL, mcpPublicUrl: env.COOKS_MCP_PUBLIC_URL ?? env.COOKS_PUBLIC_URL, fetchImpl: ((input, init) => app.request(input, init)) as typeof fetch }));
 root.route('/', app);
 root.notFound((c) => c.json(new CooksError(404, 'NOT_FOUND', `No route for ${c.req.method} ${c.req.path}`).toBody(''), 404));

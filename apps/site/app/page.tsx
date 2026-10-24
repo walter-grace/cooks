@@ -5,7 +5,7 @@ import { House } from '@/components/House';
 import { HouseScene } from '@/components/HouseScene';
 
 const GITHUB = 'https://github.com/walter-grace/cooks';
-const APP = 'https://cooks-app.vercel.app/app';
+const APP = 'https://cooksapp.vercel.app/app';
 const RELEASE = `${GITHUB}/releases/latest/download/cooks-mcp.tgz`;
 const QUICKSTART = `${GITHUB}#quick-start`;
 const doc = (name: string) => `${GITHUB}/blob/main/docs/${name}.md`;

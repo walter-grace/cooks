@@ -35,8 +35,16 @@ export const QUEUES: Record<JobName, { policy?: string; retryLimit?: number; ret
 };
 
 /** `supervise: false, schedule: false` for request handlers that only enqueue (serverless); the worker keeps both on. */
+/**
+ * pg treats sslmode=require/prefer/verify-ca as verify-full today and warns on every connection
+ * that this changes in pg 9; say verify-full outright so the warning stops and the behavior is pinned.
+ */
+function withVerifyFull(url: string): string {
+  return url.replace(/([?&])sslmode=(require|prefer|verify-ca)(?=&|$)/, '$1sslmode=verify-full');
+}
+
 export async function createBoss(connectionString: string, opts: { schema?: string; supervise?: boolean; schedule?: boolean } = {}): Promise<PgBoss> {
-  const boss = new PgBoss({ connectionString: withDefaultUser(connectionString), schema: opts.schema ?? 'pgboss', application_name: 'cooks', ...(opts.supervise === false ? { supervise: false } : {}), ...(opts.schedule === false ? { schedule: false } : {}) });
+  const boss = new PgBoss({ connectionString: withVerifyFull(withDefaultUser(connectionString)), schema: opts.schema ?? 'pgboss', application_name: 'cooks', ...(opts.supervise === false ? { supervise: false } : {}), ...(opts.schedule === false ? { schedule: false } : {}) });
   boss.on('error', (e: unknown) => console.error('[pg-boss]', e));
   await boss.start();
   for (const [name, q] of Object.entries(QUEUES)) {
