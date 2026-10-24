@@ -1,4 +1,6 @@
-import { CheckSquare, Users, GitBranch, Mail, Mic, Phone, PhoneForwarded, Radar, Inbox as InboxIcon, Settings as SettingsIcon, BookOpen, LogOut } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CheckSquare, Users, GitBranch, Mail, Mic, Phone, PhoneForwarded, Radar, Inbox as InboxIcon, Settings as SettingsIcon, BookOpen, LogOut, Search } from 'lucide-react';
+import { CommandPalette } from '@/components/command-palette';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,6 +24,17 @@ const NAV = [
 
 export function Shell({ session, path, onSwitchWorkspace, onLogout, children }: { session: Session; path: string; onSwitchWorkspace: (id: string) => void; onLogout: () => void; children: React.ReactNode }) {
   const active = (to: string) => (to === '/' ? path === '/' : path.startsWith(to));
+  const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const initials = session.user.name
     .split(/\s+/)
     .map((p) => p[0])
@@ -35,6 +48,16 @@ export function Shell({ session, path, onSwitchWorkspace, onLogout, children }: 
           <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-sm font-bold">C</div>
           <span className="font-semibold tracking-tight">Cooks</span>
         </div>
+        <button
+          type="button"
+          onClick={() => setSearchOpen(true)}
+          className="mb-1 flex h-9 shrink-0 items-center gap-2 rounded-md border bg-background px-2.5 text-sm text-muted-foreground hover:bg-sidebar-accent md:w-full"
+          data-testid="search-open"
+        >
+          <Search className="size-4" />
+          <span>Search</span>
+          <kbd className="ml-auto hidden rounded border px-1.5 font-mono text-[10px] md:block">⌘K</kbd>
+        </button>
         <nav className="flex flex-row gap-1 overflow-x-auto [scrollbar-width:none] md:flex-col md:overflow-visible" data-testid="nav">
           {NAV.map(({ to, label, icon: Icon }) => (
             <Link key={to} to={to} className={cn('flex shrink-0 items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors hover:bg-sidebar-accent', active(to) ? 'bg-sidebar-accent font-medium' : 'text-muted-foreground')}>
@@ -81,6 +104,7 @@ export function Shell({ session, path, onSwitchWorkspace, onLogout, children }: 
         </div>
       </aside>
       <main className="mx-auto w-full min-w-0 max-w-6xl p-4 md:p-8">{children}</main>
+      <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
   );
 }

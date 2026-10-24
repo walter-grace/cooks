@@ -122,7 +122,7 @@ export default function Page() {
             <div>
               <div className="n">Detection</div>
               <h2>How Cooks tells a person from a machine</h2>
-              <p>When a carrier answers, Cooks streams the callee&apos;s audio back and runs it through voice-activity detection and a few rules. &quot;Hello?&quot; followed by silence is a person. &quot;You&apos;ve reached&quot;, a beep or a long unbroken speech is a machine. If that is unclear, a small model (TypeSafe&apos;s Jev through OpenRouter) decides within a few hundred milliseconds.</p>
+              <p>When a carrier answers, Cooks streams the callee&apos;s audio back and runs it through voice-activity detection and a few rules. &quot;Hello?&quot; followed by silence is a person. &quot;You&apos;ve reached&quot;, a beep or a long unbroken speech is a machine. If that is unclear, a small model decides within a few hundred milliseconds.</p>
               <p className="soft">Twilio&apos;s answering-machine detection runs at the same time as a fallback. The first verdict on a line wins and the other is ignored.</p>
               <table className="t" aria-label="Time from answer to verdict">
                 <thead><tr><th scope="col">Pickup</th><th scope="col">Verdict lands</th></tr></thead>
@@ -149,7 +149,7 @@ export default function Page() {
           <div className="split">
             <div>
               <p>The MCP server is a thin client over the REST API. Run it on a laptop against a hosted Cooks, or next to the API for the team. In this setup Cooks itself spends no tokens.</p>
-              <p className="soft">Cooks can also run its own agents for drafts, reply classification and research. Add a workspace key for Anthropic, xAI, OpenAI, OpenRouter or Ollama, and each run is logged with its tokens and cost.</p>
+              <p className="soft">Cooks can also run its own agents for drafts, reply classification and research. Add a key for the model provider you use, or point it at a local model, and each run is logged with its tokens and cost.</p>
               <div className="panel" role="img" aria-label="A chat with an assistant that uses Cooks tools to find accounts, enroll prospects and place a call">
                 <div className="bar"><b>Claude Code</b><span>cooks mcp</span></div>
                 <div className="chat">

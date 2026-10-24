@@ -13,6 +13,7 @@ import { mountSequenceStates } from './sequence-states.js';
 import { mountSequenceSteps } from './sequence-steps.js';
 import { mountSequences } from './sequences.js';
 import { mountSignals } from './signals.js';
+import { mountSearch } from './search.js';
 import { mountTelephony } from './telephony.js';
 import { mountParallelDialer } from './parallel.js';
 import { mountTags } from './tags.js';
@@ -36,6 +37,7 @@ export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: s
   mountMailboxes(reg, { kek: opts.kek });
   mountCalls(reg);
   mountSignals(reg);
+  mountSearch(reg);
   if (opts.dialer) {
     mountTelephony(reg, opts.dialer);
     mountParallelDialer(reg, opts.dialer);

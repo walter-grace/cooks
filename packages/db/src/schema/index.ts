@@ -6,3 +6,4 @@ export * from './calls.js';
 export * from './ai.js';
 export * from './infra.js';
 export * from './channels.js';
+export * from './search.js';

@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://cooks-site.vercel.app"><img src="docs/screenshots/home.png" alt="The Cooks home page: Let your reps cook." width="820"></a>
+  <a href="https://cooks-sales.vercel.app"><img src="docs/screenshots/home.png" alt="The Cooks home page: Let your reps cook." width="820"></a>
 </p>
 
 <h1 align="center">Cooks</h1>
@@ -7,7 +7,7 @@
 <p align="center">
   <strong>Open-source sales engagement. Let your reps cook.</strong><br>
   Sequences, a dialer, buying signals and call coaching on one Postgres, driven by the AI assistant you already pay for.<br>
-  <a href="https://cooks-site.vercel.app">cooks-site.vercel.app</a>
+  <a href="https://cooks-sales.vercel.app">cooks-site.vercel.app</a>
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@
 
 Cooks is the sales engagement stack a team would build for itself if it had the time: a sequencing engine with real send windows and reply detection, a Twilio dialer with recordings, a feed of buying signals, and an AI coach that scores every recorded call. It runs on your own server under the MIT license, and it speaks the same REST contract as the commercial platform it mirrors, so existing clients and docs carry over by changing a base URL.
 
-The part that makes it different is the brain. Cooks ships an MCP server with 66 tools, so Claude, Grok, Cursor or any MCP-capable assistant can work your pipeline directly: research an account, enroll the prospect, draft the email, place the call, log the outcome. In that mode Cooks spends no tokens of its own.
+The part that makes it different is the brain. Cooks ships an MCP server with 67 tools, so Claude, Grok, Cursor or any MCP-capable assistant can work your pipeline directly: research an account, enroll the prospect, draft the email, place the call, log the outcome. In that mode Cooks spends no tokens of its own.
 
 <p align="center">
   <img src="docs/screenshots/tasks.png" alt="Cooks task queue" width="820">
@@ -46,7 +46,7 @@ The part that makes it different is the brain. Cooks ships an MCP server with 66
     </td>
     <td width="50%" valign="top">
       <h3>Dialer</h3>
-      Reps call on Twilio Voice, from the browser or with a bridge that rings their phone first. A parallel power dialer rings three or four prospects at once and drops the first person who answers straight into the rep's ear, with no beep or message; machines are detected and hung up. With a speech recognizer configured it hears the pickup itself and connects on "Hello?" about a second in, instead of waiting three for carrier AMD; TypeSafe's Jev on OpenRouter can decide the unclear ones. Or let a Speko voice agent place the call from a script and bring back the outcome, transcript and recording. Dispositions close the linked task, a byte-compatible <code>call.logged</code> webhook fires, and calls land on the HubSpot timeline.
+      Reps call on Twilio Voice, from the browser or with a bridge that rings their phone first. A parallel power dialer rings three or four prospects at once and drops the first person who answers straight into the rep's ear, with no beep or message; machines are detected and hung up. With a speech recognizer configured it hears the pickup itself and connects on "Hello?" about a second in, instead of waiting three for carrier AMD; a small model can decide the unclear ones. Or let a Speko voice agent place the call from a script and bring back the outcome, transcript and recording. Dispositions close the linked task, a byte-compatible <code>call.logged</code> webhook fires, and calls land on the HubSpot timeline.
     </td>
   </tr>
   <tr>
@@ -71,7 +71,7 @@ The part that makes it different is the brain. Cooks ships an MCP server with 66
 - Gmail, Microsoft 365 and plain SMTP mailboxes, with inbound sync for replies and bounces.
 - Inkbox as a channel: every rep or agent gets an email address, an SMS number and an iMessage line. Sequences send through them, replies come back through a signed webhook into one inbox, texts respect consent and quiet hours, and STOP opts the prospect out.
 - HubSpot connector: contact and company sync, list and deal-stage auto-enroll, notes and email/call logging. Salesforce users run the Salesforce MCP next to the Cooks MCP in the same bot today.
-- Hosted AI per workspace on Anthropic, xAI, OpenAI, OpenRouter or Ollama, with a run ledger that records tokens and cost.
+- Hosted AI per workspace with the model provider you choose, or a local model, with a run ledger that records tokens and cost.
 - Workspace API keys and OAuth 2.1 with PKCE and dynamic client registration. Clerk SSO when you want it, where organizations become workspaces.
 - Signed, retried webhooks for calls, emails, enrollments, tasks and prospects.
 
@@ -177,6 +177,7 @@ Details and the list of deliberately mirrored behaviors are in [docs/api-compat.
 | Signals and rules | [docs/signals.md](docs/signals.md) |
 | Call coaching and transcription | [docs/coaching.md](docs/coaching.md) |
 | Practice calls against an AI prospect | [docs/practice.md](docs/practice.md) |
+| Search across prospects, calls, transcripts, signals and email | [docs/search.md](docs/search.md) |
 | HubSpot and CRM | [docs/crm.md](docs/crm.md) |
 | Inkbox channels: email, SMS, iMessage, hosted calls | [docs/inkbox.md](docs/inkbox.md) |
 | Webhooks and signatures | [docs/webhooks.md](docs/webhooks.md) |
