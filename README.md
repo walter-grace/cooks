@@ -170,6 +170,7 @@ Details and the list of deliberately mirrored behaviors are in [docs/api-compat.
 | --- | --- |
 | Self-hosting and configuration | [docs/self-host.md](docs/self-host.md) |
 | Authentication: sign-up and invites, API keys, OAuth 2.1, Clerk SSO | [docs/auth.md](docs/auth.md) |
+| The in-app assistant and hosted AI providers | [docs/ai.md](docs/ai.md) |
 | MCP server and assistant setup | [docs/mcp.md](docs/mcp.md) |
 | AI providers, hosted agents, guardrails | [docs/ai.md](docs/ai.md) |
 | Dialer on Twilio, parallel dialing | [docs/dialer.md](docs/dialer.md) |
