@@ -18,8 +18,8 @@ export interface DbHandle {
   close: () => Promise<void>;
 }
 
-export function createDb(url: string, opts: { max?: number } = {}): DbHandle {
-  const sql = postgres(url, { max: opts.max ?? 10, onnotice: () => {} });
+export function createDb(url: string, opts: { max?: number; connectTimeout?: number; idleTimeout?: number } = {}): DbHandle {
+  const sql = postgres(url, { max: opts.max ?? 10, onnotice: () => {}, ...(opts.connectTimeout ? { connect_timeout: opts.connectTimeout } : {}), ...(opts.idleTimeout ? { idle_timeout: opts.idleTimeout } : {}) });
   const db = drizzle(sql, { schema, casing: 'snake_case' }) as unknown as Db;
   return { db, sql, close: () => sql.end({ timeout: 5 }) };
 }

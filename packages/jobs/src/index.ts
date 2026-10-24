@@ -64,3 +64,25 @@ export class PgBossJobs implements JobsPort {
 
 export { PgBoss };
 export type { PgBoss as Boss };
+
+/**
+ * JobsPort that starts pg-boss on the first send. Request handlers in a serverless function
+ * should not pay for pg-boss at cold start when most requests never enqueue anything.
+ */
+export class LazyPgBossJobs implements JobsPort {
+  private boss: Promise<PgBossJobs> | null = null;
+  constructor(private readonly factory: () => Promise<PgBoss>) {}
+  private get(): Promise<PgBossJobs> {
+    if (!this.boss) {
+      this.boss = this.factory().then((b) => new PgBossJobs(b));
+      this.boss.catch(() => (this.boss = null));
+    }
+    return this.boss;
+  }
+  async send(name: JobName, data: Record<string, unknown>, opts: JobOptions = {}) {
+    return (await this.get()).send(name, data, opts);
+  }
+  async cancel(name: JobName, jobId: string) {
+    await (await this.get()).cancel(name, jobId);
+  }
+}
