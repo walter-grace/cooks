@@ -49,6 +49,7 @@
   },
   "exports": {
     "./tools": "./src/tools.ts",
+    "./http": "./src/http-app.ts",
     "./client": "./src/client.ts"
   }
 }

@@ -12,6 +12,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^1.1.0",
     "@clerk/backend": "^2",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "@cooks/api": "workspace:*",
     "@cooks/auth": "workspace:*",
     "@cooks/config": "workspace:*",
@@ -19,6 +20,7 @@
     "@cooks/db": "workspace:*",
     "@cooks/jobs": "workspace:*",
     "@cooks/worker": "workspace:*",
+    "@hono/mcp": "^0.3.0",
     "@hono/node-server": "^2.1.0",
     "@hono/node-ws": "^1.3.1",
     "@hono/zod-openapi": "^1.6.0",

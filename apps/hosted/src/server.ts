@@ -16,6 +16,9 @@ import { createDb } from '@cooks/db';
 import { createBoss, LazyPgBossJobs } from '@cooks/jobs';
 import { createApp } from '@cooks/api/app';
 import { apiDepsFrom } from '@cooks/api/boot';
+import { createMcpHttpApp } from 'cooks-mcp/http';
+import { Hono } from 'hono';
+import { CooksError } from '@cooks/core';
 
 const t0 = Date.now();
 const log = (m: string) => console.log(`[hosted] ${m} +${Date.now() - t0}ms`);
@@ -31,7 +34,13 @@ log('signing key ready');
 const { app, injectWebSocket } = createApp(apiDepsFrom(env, { db: handle.db, jobs, signingKey }));
 log('app ready');
 
-const server = createAdaptorServer({ fetch: app.fetch });
+// The MCP transport sits in front of the API and calls it in-process, with the caller's token.
+const root = new Hono();
+root.route('/', createMcpHttpApp({ apiUrl: 'http://cooks.internal', publicUrl: env.COOKS_PUBLIC_URL, mcpPublicUrl: env.COOKS_MCP_PUBLIC_URL ?? env.COOKS_PUBLIC_URL, fetchImpl: ((input, init) => app.request(input, init)) as typeof fetch }));
+root.route('/', app);
+root.notFound((c) => c.json(new CooksError(404, 'NOT_FOUND', `No route for ${c.req.method} ${c.req.path}`).toBody(''), 404));
+
+const server = createAdaptorServer({ fetch: root.fetch });
 injectWebSocket(server);
 server.once('listening', () => log(`listening on ${JSON.stringify(server.address())}`));
 
