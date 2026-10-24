@@ -5,6 +5,7 @@ import { House } from '@/components/House';
 import { HouseScene } from '@/components/HouseScene';
 
 const GITHUB = 'https://github.com/walter-grace/cooks';
+const APP = 'https://cooks-app.vercel.app/app';
 const RELEASE = `${GITHUB}/releases/latest/download/cooks-mcp.tgz`;
 const QUICKSTART = `${GITHUB}#quick-start`;
 const doc = (name: string) => `${GITHUB}/blob/main/docs/${name}.md`;
@@ -24,6 +25,7 @@ export default function Page() {
             <a className="sub" href="#selfhost">Self-host</a>
             <a href={doc('api-compat')}>API</a>
             <a href={GITHUB}>GitHub</a>
+            <a href={`${APP}/login`}>Sign in</a>
           </nav>
         </header>
       </div>
@@ -35,10 +37,11 @@ export default function Page() {
               <h1>Let your reps <em>cook</em>.</h1>
               <p className="lead">Cooks is sales engagement software you run on your own server. It handles sequences, a parallel dialer, buying signals and call coaching, and your Claude or Grok can operate it through MCP.</p>
               <div className="ctas">
-                <a className="cta fill" href={QUICKSTART}>Get the code</a>
+                <a className="cta fill" href={`${APP}/signup`}>Sign up</a>
+                <a className="cta" href={QUICKSTART}>Get the code</a>
                 <a className="cta" href="#room-dialer">Take the tour <span aria-hidden="true">↓</span></a>
               </div>
-              <p className="fine"><span>MIT license</span><span>Node and Postgres, nothing else to run</span></p>
+              <p className="fine"><span>MIT license</span><span>Hosted for you, or Node and Postgres on your own server</span></p>
             </div>
           </div>
         </li>
