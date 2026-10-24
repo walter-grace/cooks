@@ -48,7 +48,7 @@ export function App() {
     return (
       <>
         <Login onLogin={setSession} mode={auth.mode} clerkKey={auth.clerkPublishableKey} />
-        <Toaster richColors />
+        <Toaster />
       </>
     );
   }
@@ -82,7 +82,7 @@ export function App() {
       >
         {page}
       </Shell>
-      <Toaster richColors />
+      <Toaster />
     </>
   );
 }

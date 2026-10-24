@@ -35,14 +35,14 @@ export function Shell({ session, path, onSwitchWorkspace, onLogout, children }: 
           <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-sm font-bold">C</div>
           <span className="font-semibold tracking-tight">Cooks</span>
         </div>
-        <nav className="flex flex-row flex-wrap gap-1 md:flex-col" data-testid="nav">
+        <nav className="flex flex-row gap-1 overflow-x-auto [scrollbar-width:none] md:flex-col md:overflow-visible" data-testid="nav">
           {NAV.map(({ to, label, icon: Icon }) => (
-            <Link key={to} to={to} className={cn('flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors hover:bg-sidebar-accent', active(to) ? 'bg-sidebar-accent font-medium' : 'text-muted-foreground')}>
+            <Link key={to} to={to} className={cn('flex shrink-0 items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors hover:bg-sidebar-accent', active(to) ? 'bg-sidebar-accent font-medium' : 'text-muted-foreground')}>
               <Icon className="size-4" />
               {label}
             </Link>
           ))}
-          <a href="/docs" target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-md px-2.5 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent">
+          <a href="/docs" target="_blank" rel="noreferrer" className="flex shrink-0 items-center gap-2 rounded-md px-2.5 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent">
             <BookOpen className="size-4" />
             API docs
           </a>
@@ -101,7 +101,25 @@ export function Empty({ children }: { children: React.ReactNode }) {
   return <div data-testid="empty" className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{children}</div>;
 }
 
+const GOOD = new Set(['active', 'sent', 'delivered', 'connected', 'ready', 'completed', 'replied', 'enabled', 'answered', 'meeting_booked']);
+const WAIT = new Set(['paused', 'queued', 'draft', 'pending', 'pending_start', 'scheduled', 'in_progress', 'ringing', 'dialing', 'processing']);
+const BAD = new Set(['rejected', 'failed', 'bounced', 'dropped', 'disabled', 'error', 'canceled', 'cancelled', 'do_not_call', 'busy']);
+
+/** State as weight: filled for good, soft for waiting, outlined for bad, quiet for the rest. */
 export function StateBadge({ state }: { state: string }) {
-  const tone = state === 'active' || state === 'sent' || state === 'finished' && false ? 'default' : state === 'paused' || state === 'queued' || state === 'draft' ? 'secondary' : state === 'rejected' || state === 'failed' ? 'destructive' : 'outline';
-  return <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', tone === 'default' && 'border-transparent bg-emerald-600/15 text-emerald-700 dark:text-emerald-300', tone === 'secondary' && 'border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300', tone === 'destructive' && 'border-transparent bg-destructive/15 text-destructive', tone === 'outline' && 'text-muted-foreground')}>{state}</span>;
+  const tone = GOOD.has(state) ? 'solid' : WAIT.has(state) ? 'soft' : BAD.has(state) ? 'strong' : 'quiet';
+  return (
+    <span
+      data-state={state}
+      className={cn(
+        'inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium',
+        tone === 'solid' && 'border-transparent bg-foreground text-background',
+        tone === 'soft' && 'border-transparent bg-muted text-foreground',
+        tone === 'strong' && 'border-foreground text-foreground',
+        tone === 'quiet' && 'text-muted-foreground',
+      )}
+    >
+      {state.replace(/_/g, ' ')}
+    </span>
+  );
 }

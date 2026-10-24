@@ -4,6 +4,7 @@ import { AlertTriangle, Grid3x3, Mic, MicOff, PhoneCall, PhoneForwarded, PhoneOf
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { api, q } from '../api.js';
+import { fmtFixed } from '../lib/format.js';
 import { toast, useApi } from '../hooks.js';
 import { Link } from '../router.js';
 import { Empty, PageHeader } from '../components/layout.js';
@@ -155,9 +156,9 @@ export function PowerDialer() {
           <Led tone={!live ? 'off' : session.status === 'connected' ? 'live' : session.status === 'dialing' ? 'ring' : 'idle'} pulse={live && session.status === 'dialing'} />
           <div>
             <div className="ck-label">Power dialer</div>
-            <div className="text-lg font-semibold tracking-tight" data-testid="pd-status">
+            <h1 className="text-lg font-semibold tracking-tight" data-testid="pd-status">
               {live ? (SESSION_LABEL[session.status] ?? session.status) : 'Standby'}
-            </div>
+            </h1>
           </div>
         </div>
         {live && (
@@ -236,8 +237,8 @@ const verdictLabel = (l: Line) => {
 };
 /** Seconds from pickup to verdict; the speech gate reports its own audio latency, which is the honest number. */
 const verdictSeconds = (l: Line) => {
-  if (l.verdictSource === 'speech' && typeof l.speech?.latencyMs === 'number') return (l.speech.latencyMs / 1000).toFixed(1);
-  return l.answeredAt && l.amdAt ? ((new Date(l.amdAt).getTime() - new Date(l.answeredAt).getTime()) / 1000).toFixed(1) : '?';
+  if (l.verdictSource === 'speech' && typeof l.speech?.latencyMs === 'number') return fmtFixed(l.speech.latencyMs / 1000, 1);
+  return l.answeredAt && l.amdAt ? fmtFixed((new Date(l.amdAt).getTime() - new Date(l.answeredAt).getTime()) / 1000, 1) : '?';
 };
 
 function tickerEvents(s: Session): TickerEvent[] {
@@ -682,7 +683,7 @@ function Setup({ softphone, fromNumbers, maxLines, maxAllowed, busy, onStart, la
   const fromInfo = phoneInfo(from);
   const repInfo = phoneInfo(repPhone);
   return (
-    <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+    <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start">
       <div className="ck-cell grid content-start gap-4 p-4" data-testid="pd-setup">
         <div>
           <div className="ck-label">Your line</div>
@@ -693,7 +694,7 @@ function Setup({ softphone, fromNumbers, maxLines, maxAllowed, busy, onStart, la
         <div className="grid gap-1.5">
           <span className="ck-label">Join from</span>
           <div className="grid grid-cols-2 gap-1.5" role="radiogroup" data-testid="pd-rep-mode">
-            <Choice on={repMode === 'browser'} disabled={!softphone} onClick={() => setRepMode('browser')} title="This browser" sub={softphone ? 'mic, scope, keypad' : 'needs API key + TwiML app'} testid="pd-mode-browser" />
+            <Choice on={repMode === 'browser'} disabled={!softphone} onClick={() => setRepMode('browser')} title="This browser" sub={softphone ? 'Mic, scope, keypad' : 'Needs Twilio setup'} testid="pd-mode-browser" />
             <Choice on={repMode === 'phone'} onClick={() => setRepMode('phone')} title="My phone" sub="Twilio rings you first" testid="pd-mode-phone" />
           </div>
         </div>
@@ -711,7 +712,7 @@ function Setup({ softphone, fromNumbers, maxLines, maxAllowed, busy, onStart, la
         )}
         <div className="grid gap-1.5">
           <span className="ck-label">Caller id</span>
-          <div className="grid gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             {fromNumbers.map((n) => {
               const i = phoneInfo(n);
               return <Choice key={n} on={from === n} onClick={() => setFrom(n)} title={i?.national ?? n} sub={[i?.city ?? i?.region, localTime(i?.timezone)].filter(Boolean).join(' · ')} mono />;

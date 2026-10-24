@@ -67,7 +67,7 @@ The part that makes it different is the brain. Cooks ships an MCP server with 66
 
 **Also in the box**
 
-- A web app at `/app` built on shadcn/ui: task queue, prospects, accounts, sequences, emails, calls, power dialer, signals, settings. Light and dark.
+- A web app at `/app` built on shadcn/ui: task queue, prospects, accounts, sequences, emails, calls, power dialer, practice calls, signals, settings. Black and white only, light and dark; numbers, money and dates share one formatter.
 - Gmail, Microsoft 365 and plain SMTP mailboxes, with inbound sync for replies and bounces.
 - Inkbox as a channel: every rep or agent gets an email address, an SMS number and an iMessage line. Sequences send through them, replies come back through a signed webhook into one inbox, texts respect consent and quiet hours, and STOP opts the prospect out.
 - HubSpot connector: contact and company sync, list and deal-stage auto-enroll, notes and email/call logging. Salesforce users run the Salesforce MCP next to the Cooks MCP in the same bot today.

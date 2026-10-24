@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -86,10 +87,15 @@ export function ComposeMessageDialog({ open, onOpenChange, prospectId, phone, on
         <div className="grid gap-3">
           <div className="grid gap-2">
             <Label>Channel</Label>
-            <select className="h-9 rounded-md border bg-background px-2 text-sm" value={channel} onChange={(e) => setChannel(e.target.value as 'sms' | 'imessage')} data-testid="compose-channel">
-              <option value="sms">SMS</option>
-              <option value="imessage">iMessage</option>
-            </select>
+            <Select value={channel} onValueChange={(v) => setChannel(v as 'sms' | 'imessage')}>
+              <SelectTrigger className="w-full" data-testid="compose-channel">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sms">SMS</SelectItem>
+                <SelectItem value="imessage">iMessage</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="grid gap-2">
             <Label>Message</Label>

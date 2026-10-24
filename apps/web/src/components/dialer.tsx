@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { api } from '../api.js';
 import { toast, useApi } from '../hooks.js';
 import { OUTCOMES, STATUS_LABEL, fmtDuration, loadRepPhone, saveRepPhone, useDialer, type DialRequest } from '../dialer.js';
+import { fmtMoney } from '../lib/format.js';
 import { Link } from '../router.js';
 
 /**
@@ -391,7 +392,7 @@ export function AiCallDialog({ open, onOpenChange, target, onDone }: { open: boo
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {call.to} · {fmtDuration(call.duration)}
-                  {call.costUsd !== null && call.costUsd !== undefined ? ` · $${Number(call.costUsd).toFixed(2)}` : ''}
+                  {call.costUsd !== null && call.costUsd !== undefined ? ` · ${fmtMoney(call.costUsd)}` : ''}
                 </div>
               </div>
               {live ? (

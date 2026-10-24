@@ -239,6 +239,11 @@ export function Practice() {
   return (
     <>
       <PageHeader title="Practice" description="Rehearse a call against an AI prospect who interrupts, hesitates and pushes back. Every practice call gets the same scorecard as a real one." />
+      {status.error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>Could not reach the practice service: {status.error}</AlertDescription>
+        </Alert>
+      )}
       {status.data && !status.data.data.configured && (
         <Alert className="mb-4" data-testid="practice-off">
           <AlertDescription>{status.data.data.reason} See docs/practice.md.</AlertDescription>

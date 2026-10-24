@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { api, currentSession } from '../api.js';
+import { fmtInt, fmtMoney, fmtPctValue, plural } from '../lib/format.js';
 import { toast, useApi } from '../hooks.js';
 
 export function Dialer({ isAdmin }: { isAdmin: boolean }) {
@@ -145,7 +146,7 @@ function Speko({ isAdmin, data: s, reload }: { isAdmin: boolean; data: any; relo
           </CardTitle>
           <CardDescription>
             {s.status === 'connected'
-              ? `Key ${s.keySource === 'server' ? 'from the server' : `…${s.keyLast4}`} · ${s.fromNumbers.length} number${s.fromNumbers.length === 1 ? '' : 's'}${b ? ` · balance $${b.balanceUsd?.toFixed?.(2) ?? '?'} · spent today $${b.spentTodayUsd.toFixed(2)} of $${b.dailySpendCapUsd}` : ''}`
+              ? `Key ${s.keySource === 'server' ? 'from the server' : `…${s.keyLast4}`} · ${plural(s.fromNumbers.length, 'number')}${b ? `${b.balanceUsd === null ? '' : ` · balance ${fmtMoney(b.balanceUsd)}`} · spent today ${fmtMoney(b.spentTodayUsd)} of ${fmtMoney(b.dailySpendCapUsd)}` : ''}`
               : 'Paste a Speko API key (platform.speko.ai → API keys). Calls are placed by a voice agent, recorded and transcribed on Speko, and land here with outcome, summary and cost.'}
           </CardDescription>
         </div>
@@ -158,10 +159,10 @@ function Speko({ isAdmin, data: s, reload }: { isAdmin: boolean; data: any; relo
       <CardContent className="grid gap-4">
         {s.status === 'connected' && b && (
           <div className="grid gap-3 md:grid-cols-4" data-testid="speko-balance">
-            <Stat k="Balance" v={b.balanceUsd === null ? 'n/a' : `$${Number(b.balanceUsd).toFixed(2)}`} />
-            <Stat k="Spent today" v={`$${b.spentTodayUsd.toFixed(2)}`} />
-            <Stat k="Daily cap" v={`$${b.dailySpendCapUsd}`} />
-            <Stat k="In flight" v={String(b.inFlight)} />
+            <Stat k="Balance" v={fmtMoney(b.balanceUsd, 'USD', 'n/a')} />
+            <Stat k="Spent today" v={fmtMoney(b.spentTodayUsd)} />
+            <Stat k="Daily cap" v={fmtMoney(b.dailySpendCapUsd)} />
+            <Stat k="In flight" v={fmtInt(b.inFlight)} />
           </div>
         )}
         {s.status === 'connected' && (
@@ -169,14 +170,19 @@ function Speko({ isAdmin, data: s, reload }: { isAdmin: boolean; data: any; relo
             <div className="grid gap-3 md:grid-cols-3">
               <div className="grid gap-2">
                 <Label>Caller id</Label>
-                <select className="h-9 rounded-md border bg-background px-2 text-sm" value={f.fromNumber} onChange={(e) => set('fromNumber', e.target.value)} disabled={!isAdmin} data-testid="speko-from">
-                  <option value="">first number</option>
-                  {s.fromNumbers.map((n: string) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
+                <Select value={f.fromNumber || 'first'} onValueChange={(v) => set('fromNumber', v === 'first' ? '' : v)} disabled={!isAdmin}>
+                  <SelectTrigger className="w-full" data-testid="speko-from">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="first">First number</SelectItem>
+                    {s.fromNumbers.map((n: string) => (
+                      <SelectItem key={n} value={n}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
                 <Label>Max length (seconds, up to {s.settings.maxAllowedSeconds})</Label>
@@ -199,11 +205,16 @@ function Speko({ isAdmin, data: s, reload }: { isAdmin: boolean; data: any; relo
             <div className="grid gap-2 md:grid-cols-3">
               <div className="grid gap-2">
                 <Label>On voicemail</Label>
-                <select className="h-9 rounded-md border bg-background px-2 text-sm" value={f.onMachine} onChange={(e) => set('onMachine', e.target.value)} disabled={!isAdmin}>
-                  <option value="leave_message">Leave a message</option>
-                  <option value="hangup">Hang up</option>
-                  <option value="agent_decides">Let the agent decide</option>
-                </select>
+                <Select value={f.onMachine} onValueChange={(v) => set('onMachine', v)} disabled={!isAdmin}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="leave_message">Leave a message</SelectItem>
+                    <SelectItem value="hangup">Hang up</SelectItem>
+                    <SelectItem value="agent_decides">Let the agent decide</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3 md:col-span-2">
                 <div>
@@ -525,7 +536,7 @@ function ParallelCompliance({ isAdmin, reload }: { isAdmin: boolean; reload: () 
         <div className="flex flex-wrap items-center gap-3 text-sm">
           {rate && (
             <span className="text-muted-foreground" data-testid="pc-rate">
-              Last {rate.windowDays} days: {rate.humansAnswered} people answered, {rate.dropped} dropped{rate.ratePct !== null ? ` (${rate.ratePct}%)` : ''}. Safe harbor {rate.safeHarborMaxPct}%.
+              Last {plural(rate.windowDays, 'day')}: {fmtInt(rate.humansAnswered)} people answered, {fmtInt(rate.dropped)} dropped{rate.ratePct !== null ? ` (${fmtPctValue(rate.ratePct)})` : ''}. Safe harbor {fmtPctValue(rate.safeHarborMaxPct)}.
             </span>
           )}
           {isAdmin && (

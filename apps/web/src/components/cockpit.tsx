@@ -45,7 +45,7 @@ export function Scope({ levels, active, className, height = 56 }: { levels: Reac
     let raf = 0;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const css = getComputedStyle(el);
-    const accent = css.getPropertyValue('--ck-live').trim() || 'oklch(0.82 0.1 235)';
+    const accent = css.getPropertyValue('--ck-live').trim() || 'white';
     const pale = css.getPropertyValue('--ck-text').trim() || 'white';
     const draw = () => {
       const w = el.clientWidth;
@@ -192,8 +192,8 @@ const FLAGS: Record<string, React.ComponentType<{ className?: string; title?: st
 export function Flag({ country, className }: { country: string | null | undefined; className?: string }) {
   if (!country) return null;
   const C = FLAGS[country];
-  if (C) return <C className={cn('inline-block h-3 w-[18px] rounded-[2px] align-[-1px]', className)} title={country} />;
-  if (hasFlag(country)) return <span className={cn('text-sm leading-none', className)}>{getUnicodeFlagIcon(country)}</span>;
+  if (C) return <C className={cn('mono-art inline-block h-3 w-[18px] rounded-[2px] align-[-1px]', className)} title={country} />;
+  if (hasFlag(country)) return <span className={cn('mono-art text-sm leading-none', className)}>{getUnicodeFlagIcon(country)}</span>;
   return null;
 }
 

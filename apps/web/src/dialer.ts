@@ -202,10 +202,7 @@ export const OUTCOMES = [
   ['other', 'Other'],
 ] as const;
 
-export const fmtDuration = (s: number | null | undefined) => {
-  const n = Math.max(0, Math.round(s ?? 0));
-  return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
-};
+export { fmtDuration } from './lib/format.js';
 
 export const LINE_LABEL: Record<string, string> = {
   queued: 'Queued',

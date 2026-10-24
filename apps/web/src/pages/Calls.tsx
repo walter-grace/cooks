@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, currentSession, fmtDate, q } from '../api.js';
+import { fmtFixed, fmtInt, fmtMoney, fmtPct, fmtSeconds } from '../lib/format.js';
 import { toast, useApi } from '../hooks.js';
 import { Link, navigate } from '../router.js';
 import { Empty, PageHeader, StateBadge } from '../components/layout.js';
@@ -141,7 +142,7 @@ export function CallDetail({ id }: { id: string }) {
         ← Calls
       </Link>
       <PageHeader
-        title={c.practice ? `Practice: ${c.practice.title}` : c.prospect?.name ? `Call with ${c.prospect.name}` : `Call to ${c.to ?? ''}`}
+        title={c.practice ? `Practice: ${c.practice.title}` : c.mode === 'practice' ? 'Practice call' : c.prospect?.name ? `Call with ${c.prospect.name}` : c.to ? `Call to ${c.to}` : 'Call'}
         description={`${fmtDate(c.time)} · ${STATUS_LABEL[c.status] ?? c.status} · ${fmtDuration(c.duration)}${c.owner?.name ? ` · ${c.owner.name}` : ''}`}
         actions={
           <div className="flex gap-2">
@@ -167,12 +168,11 @@ export function CallDetail({ id }: { id: string }) {
             <Row k="Disposition" v={c.callDisposition?.name ?? (c.loggedAt ? '' : 'not logged')} />
             {c.outcome && <Row k="Outcome" v={String(c.outcome).replace(/_/g, ' ')} />}
             {c.provider && <Row k="Via" v={c.mode === 'practice' ? 'Practice call · AI prospect' : c.mode === 'ai' ? 'Speko AI agent' : `${c.provider} · ${c.mode}`} />}
-            {c.costUsd !== null && c.costUsd !== undefined && <Row k="Cost" v={`$${Number(c.costUsd).toFixed(2)}`} />}
+            {c.costUsd !== null && c.costUsd !== undefined && <Row k="Cost" v={fmtMoney(c.costUsd)} />}
             {c.endReason && <Row k="End reason" v={c.endReason} />}
             <Row k="Direction" v={c.direction} />
-            <Row k="From" v={c.from} />
-            <Row k="To" v={c.to} />
-            <Row k="Mode" v={c.mode} />
+            {c.from && <Row k="From" v={c.from} />}
+            {c.to && <Row k="To" v={c.to} />}
             {c.summary && <p className="mt-2 rounded-md bg-muted p-2 text-sm" data-testid="call-summary">{c.summary}</p>}
             {c.notes && !c.summary && <p className="mt-2 whitespace-pre-wrap rounded-md bg-muted p-2 text-sm">{c.notes}</p>}
           </CardContent>
@@ -199,11 +199,11 @@ export function CallDetail({ id }: { id: string }) {
             {!(st && typeof st.talkRatio === 'number') && <p className="text-muted-foreground">Available once the call is transcribed.</p>}
             {st && typeof st.talkRatio === 'number' && (
               <>
-                <Row k="Rep talk share" v={`${Math.round(st.talkRatio * 100)}%`} />
-                <Row k="Longest rep monologue" v={`${st.longestRepMonologueSeconds}s`} />
-                <Row k="Questions asked" v={`${st.repQuestions} (prospect ${st.prospectQuestions})`} />
-                <Row k="Pace" v={`${st.repWordsPerMinute} wpm`} />
-                <Row k="Interruptions" v={`rep ${st.interruptionsByRep} · prospect ${st.interruptionsByProspect}`} />
+                <Row k="Rep talk share" v={fmtPct(st.talkRatio)} />
+                <Row k="Longest rep monologue" v={fmtSeconds(st.longestRepMonologueSeconds, 0)} />
+                <Row k="Questions asked" v={`${fmtInt(st.repQuestions)} (prospect ${fmtInt(st.prospectQuestions)})`} />
+                <Row k="Pace" v={`${fmtInt(st.repWordsPerMinute)} wpm`} />
+                <Row k="Interruptions" v={`rep ${fmtInt(st.interruptionsByRep)} · prospect ${fmtInt(st.interruptionsByProspect)}`} />
                 {st.stereo === false && <p className="text-xs text-muted-foreground">Mono recording: speakers could not be separated.</p>}
               </>
             )}
@@ -214,7 +214,7 @@ export function CallDetail({ id }: { id: string }) {
         <Card className="mt-4" data-testid="coaching-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="size-4" /> Coaching · {co.score?.toFixed(1)} / 5
+              <Sparkles className="size-4" /> Coaching · {fmtFixed(co.score, 1)} / 5
               {co.needsReview && <Badge variant="outline">low confidence</Badge>}
             </CardTitle>
             <CardDescription>{co.summary}</CardDescription>
