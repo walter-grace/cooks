@@ -14,15 +14,15 @@ const newsreader = Newsreader({
 export const metadata: Metadata = {
   title: 'Cooks: open-source sales engagement',
   description:
-    'Cooks is a free, self-hosted sales engagement platform: sequences, a parallel dialer that hears the pickup, buying signals and call coaching, driven by the Claude or Grok assistant you already use.',
+    'Cooks is open-source sales engagement you host yourself: sequences, a parallel dialer, buying signals and call coaching, with an MCP server for Claude, Grok and Cursor.',
   metadataBase: new URL('https://cooks-site.vercel.app'),
   openGraph: {
     title: 'Cooks',
-    description: 'Open-source sales engagement your own AI assistant can run.',
+    description: 'Open-source sales engagement with an MCP server for your assistant.',
     type: 'website',
     images: ['/og.png'],
   },
-  twitter: { card: 'summary_large_image', title: 'Cooks', description: 'Open-source sales engagement your own AI assistant can run.', images: ['/og.png'] },
+  twitter: { card: 'summary_large_image', title: 'Cooks', description: 'Open-source sales engagement with an MCP server for your assistant.', images: ['/og.png'] },
   icons: { icon: '/icon.svg' },
 };
 

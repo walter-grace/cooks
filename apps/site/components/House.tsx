@@ -102,7 +102,7 @@ function Handset({ x, y, ring = false }: { x: number; y: number; ring?: boolean 
 
 export function House() {
   return (
-    <svg viewBox="0 0 1600 1000" className="house-svg" role="img" aria-label="A cross-section of the Cooks house: a switchboard room for the parallel dialer, a prep line for sequences, a lookout for buying signals, a tasting room and practice booth for coaching, a control desk for your assistant, and one Postgres in the cellar.">
+    <svg viewBox="0 0 1600 1000" className="house-svg" role="img" aria-label="A cross-section of the Cooks house, one room per part of the product.">
       <defs>
         <pattern id="wall" patternUnits="userSpaceOnUse" width="5" height="5">
           <path d="M2.5 0 V5" stroke={INK} strokeWidth=".6" opacity=".22" />
@@ -224,7 +224,7 @@ export function House() {
         <Handset x={404} y={506} ring />
         <Handset x={448} y={506} />
         <path d="M316 522 V540 M360 522 V540 M404 522 V540 M448 522 V540 M296 540 H466" stroke={INK} strokeWidth="1.2" opacity=".7" />
-        <text x="292" y="572" className="tiny">4 LINES · FIRST PERSON WINS</text>
+        <text x="292" y="572" className="tiny">4 LINES</text>
         {/* gauge */}
         <g transform="translate(540 512)">
           <circle r="34" className="pp" stroke={INK} strokeWidth="2.4" />
@@ -233,7 +233,7 @@ export function House() {
           <circle r="3" fill={INK} />
           <text y="22" textAnchor="middle" className="tiny">0.8 s</text>
         </g>
-        <text x="500" y="574" className="tiny">HEARS THE HELLO</text>
+        <text x="500" y="574" className="tiny">PICKUP</text>
         {/* rep at desk */}
         <Desk x={606} y={568} w={120} />
         <Screen x={626} y={532} w={46} h={30} />
@@ -257,8 +257,7 @@ export function House() {
             <path d={`M940 ${510 + i * 9} H${940 + 74 * v}`} stroke={i === 4 ? 'var(--ink)' : INK} strokeWidth="2" className="bar" style={{ animationDelay: `${i * .12}s` }} />
           </g>
         ))}
-        <text x="790" y="548" className="tiny">6 PARTS</text>
-        <text x="790" y="562" className="tiny">ONE TIP</text>
+        <text x="790" y="562" className="tiny">SCORECARD</text>
       </Room>
 
       <Room id="practice" x={1050} y={467} w={240} h={143} label="PRACTICE BOOTH">
@@ -284,7 +283,7 @@ export function House() {
             <text y="30" textAnchor="middle" className="tiny">{l}</text>
           </g>
         ))}
-        <text x="300" y="712" className="tiny">SEND WINDOW 8–18 · CAP 50/DAY</text>
+        <text x="300" y="712" className="tiny">SEND WINDOW 8–18</text>
         {/* conveyor */}
         <g className="conveyor">
           <circle cx="480" cy="750" r="14" className="pp" stroke={INK} strokeWidth="2.4" />
@@ -304,7 +303,7 @@ export function House() {
         {/* stamp arm */}
         <path d="M740 652 V700 M716 700 H764" stroke={INK} strokeWidth="4" strokeLinecap="round" />
         <rect x={726} y={700} width="28" height="18" fill={INK} className="stamp" />
-        <text x="702" y="646" className="tiny">AI DRAFT · REVIEW</text>
+        <text x="702" y="646" className="tiny">DRAFTS</text>
         {/* people */}
         <Person x={462} y={780} s={1.05} arm="out" />
         <Person x={888} y={780} s={1.05} arm="up" flip />
@@ -324,7 +323,7 @@ export function House() {
           const on = [3, 17, 24, 40, 51, 58].includes(i);
           return <circle key={i} cx={948 + c * 15} cy={658 + r * 15} r="4" fill={on ? 'var(--ink)' : 'none'} stroke={INK} strokeWidth="1.2" className={on ? 'led' : undefined} style={on ? { animationDelay: `${(i % 7) * .3}s` } : undefined} />;
         })}
-        <text x="938" y="762" className="tiny">66 TOOLS · MCP</text>
+        <text x="938" y="762" className="tiny">MCP TOOLS</text>
         {/* robot at the console */}
         <g transform="translate(1180 780)">
           <rect x="-26" y="-54" width="52" height="40" rx="6" className="pp" stroke={INK} strokeWidth="2" />
@@ -383,8 +382,7 @@ export function House() {
           </g>
         </g>
         <Person x={1150} y={890} s={1} arm="up" />
-        <text x="1040" y="880" className="tiny">ONE DATABASE</text>
-        <text x="320" y="880" className="tiny">docker compose up</text>
+                <text x="320" y="880" className="tiny">docker compose up</text>
       </Room>
 
       {/* ---------- structure: slabs and walls on top of the rooms ---------- */}
