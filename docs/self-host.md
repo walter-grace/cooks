@@ -54,7 +54,7 @@ The UI is monochrome by design: every colour token in `apps/web/src/styles.css` 
 | `COOKS_KEK` | 32 random bytes, base64 (`openssl rand -base64 32`) |
 | `CRON_SECRET` | random; Vercel sends it to the cron route |
 | `COOKS_PUBLIC_URL` | `https://<project>.vercel.app` or your domain |
-| `COOKS_MCP_PUBLIC_URL` | the same host plus `/mcp` |
+| `COOKS_MCP_PUBLIC_URL` | the same host; the function serves the MCP transport at `/mcp` on it |
 | `COOKS_SIGNUP` | `open`, `invite` or `off` |
 | `COOKS_AUTO_MIGRATE` | `false` (migrations run at build time) |
 | `RESEND_API_KEY` or `SMTP_URL` | optional, for verification, reset and invite mail |

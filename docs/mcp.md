@@ -54,6 +54,9 @@ Any client that can send an `Authorization: Bearer` header can connect with a Co
 
 ```bash
 claude mcp add --transport http cooks http://localhost:8081/mcp --header "Authorization: Bearer cooks-api-..."
+
+# Cooks on Vercel serves the same transport next to the API:
+claude mcp add --transport http cooks https://cooks-app.vercel.app/mcp --header "Authorization: Bearer cooks-api-..."
 ```
 
 Grok: at [grok.com/connectors](https://grok.com/connectors) choose **New connector → Custom** and enter `https://<your host>/mcp`. Grok runs the OAuth sign-in in a pop-up, so each person signs in (password or Clerk) and approves scopes; no key is pasted. Grok's servers connect from the public internet, so the host must be reachable there (a tunnel such as ngrok works for a laptop). Details: [docs.x.ai/grok/connectors](https://docs.x.ai/grok/connectors).
