@@ -46,7 +46,7 @@ export function Shell({ session, path, onSwitchWorkspace, onLogout, children }: 
       <aside className="sticky top-0 flex h-auto flex-col gap-1 border-b bg-sidebar p-3 text-sidebar-foreground md:h-screen md:border-r md:border-b-0">
         <div className="flex items-center gap-2 px-2 py-2">
           <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-sm font-bold">C</div>
-          <span className="font-semibold tracking-tight">Cooks</span>
+          <span className="font-semibold tracking-tight">C<span className="underline decoration-2 underline-offset-[3px]">oo</span>ks</span>
         </div>
         <button
           type="button"
