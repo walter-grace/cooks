@@ -93,6 +93,33 @@ importers:
         specifier: ^4.6.0
         version: 4.6.7
 
+  apps/hosted:
+    dependencies:
+      '@cooks/api':
+        specifier: workspace:*
+        version: link:../api
+      '@cooks/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@cooks/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@cooks/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@cooks/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@cooks/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
+      '@cooks/worker':
+        specifier: workspace:*
+        version: link:../worker
+      '@hono/node-server':
+        specifier: ^2.1.0
+        version: 2.1.5(hono@4.13.13)
+
   apps/mcp:
     dependencies:
       '@hono/mcp':

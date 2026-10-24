@@ -34,8 +34,9 @@ export const QUEUES: Record<JobName, { policy?: string; retryLimit?: number; ret
   'search.index_all': { policy: 'singleton', retryLimit: 0, expireInSeconds: 110 },
 };
 
-export async function createBoss(connectionString: string, opts: { schema?: string } = {}): Promise<PgBoss> {
-  const boss = new PgBoss({ connectionString: withDefaultUser(connectionString), schema: opts.schema ?? 'pgboss', application_name: 'cooks' });
+/** `supervise: false, schedule: false` for request handlers that only enqueue (serverless); the worker keeps both on. */
+export async function createBoss(connectionString: string, opts: { schema?: string; supervise?: boolean; schedule?: boolean } = {}): Promise<PgBoss> {
+  const boss = new PgBoss({ connectionString: withDefaultUser(connectionString), schema: opts.schema ?? 'pgboss', application_name: 'cooks', ...(opts.supervise === false ? { supervise: false } : {}), ...(opts.schedule === false ? { schedule: false } : {}) });
   boss.on('error', (e: unknown) => console.error('[pg-boss]', e));
   await boss.start();
   for (const [name, q] of Object.entries(QUEUES)) {

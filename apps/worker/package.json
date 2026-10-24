@@ -16,5 +16,9 @@
     "pg-boss": "^12.38.0",
     "@cooks/agent": "workspace:*",
     "@cooks/auth": "workspace:*"
+  },
+  "exports": {
+    "./handlers": "./src/handlers.ts",
+    "./boot": "./src/boot.ts"
   }
 }

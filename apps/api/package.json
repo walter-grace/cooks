@@ -24,5 +24,9 @@
     "jose": "^6.0.0",
     "yaml": "^2.7.0",
     "zod": "^4.6.0"
+  },
+  "exports": {
+    "./app": "./src/app.ts",
+    "./boot": "./src/boot.ts"
   }
 }
