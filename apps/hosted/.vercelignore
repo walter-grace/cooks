@@ -1,0 +1,11 @@
+# Project-level ignore for cooks-app. The repository root .vercelignore belongs to the marketing site.
+.git
+node_modules
+**/node_modules
+apps/site
+apps/web/dist
+apps/mcp/dist
+docs/screenshots
+scripts/qa
+.env
+.env.*
