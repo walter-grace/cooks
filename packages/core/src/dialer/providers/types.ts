@@ -79,6 +79,63 @@ export interface DialerProvider {
   hangup(providerCallId: string): Promise<void>;
 }
 
+/* ------------------------------------------------------------ parallel dialing */
+
+/** Where the carrier posts events for one prospect leg. */
+export interface LegCallbacks {
+  /** TwiML/instructions fetched when the callee answers (we hold in silence while AMD runs). */
+  voiceUrl: string;
+  /** Call progress: initiated, ringing, answered, completed. */
+  statusUrl: string;
+  /** Asynchronous answering-machine verdict. */
+  amdUrl: string;
+}
+
+export interface DialLegInput {
+  lineId: string;
+  to: string;
+  from: string;
+  ringTimeoutSeconds: number;
+  callbacks: LegCallbacks;
+  /** Carrier-specific AMD tuning; Twilio uses `AmdOptions`. */
+  amd: Record<string, unknown>;
+}
+
+export interface RepLegInput {
+  to: string;
+  from: string;
+  conference: string;
+  callbacks: { voiceUrl: string; statusUrl: string };
+}
+
+/**
+ * What a carrier must do for first-human-wins parallel dialing. The engine in
+ * `telephony/parallel.ts` owns the state machine and the atomic winner claim; the carrier
+ * only moves audio. Add Telnyx, SignalWire or Jambonz by implementing this.
+ */
+export interface ParallelCarrier {
+  readonly kind: DialerKind;
+  /** Ring the rep's phone and, when answered, drop them into the conference (phone fallback). */
+  dialRep(i: RepLegInput): Promise<{ providerCallId: string }>;
+  /** Dial one prospect with async AMD. Resolves when the carrier accepts the request, never when answered. */
+  dialProspect(i: DialLegInput): Promise<{ providerCallId: string }>;
+  /** Move an answered prospect leg into the conference with no beep or announcement. */
+  joinConference(providerCallId: string, conference: string, opts: { statusCallback?: string; label?: string }): Promise<void>;
+  /** End a leg whether it is still ringing or already answered. Must be idempotent. */
+  hangupLeg(providerCallId: string, phase: 'ringing' | 'answered' | 'unknown'): Promise<void>;
+  /** Play a short message to an answered leg, then hang up (consumer-mode abandoned-call notice). */
+  sayAndHangup(providerCallId: string, message: string): Promise<void>;
+  /** Record the rep's leg (dual channel) from now; returns the recording id. */
+  startRecording(repCallId: string, statusCallback: string): Promise<string | null>;
+  stopRecording(repCallId: string, recordingId: string | null): Promise<void>;
+  /** Tear the room down (ends every participant). */
+  endConference(conferenceId: string): Promise<void>;
+  /** Instructions for a rep leg that just answered (phone or browser): join the room and wait in silence. */
+  repJoinDocument(conference: string, opts: { statusCallback: string; label: string }): string;
+  /** Instructions for a prospect leg that just answered: hold silently while AMD decides, optionally forking its audio to the speech gate. */
+  prospectHoldDocument(seconds: number, stream?: { url: string; params: Record<string, string> }): string;
+}
+
 /** Provider failure with a stable code and a message safe to show a rep. Never carries credentials. */
 export class DialerError extends Error {
   constructor(

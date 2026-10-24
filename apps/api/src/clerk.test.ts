@@ -95,6 +95,20 @@ describe('Clerk SSO mode', () => {
     const body: any = await r.json();
     expect(body.data).toMatchObject({ type: 'hubspot', status: 'connected', hubspot: { portalId: 99, kind: 'clerk' } });
   });
+  it('sends OAuth consent (Claude or Grok connectors) through the Clerk login page, not the password form', async () => {
+    const reg = await post('/oauth/register', { client_name: 'Claude', redirect_uris: ['https://claude.ai/api/mcp/auth_callback'] });
+    expect(reg.status).toBe(201);
+    const { client_id } = (await reg.json()) as { client_id: string };
+    const q = new URLSearchParams({ client_id, redirect_uri: 'https://claude.ai/api/mcp/auth_callback', response_type: 'code', scope: 'prospects:read', state: 's', code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM', code_challenge_method: 'S256' });
+    const anon = await app.request(`/oauth/authorize?${q}`, { redirect: 'manual' });
+    expect(anon.status).toBe(302);
+    const loc = anon.headers.get('location')!;
+    expect(loc).toMatch(/^\/app\/login\?next=%2Foauth%2Fauthorize/);
+    expect(decodeURIComponent(new URL(loc, 'http://localhost').searchParams.get('next')!)).toContain(`client_id=${client_id}`);
+    const legacy = await app.request('/auth/login?next=%2Fdocs', { redirect: 'manual' });
+    expect(legacy.status).toBe(302);
+    expect(legacy.headers.get('location')).toBe('/app/login?next=%2Fdocs');
+  });
   it('API keys still work alongside Clerk', async () => {
     const [ws] = await db.db.select().from(workspaces).where(eq(workspaces.clerkOrgId, 'org_globex'));
     const key = await createApiKey(db.db, { workspaceId: ws!.id, name: 'k' });

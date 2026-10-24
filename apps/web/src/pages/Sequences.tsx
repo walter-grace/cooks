@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api, fmtDate, q } from '../api.js';
+import { actionLabel, fmtInt, fmtWait, plural } from '../lib/format.js';
 import { useApi, toast } from '../hooks.js';
 import { Link, navigate } from '../router.js';
 import { Empty, PageHeader, StateBadge } from '../components/layout.js';
@@ -52,7 +53,7 @@ export function Sequences() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Steps</TableHead>
+                <TableHead className="text-right">Steps</TableHead>
                 <TableHead>Owner</TableHead>
                 <TableHead className="text-right">Delivered</TableHead>
                 <TableHead className="text-right">Opened</TableHead>
@@ -64,11 +65,11 @@ export function Sequences() {
               {data.data.map((s) => (
                 <TableRow key={s.id} className="cursor-pointer" onClick={() => navigate(`/sequences/${s.id}`)} data-testid="sequence-row">
                   <TableCell className="font-medium">{s.name}</TableCell>
-                  <TableCell>{s.sequenceSteps.length}</TableCell>
+                  <TableCell className="text-right">{fmtInt(s.sequenceSteps.length)}</TableCell>
                   <TableCell className="text-muted-foreground">{s.owner?.name ?? ''}</TableCell>
-                  <TableCell className="text-right tabular-nums">{s.analytics.email.delivered}</TableCell>
-                  <TableCell className="text-right tabular-nums">{s.analytics.email.opened}</TableCell>
-                  <TableCell className="text-right tabular-nums">{s.analytics.email.replied}</TableCell>
+                  <TableCell className="text-right">{fmtInt(s.analytics.email.delivered)}</TableCell>
+                  <TableCell className="text-right">{fmtInt(s.analytics.email.opened)}</TableCell>
+                  <TableCell className="text-right">{fmtInt(s.analytics.email.replied)}</TableCell>
                   <TableCell>
                     <StateBadge state={s.enabled ? 'active' : 'paused'} />
                   </TableCell>
@@ -152,30 +153,28 @@ export function SequenceDetail({ id }: { id: string }) {
       </Link>
       <PageHeader
         title={s.name}
-        description={`Owner ${s.owner?.name ?? ''} · ${s.sequenceSteps.length} steps`}
+        description={`Owner ${s.owner?.name ?? ''} · ${plural(s.sequenceSteps.length, 'step')}`}
         actions={
           <Button variant="outline" onClick={() => api(`/v1/sequences/${id}`, { method: 'PATCH', json: { data: { enabled: !s.enabled } } }).then(reload)}>
             {s.enabled ? 'Disable' : 'Enable'}
           </Button>
         }
       />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+      <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-xl border bg-border shadow-sm sm:grid-cols-5 lg:grid-cols-9" data-testid="sequence-stats">
         {stats.map(([k, v]) => (
-          <Card key={k} className="gap-1 py-4">
-            <CardHeader className="px-4">
-              <CardDescription>{k}</CardDescription>
-              <CardTitle className="text-2xl tabular-nums">{v}</CardTitle>
-            </CardHeader>
-          </Card>
+          <div key={k} className="bg-card px-4 py-3">
+            <dt className="truncate text-xs text-muted-foreground">{k}</dt>
+            <dd className="mt-1 text-xl font-semibold">{fmtInt(v)}</dd>
+          </div>
         ))}
-      </div>
+      </dl>
 
       <h2 className="mt-8 mb-3 text-lg font-semibold">Steps</h2>
       <div className="rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-10">#</TableHead>
+              <TableHead className="w-10 text-right">#</TableHead>
               <TableHead>Action</TableHead>
               <TableHead>Wait</TableHead>
               <TableHead>Name / template</TableHead>
@@ -187,16 +186,16 @@ export function SequenceDetail({ id }: { id: string }) {
           <TableBody>
             {s.sequenceSteps.map((st: any, i: number) => (
               <TableRow key={st.id} data-testid="step-row">
-                <TableCell className="text-muted-foreground">{st.order}</TableCell>
+                <TableCell className="text-right text-muted-foreground">{st.order}</TableCell>
                 <TableCell>
-                  <Badge variant="outline">{st.action.replace(/_/g, ' ')}</Badge>
+                  <Badge variant="outline">{actionLabel(st.action)}</Badge>
                 </TableCell>
-                <TableCell className="text-sm">{st.interval === 0 ? 'immediately' : `${Math.round((st.interval / 1440) * 10) / 10} d`}</TableCell>
+                <TableCell className="text-sm">{fmtWait(st.interval)}</TableCell>
                 <TableCell>
                   {st.name ?? ''} {st.template?.subject ? <span className="text-xs text-muted-foreground">“{st.template.subject}”</span> : null}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{st.analytics.email.delivered}</TableCell>
-                <TableCell className="text-right tabular-nums">{st.analytics.email.replied}</TableCell>
+                <TableCell className="text-right">{fmtInt(st.analytics.email.delivered)}</TableCell>
+                <TableCell className="text-right">{fmtInt(st.analytics.email.replied)}</TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-1">
                     <Button size="icon" variant="ghost" aria-label="Move up" onClick={() => move(i, -1)} disabled={i === 0}>

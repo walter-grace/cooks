@@ -1,12 +1,13 @@
 <p align="center">
-  <img src="docs/screenshots/tasks.png" alt="Cooks task queue" width="820">
+  <a href="https://cooks-site.vercel.app"><img src="docs/screenshots/home.png" alt="The Cooks home page: Let your reps cook." width="820"></a>
 </p>
 
 <h1 align="center">Cooks</h1>
 
 <p align="center">
   <strong>Open-source sales engagement. Let your reps cook.</strong><br>
-  Sequences, a dialer, buying signals and call coaching on one Postgres, driven by the AI assistant you already pay for.
+  Sequences, a dialer, buying signals and call coaching on one Postgres, driven by the AI assistant you already pay for.<br>
+  <a href="https://cooks-site.vercel.app">cooks-site.vercel.app</a>
 </p>
 
 <p align="center">
@@ -29,7 +30,11 @@
 
 Cooks is the sales engagement stack a team would build for itself if it had the time: a sequencing engine with real send windows and reply detection, a Twilio dialer with recordings, a feed of buying signals, and an AI coach that scores every recorded call. It runs on your own server under the MIT license, and it speaks the same REST contract as the commercial platform it mirrors, so existing clients and docs carry over by changing a base URL.
 
-The part that makes it different is the brain. Cooks ships an MCP server with 61 tools, so Claude, Grok, Cursor or any MCP-capable assistant can work your pipeline directly: research an account, enroll the prospect, draft the email, place the call, log the outcome. In that mode Cooks spends no tokens of its own.
+The part that makes it different is the brain. Cooks ships an MCP server with 66 tools, so Claude, Grok, Cursor or any MCP-capable assistant can work your pipeline directly: research an account, enroll the prospect, draft the email, place the call, log the outcome. In that mode Cooks spends no tokens of its own.
+
+<p align="center">
+  <img src="docs/screenshots/tasks.png" alt="Cooks task queue" width="820">
+</p>
 
 ## What you get
 
@@ -41,7 +46,7 @@ The part that makes it different is the brain. Cooks ships an MCP server with 61
     </td>
     <td width="50%" valign="top">
       <h3>Dialer</h3>
-      Reps call on Twilio Voice, from the browser or with a bridge that rings their phone first. Or let a Speko voice agent place the call from a script and bring back the outcome, transcript and recording, inside do-not-call rules, quiet hours and a daily spend cap. Dispositions close the linked task, a byte-compatible <code>call.logged</code> webhook fires, and calls land on the HubSpot timeline.
+      Reps call on Twilio Voice, from the browser or with a bridge that rings their phone first. A parallel power dialer rings three or four prospects at once and drops the first person who answers straight into the rep's ear, with no beep or message; machines are detected and hung up. With a speech recognizer configured it hears the pickup itself and connects on "Hello?" about a second in, instead of waiting three for carrier AMD; TypeSafe's Jev on OpenRouter can decide the unclear ones. Or let a Speko voice agent place the call from a script and bring back the outcome, transcript and recording. Dispositions close the linked task, a byte-compatible <code>call.logged</code> webhook fires, and calls land on the HubSpot timeline.
     </td>
   </tr>
   <tr>
@@ -51,7 +56,7 @@ The part that makes it different is the brain. Cooks ships an MCP server with 61
     </td>
     <td width="50%" valign="top">
       <h3>Coaching</h3>
-      Every recorded call is split by speaker, transcribed through any OpenAI-compatible speech-to-text endpoint, and scored on a six-part rubric: opener, discovery, listening, value, objections, next step. Talk ratio, monologues, questions asked, and one concrete tip per call.
+      Every recorded call is split by speaker, transcribed through any OpenAI-compatible speech-to-text endpoint, and scored on a six-part rubric: opener, discovery, listening, value, objections, next step. Talk ratio, monologues, questions asked, and one concrete tip per call. Reps rehearse against an AI prospect that interrupts and objects, and the practice call gets the same scorecard.
     </td>
   </tr>
 </table>
@@ -62,7 +67,7 @@ The part that makes it different is the brain. Cooks ships an MCP server with 61
 
 **Also in the box**
 
-- A web app at `/app` built on shadcn/ui: task queue, prospects, accounts, sequences, emails, calls, signals, settings. Light and dark.
+- A web app at `/app` built on shadcn/ui: task queue, prospects, accounts, sequences, emails, calls, power dialer, practice calls, signals, settings. Black and white only, light and dark; numbers, money and dates share one formatter.
 - Gmail, Microsoft 365 and plain SMTP mailboxes, with inbound sync for replies and bounces.
 - Inkbox as a channel: every rep or agent gets an email address, an SMS number and an iMessage line. Sequences send through them, replies come back through a signed webhook into one inbox, texts respect consent and quiet hours, and STOP opts the prospect out.
 - HubSpot connector: contact and company sync, list and deal-stage auto-enroll, notes and email/call logging. Salesforce users run the Salesforce MCP next to the Cooks MCP in the same bot today.
@@ -92,6 +97,17 @@ pnpm seed                         # optional demo data
 ```
 
 Sign in at http://localhost:8080/app with the email and password you chose. API docs live at `/docs`.
+
+**Calling with Twilio (optional)**
+
+Paste your Account SID and Auth Token under Settings → Dialer, or set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM_NUMBER` in `.env`. Twilio has to reach your machine for call webhooks, so for local development run a tunnel and point `COOKS_PUBLIC_URL` at it:
+
+```bash
+ngrok http 8080                       # copy the https://….ngrok.app URL
+COOKS_PUBLIC_URL=https://….ngrok.app pnpm --filter @cooks/api dev
+```
+
+Calling from the browser (and the power dialer's browser mode) additionally needs a Standard API key pair and a TwiML App whose Voice URL is `$COOKS_PUBLIC_URL/telephony/voice?ws=<workspace id>`; set `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET` and `TWILIO_TWIML_APP_SID`. The parallel dialer also needs an admin to confirm the compliance mode once under Settings → Dialer. Everything runs without a Twilio account against `pnpm qa:mock-twilio` (see [docs/dialer.md](docs/dialer.md)).
 
 **Docker**
 
@@ -156,9 +172,11 @@ Details and the list of deliberately mirrored behaviors are in [docs/api-compat.
 | Authentication, API keys, OAuth 2.1, Clerk SSO | [docs/auth.md](docs/auth.md) |
 | MCP server and assistant setup | [docs/mcp.md](docs/mcp.md) |
 | AI providers, hosted agents, guardrails | [docs/ai.md](docs/ai.md) |
-| Dialer on Twilio | [docs/dialer.md](docs/dialer.md) |
+| Dialer on Twilio, parallel dialing | [docs/dialer.md](docs/dialer.md) |
+| Parallel dialing research notes | [docs/parallel-dialing-research.md](docs/parallel-dialing-research.md) |
 | Signals and rules | [docs/signals.md](docs/signals.md) |
 | Call coaching and transcription | [docs/coaching.md](docs/coaching.md) |
+| Practice calls against an AI prospect | [docs/practice.md](docs/practice.md) |
 | HubSpot and CRM | [docs/crm.md](docs/crm.md) |
 | Inkbox channels: email, SMS, iMessage, hosted calls | [docs/inkbox.md](docs/inkbox.md) |
 | Webhooks and signatures | [docs/webhooks.md](docs/webhooks.md) |

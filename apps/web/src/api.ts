@@ -81,5 +81,16 @@ export async function logout() {
   location.href = '/app/login';
 }
 
-export const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '');
-export const fmtDay = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '');
+const thisYear = (d: Date) => d.getFullYear() === new Date().getFullYear();
+/** "Oct 22, 4:03 PM" this year, "Oct 22, 2025, 4:03 PM" otherwise. */
+export const fmtDate = (s: string | null | undefined) => {
+  if (!s) return '';
+  const d = new Date(s);
+  return d.toLocaleString(undefined, thisYear(d) ? { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' } : { dateStyle: 'medium', timeStyle: 'short' });
+};
+/** "Oct 22" this year, "Oct 22, 2025" otherwise. */
+export const fmtDay = (s: string | null | undefined) => {
+  if (!s) return '';
+  const d = new Date(s);
+  return d.toLocaleDateString(undefined, thisYear(d) ? { month: 'short', day: 'numeric' } : { dateStyle: 'medium' });
+};

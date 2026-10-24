@@ -6,6 +6,11 @@ postings and public API documents.
 
 - `nooks-public-research.md`: architecture, published numbers, public docs index, open-source
   building blocks, comparable products, compliance notes (compiled 2026-10-22).
+- `orum-public-research.md`: Orum's webhook-only developer surface, telephony stack, parallel
+  dialer behaviour, number reputation, and what it leaves unsaid (compiled 2026-10-23).
+- `context-dev-search.md`: what context.dev is (a web-data API with search, enrichment and an MCP
+  server), the open-source blocks for search on one Postgres, and a proposal for a cross-entity
+  `GET /v1/search` plus a `cooks_search` tool and a command palette (compiled 2026-10-23).
 - Upstream API contract: `spec/nooks-upstream.openapi.yml` (vendored from developer.nooks.in with
   `spec/upstream.lock.json` recording the hash and fetch time).
 

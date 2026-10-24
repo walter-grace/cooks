@@ -26,6 +26,27 @@ export interface WorkspaceSettings {
   requireUnsubscribeLink?: boolean;
   /** Which connected dialer the Call button uses. AI calls always go through Speko. */
   dialerProvider?: 'twilio' | 'speko';
+  /** Parallel dialer: an admin must confirm the compliance mode before sessions can start. */
+  parallelDialer?: ParallelDialerSettings;
+}
+
+export interface ParallelDialerSettings {
+  /** b2b: calls to businesses (largely exempt from the FTC abandoned-call rule). consumer: the TSR safe harbor applies. */
+  complianceMode?: 'b2b' | 'consumer';
+  confirmedBy?: string | null;
+  confirmedAt?: string | null;
+  /** Default lines per batch (1–6; consumer mode caps at 2). */
+  maxLines?: number;
+  /** Consumer mode: recorded message played to a dropped human (seller name + number), per 16 CFR 310.4(b)(4)(iii). */
+  abandonedCallMessage?: string | null;
+  /** Hang up (default) or connect when AMD returns `unknown`. */
+  onUnknown?: 'hangup' | 'connect';
+  /** Twilio AMD tuning. */
+  amd?: { speechThresholdMs?: number; speechEndThresholdMs?: number; silenceTimeoutMs?: number; timeoutSeconds?: number };
+  /** Seconds a line rings before it is counted as no answer (15–60). */
+  ringTimeoutSeconds?: number;
+  /** Fast pickup: listen to the first words of each answered leg and connect a person before AMD. */
+  speechGate?: { enabled?: boolean; judge?: 'rules' | 'jev'; maxMs?: number };
 }
 
 export const users = pgTable(

@@ -69,7 +69,7 @@ Workflows: temporalio/temporal, temporalio/sdk-typescript.
 
 ## 6. Comparable products
 
-Orum (up to 5 lines, live-human detection, number rotation), Koncert (agent-assisted + AI parallel), ConnectAndSell, PhoneBurner (public REST API with dialsession), Kixie, Aircall, Dialpad, PowerDialer AI (YC), Gather (WebSocket API), Kumospace. Building blocks: Twilio AMD, Media Streams, Conference Participants, Voice JS SDK; jambonz; LiveKit Agents; Pipecat.
+Orum (own FreeSWITCH switch on Vonage, live-human detection, number rotation; see `orum-public-research.md`), Koncert (agent-assisted + AI parallel), ConnectAndSell, PhoneBurner (public REST API with dialsession), Kixie, Aircall, Dialpad, PowerDialer AI (YC), Gather (WebSocket API), Kumospace. Building blocks: Twilio AMD, Media Streams, Conference Participants, Voice JS SDK; jambonz; LiveKit Agents; Pipecat.
 
 ## 7. Community threads
 

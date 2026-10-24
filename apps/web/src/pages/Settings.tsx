@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, currentSession, fmtDate } from '../api.js';
+import { plural } from '../lib/format.js';
 import { useApi, toast } from '../hooks.js';
 import { PageHeader } from '../components/layout.js';
 import { Dialer } from './SettingsDialer.js';
@@ -125,20 +126,18 @@ function Mailboxes({ clerk }: { clerk: boolean }) {
         <CardContent>
           {mailboxes.data?.data.length === 0 && <p className="text-sm text-muted-foreground" data-testid="mailboxes-empty">No mailboxes yet.</p>}
           {mailboxes.data && mailboxes.data.data.length > 0 && (
-            <Table>
-              <TableBody>
-                {mailboxes.data.data.map((m) => (
-                  <TableRow key={m.id} data-testid="mailbox-row">
-                    <TableCell className="font-medium">{m.email}</TableCell>
-                    <TableCell className="text-muted-foreground">{m.user?.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{m.provider}</Badge>
-                    </TableCell>
-                    <TableCell>{m.isDefault && <Badge>default</Badge>}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <ul className="divide-y text-sm">
+              {mailboxes.data.data.map((m) => (
+                <li key={m.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 first:pt-0 last:pb-0" data-testid="mailbox-row">
+                  <span className="font-medium">{m.email}</span>
+                  <span className="text-muted-foreground">{m.user?.name}</span>
+                  <span className="ml-auto flex items-center gap-2">
+                    <Badge variant="outline">{m.provider}</Badge>
+                    {m.isDefault && <Badge>default</Badge>}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
         <CardFooter className="flex flex-wrap gap-2">
@@ -307,7 +306,7 @@ function Crm({ clerk, isAdmin }: { clerk: boolean; isAdmin: boolean }) {
             <CardDescription>
               Portal {c.hubspot?.portalId ?? '?'} · {c.hubspot?.kind === 'oauth' ? 'OAuth' : c.hubspot?.kind === 'clerk' ? 'via Clerk' : 'private app'} · token …{c.hubspot?.tokenLast4}
               <br />
-              {c.settings.ownerMapSize} owners matched to users · logging {[c.settings.logEmails && 'emails', c.settings.logCalls && 'calls'].filter(Boolean).join(' and ') || 'nothing'} · last poll {fmtDate(c.settings.lastPollAt) || 'never'}
+              {plural(c.settings.ownerMapSize, 'owner')} matched to users · logging {[c.settings.logEmails && 'emails', c.settings.logCalls && 'calls'].filter(Boolean).join(' and ') || 'nothing'} · last poll {fmtDate(c.settings.lastPollAt) || 'never'}
             </CardDescription>
           </div>
           {isAdmin && (
@@ -617,8 +616,8 @@ function ApiKeys() {
             <Alert data-testid="new-key">
               <AlertTitle>New key. Copy it now.</AlertTitle>
               <AlertDescription className="grid gap-2">
-                <pre className="overflow-x-auto rounded-md bg-muted p-2 text-xs">{newKey}</pre>
-                <pre className="overflow-x-auto rounded-md bg-muted p-2 text-xs">{snippet(newKey)}</pre>
+                <pre className="break-all whitespace-pre-wrap rounded-md bg-muted p-2 text-xs">{newKey}</pre>
+                <pre className="break-all whitespace-pre-wrap rounded-md bg-muted p-2 text-xs">{snippet(newKey)}</pre>
               </AlertDescription>
             </Alert>
           )}
@@ -654,7 +653,7 @@ function ApiKeys() {
           <CardDescription>No npm install. The MCP server ships as a tarball on GitHub Releases.</CardDescription>
         </CardHeader>
         <CardContent>
-          <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{snippet('<your key>')}</pre>
+          <pre className="break-all whitespace-pre-wrap rounded-md bg-muted p-3 text-xs">{snippet('<your key>')}</pre>
         </CardContent>
       </Card>
     </div>
@@ -685,7 +684,7 @@ function Webhooks() {
           <Alert>
             <AlertTitle>Signing secret. Copy it now.</AlertTitle>
             <AlertDescription>
-              <pre className="overflow-x-auto rounded-md bg-muted p-2 text-xs">{hook.secret}</pre>
+              <pre className="break-all whitespace-pre-wrap rounded-md bg-muted p-2 text-xs">{hook.secret}</pre>
             </AlertDescription>
           </Alert>
         )}

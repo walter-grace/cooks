@@ -24,7 +24,11 @@
     "qa:hubspot": "node scripts/qa/hubspot-ui.mjs",
     "qa:mock-hubspot": "node scripts/qa/mock-hubspot.mjs",
     "qa:mock-twilio": "node scripts/qa/mock-twilio.mjs",
-    "qa:mock-speko": "node scripts/qa/mock-speko.mjs"
+    "qa:mock-speko": "node scripts/qa/mock-speko.mjs",
+    "qa:parallel": "node scripts/qa/parallel-ui.mjs",
+    "qa:practice": "node scripts/qa/practice-ui.mjs",
+    "qa:design": "node scripts/qa/design-audit.mjs",
+    "qa:design:jev": "python3 scripts/qa/jev_design_review.py"
   },
   "devDependencies": {
     "@cooks/auth": "workspace:*",

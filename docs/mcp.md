@@ -56,14 +56,14 @@ Any client that can send an `Authorization: Bearer` header can connect with a Co
 claude mcp add --transport http cooks http://localhost:8081/mcp --header "Authorization: Bearer cooks-api-..."
 ```
 
-Grok: add a custom MCP connector pointing at `https://<your host>/mcp` and supply the bearer token in the connector's auth settings. The exact UI changes often; check xAI's current connector docs.
+Grok: at [grok.com/connectors](https://grok.com/connectors) choose **New connector → Custom** and enter `https://<your host>/mcp`. Grok runs the OAuth sign-in in a pop-up, so each person signs in (password or Clerk) and approves scopes; no key is pasted. Grok's servers connect from the public internet, so the host must be reachable there (a tunnel such as ngrok works for a laptop). Details: [docs.x.ai/grok/connectors](https://docs.x.ai/grok/connectors).
 
 ### OAuth (per-user access for hosted connectors)
 
 Unauthenticated requests get a `401` with `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource"`. OAuth-capable clients (Claude.ai connectors, Claude Code remote MCP, Cursor) follow that to the API's authorization server and run the standard flow:
 
 1. Dynamic client registration at `POST /oauth/register` (on by default, `COOKS_OAUTH_DCR=false` to disable).
-2. `GET /oauth/authorize` with PKCE S256. The user signs in with email + password (`pnpm bootstrap --password ...` sets one) and approves the requested scopes for one workspace.
+2. `GET /oauth/authorize` with PKCE S256. The user signs in the same way as the web UI (the password page, or `/app/login` with Clerk SSO when `CLERK_SECRET_KEY` is set) and approves the requested scopes for one workspace.
 3. `POST /oauth/token` returns a 1-hour ES256 access token plus a 90-day rotating refresh token. Reusing a rotated refresh token revokes the whole family.
 4. Tokens carry the user's role and scopes, so a `user` cannot delete steps in sequences they do not own, and a token without `prospects:write` gets `INSUFFICIENT_SCOPE`.
 
@@ -81,6 +81,7 @@ Discovery: `/.well-known/oauth-authorization-server`, `/.well-known/jwks.json`.
 | `cooks_enroll_prospect`, `cooks_list_enrollments`, `cooks_pause_enrollment`, `cooks_resume_enrollment`, `cooks_finish_enrollment` | Enrollments |
 | `cooks_list_tasks`, `cooks_create_task`, `cooks_complete_task`, `cooks_skip_task` | Task queue |
 | `cooks_dialer_status`, `cooks_dial`, `cooks_place_ai_call`, `cooks_get_call_transcript`, `cooks_hangup_call`, `cooks_dialer_balance`, `cooks_log_call`, `cooks_record_call` | Dialer: rep calls on Twilio, AI-voiced calls on Speko (queued, then polled to an outcome and transcript), balance and spend |
+| `cooks_start_dial_session`, `cooks_dial_next_batch`, `cooks_dial_session_status`, `cooks_hangup_dial_line`, `cooks_end_dial_session` | Parallel power dialer: rep joins a silent room, batches of prospects ring at once, the first human is bridged, siblings hang up, dropped humans become callback tasks |
 | `cooks_inbox_list`, `cooks_send_sms`, `cooks_send_imessage`, `cooks_import_message` | Inkbox channels: unified inbox, texting with consent and quiet-hours checks, importing inbound messages |
 | `cooks_list_emails`, `cooks_create_email`, `cooks_import_email` | Emails: list, draft or send, and record mail sent or received outside Cooks (an imported reply runs the normal reply pipeline) |
 | `cooks_list_email_templates`, `cooks_list_tags`, `cooks_create_tag`, `cooks_add_note` | Templates, tags, CRM notes |

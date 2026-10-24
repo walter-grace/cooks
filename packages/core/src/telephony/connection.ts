@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
-import { telephonyConnections, workspaces } from '@cooks/db';
+import { telephonyConnections, workspaces, type ParallelDialerSettings } from '@cooks/db';
 import type { Ctx } from '../context.js';
+import type { SpeechConfig } from './speech/providers/types.js';
 import { decrypt, encrypt } from '../crypto.js';
 import { insufficientPermission, unprocessable } from '../errors.js';
 import { SpekoClient, SpekoProvider, DialerError, type DialerKind } from '../dialer/providers/index.js';
@@ -8,8 +9,21 @@ import { TwilioClient, TwilioError, normalizePhone, type TwilioClientOpts } from
 
 export type TelephonyRow = typeof telephonyConnections.$inferSelect;
 
+/** Server-wide Twilio credentials (TWILIO_* env). Workspaces without their own connection use these. */
+export interface TwilioEnv {
+  accountSid?: string;
+  authToken?: string;
+  fromNumber?: string;
+  apiKeySid?: string;
+  apiKeySecret?: string;
+  twimlAppSid?: string;
+}
+
 export interface TelephonyDeps extends TwilioClientOpts {
   kek?: string;
+  twilioEnv?: TwilioEnv;
+  /** Speech gate: streaming recognizer + optional Jev tie-breaker (server-wide, from env). */
+  speech?: SpeechConfig;
   /** Server-wide Speko key and base override (mocks). Workspaces can store their own key instead. */
   speko?: { apiKey?: string; apiBase?: string };
 }
@@ -23,23 +37,49 @@ const assertAdmin = (ctx: Ctx, what: string) => {
   if (!ctx.principal.bypassRoleChecks && ctx.principal.role !== 'admin') throw insufficientPermission(`Only admins can ${what}`);
 };
 
-/** The workspace's connection row for one provider (Twilio by default). */
-export async function getTelephony(ctx: Ctx, provider: DialerKind = 'twilio'): Promise<TelephonyRow | null> {
+/** The workspace's connection row for one provider (Twilio by default). Falls back to server env for Twilio. */
+export async function getTelephony(ctx: Ctx, provider: DialerKind = 'twilio', d?: TelephonyDeps): Promise<TelephonyRow | null> {
   const [row] = await ctx.db
     .select()
     .from(telephonyConnections)
     .where(and(eq(telephonyConnections.workspaceId, ctx.principal.workspaceId), eq(telephonyConnections.provider, provider)))
     .limit(1);
-  return row ?? null;
+  if (row) return row;
+  if (provider === 'twilio' && d?.twilioEnv?.accountSid && d.twilioEnv.authToken) return envTelephonyRow(ctx.principal.workspaceId, d.twilioEnv);
+  return null;
+}
+
+export const ENV_ROW_ID = '00000000-0000-0000-0000-00000000e9f0';
+/** Synthetic connection row built from TWILIO_* env so a cloned repo works without the settings page. */
+export function envTelephonyRow(workspaceId: string, e: TwilioEnv): TelephonyRow {
+  const now = new Date(0);
+  return {
+    id: ENV_ROW_ID,
+    workspaceId,
+    provider: 'twilio',
+    accountSid: e.accountSid!,
+    authTokenEncrypted: `plain:${e.authToken!}`,
+    apiKeySid: e.apiKeySid ?? null,
+    apiKeySecretEncrypted: e.apiKeySecret ? `plain:${e.apiKeySecret}` : null,
+    twimlAppSid: e.twimlAppSid ?? null,
+    fromNumbers: e.fromNumber ? [normalizePhone(e.fromNumber) ?? e.fromNumber] : [],
+    record: true,
+    transcribe: true,
+    coach: true,
+    settings: {},
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 /* ------------------------------------------------------------------ Twilio */
 
 export function serializeTelephony(row: TelephonyRow | null) {
-  if (!row) return { provider: null, status: 'disconnected' as const, accountSid: null, fromNumbers: [] as string[], softphone: false, record: true, transcribe: true, coach: true, updatedAt: null };
+  if (!row) return { provider: null, status: 'disconnected' as const, source: null as 'workspace' | 'server' | null, accountSid: null, fromNumbers: [] as string[], softphone: false, record: true, transcribe: true, coach: true, updatedAt: null };
   return {
     provider: row.provider,
     status: 'connected' as const,
+    source: row.id === ENV_ROW_ID ? ('server' as const) : ('workspace' as const),
     accountSid: row.accountSid,
     accountSidLast4: row.accountSid.slice(-4),
     fromNumbers: row.fromNumbers,
@@ -67,6 +107,7 @@ export interface ConnectTelephonyInput {
 /** Store Twilio credentials after verifying them; discovers owned numbers when none are given. */
 export async function connectTelephony(ctx: Ctx, input: ConnectTelephonyInput, d: TelephonyDeps) {
   assertAdmin(ctx, 'connect telephony');
+  const existingRow = await getTelephony(ctx, 'twilio');
   if (!d.kek && process.env.NODE_ENV === 'production') throw unprocessable(NO_KEK);
   const client = new TwilioClient({ accountSid: input.accountSid.trim(), authToken: input.authToken.trim() }, d);
   try {
@@ -77,7 +118,7 @@ export async function connectTelephony(ctx: Ctx, input: ConnectTelephonyInput, d
   }
   let numbers = (input.fromNumbers ?? []).map((n) => normalizePhone(n)).filter((n): n is string => !!n);
   if (!numbers.length) numbers = await client.incomingNumbers();
-  const existing = await getTelephony(ctx, 'twilio');
+  const existing = existingRow;
   const values = {
     workspaceId: ctx.principal.workspaceId,
     provider: 'twilio',
@@ -102,7 +143,7 @@ export async function connectTelephony(ctx: Ctx, input: ConnectTelephonyInput, d
 export async function updateTelephonySettings(ctx: Ctx, patch: { fromNumbers?: string[]; record?: boolean; transcribe?: boolean; coach?: boolean }) {
   assertAdmin(ctx, 'change telephony settings');
   const existing = await getTelephony(ctx, 'twilio');
-  if (!existing) throw unprocessable('Telephony is not connected');
+  if (!existing) throw unprocessable('Telephony is not connected (or comes from TWILIO_* server env; paste credentials under Settings → Dialer to change settings)');
   const [row] = await ctx.db
     .update(telephonyConnections)
     .set({ ...(patch.fromNumbers ? { fromNumbers: patch.fromNumbers.map((n) => normalizePhone(n)).filter((n): n is string => !!n) } : {}), ...(patch.record !== undefined ? { record: patch.record } : {}), ...(patch.transcribe !== undefined ? { transcribe: patch.transcribe } : {}), ...(patch.coach !== undefined ? { coach: patch.coach } : {}), updatedAt: ctx.clock.now() })
@@ -119,7 +160,7 @@ export async function disconnectTelephony(ctx: Ctx) {
 
 /** Decrypted credentials + client for a workspace, or null when not connected. */
 export async function telephonyFor(ctx: Ctx, d: TelephonyDeps): Promise<{ row: TelephonyRow; client: TwilioClient; authToken: string; apiKey: { sid: string; secret: string } | null } | null> {
-  const row = await getTelephony(ctx, 'twilio');
+  const row = await getTelephony(ctx, 'twilio', d);
   if (!row) return null;
   const authToken = open(row.authTokenEncrypted, d.kek);
   const apiKey = row.apiKeySid && row.apiKeySecretEncrypted ? { sid: row.apiKeySid, secret: open(row.apiKeySecretEncrypted, d.kek) } : null;
@@ -319,7 +360,86 @@ export async function setDialerProvider(ctx: Ctx, provider: DialerKind) {
 
 /** Everything the Settings → Dialer page and `cooks_dialer_status` need in one read. */
 export async function dialerOverview(ctx: Ctx, d: TelephonyDeps) {
-  const [tw, sp, s] = await Promise.all([getTelephony(ctx, 'twilio'), getTelephony(ctx, 'speko'), workspaceSettings(ctx)]);
+  const [tw, sp, s] = await Promise.all([getTelephony(ctx, 'twilio', d), getTelephony(ctx, 'speko'), workspaceSettings(ctx)]);
   const provider: DialerKind | null = s.dialerProvider && ((s.dialerProvider === 'twilio' && tw) || (s.dialerProvider === 'speko' && sp)) ? s.dialerProvider : tw ? 'twilio' : sp ? 'speko' : null;
-  return { provider, twilio: serializeTelephony(tw), speko: serializeSpeko(sp, !!d.speko?.apiKey) };
+  return { provider, twilio: serializeTelephony(tw), speko: serializeSpeko(sp, !!d.speko?.apiKey), parallel: serializeParallelSettings(s.parallelDialer) };
+}
+
+/* ------------------------------------------------------ parallel dialer settings */
+
+export const PARALLEL_DEFAULTS = {
+  complianceMode: 'b2b' as const,
+  maxLines: 3,
+  onUnknown: 'hangup' as const,
+  ringTimeoutSeconds: 25,
+  amd: { speechThresholdMs: 2400, speechEndThresholdMs: 1200, silenceTimeoutMs: 3000, timeoutSeconds: 5 },
+  speechGate: { enabled: true, judge: 'rules' as const, maxMs: 6000 },
+};
+/** Hard ceilings whatever the settings say. */
+export const MAX_PARALLEL_LINES = 6;
+export const MAX_CONSUMER_LINES = 2;
+
+export function parallelSettingsOf(s: ParallelDialerSettings | undefined) {
+  const mode = s?.complianceMode ?? PARALLEL_DEFAULTS.complianceMode;
+  const cap = mode === 'consumer' ? MAX_CONSUMER_LINES : MAX_PARALLEL_LINES;
+  return {
+    complianceMode: mode,
+    confirmed: !!s?.confirmedAt,
+    confirmedBy: s?.confirmedBy ?? null,
+    confirmedAt: s?.confirmedAt ?? null,
+    maxLines: Math.min(cap, Math.max(1, s?.maxLines ?? PARALLEL_DEFAULTS.maxLines)),
+    maxAllowedLines: cap,
+    abandonedCallMessage: s?.abandonedCallMessage ?? null,
+    onUnknown: s?.onUnknown ?? PARALLEL_DEFAULTS.onUnknown,
+    ringTimeoutSeconds: Math.min(60, Math.max(15, s?.ringTimeoutSeconds ?? PARALLEL_DEFAULTS.ringTimeoutSeconds)),
+    amd: { ...PARALLEL_DEFAULTS.amd, ...(s?.amd ?? {}) },
+    speechGate: { ...PARALLEL_DEFAULTS.speechGate, ...(s?.speechGate ?? {}) },
+  };
+}
+export const serializeParallelSettings = (s: ParallelDialerSettings | undefined) => parallelSettingsOf(s);
+
+export interface ParallelSettingsPatch {
+  complianceMode?: 'b2b' | 'consumer';
+  /** Required to (re)confirm after changing the mode. */
+  confirm?: boolean;
+  maxLines?: number;
+  abandonedCallMessage?: string | null;
+  onUnknown?: 'hangup' | 'connect';
+  ringTimeoutSeconds?: number;
+  amd?: ParallelDialerSettings['amd'];
+  speechGate?: ParallelDialerSettings['speechGate'];
+}
+
+/**
+ * Admins choose B2B or consumer and must confirm it explicitly. Changing the mode clears the
+ * confirmation; consumer mode needs the abandoned-call message before it can be confirmed.
+ */
+export async function setParallelSettings(ctx: Ctx, patch: ParallelSettingsPatch) {
+  assertAdmin(ctx, 'change parallel dialer settings');
+  const s = await workspaceSettings(ctx);
+  const prev = s.parallelDialer ?? {};
+  const next: ParallelDialerSettings = { ...prev };
+  if (patch.complianceMode && patch.complianceMode !== (prev.complianceMode ?? 'b2b')) {
+    next.complianceMode = patch.complianceMode;
+    next.confirmedAt = null;
+    next.confirmedBy = null;
+  } else if (patch.complianceMode) next.complianceMode = patch.complianceMode;
+  if (patch.maxLines !== undefined) next.maxLines = Math.min(MAX_PARALLEL_LINES, Math.max(1, Math.round(patch.maxLines)));
+  if (patch.abandonedCallMessage !== undefined) next.abandonedCallMessage = patch.abandonedCallMessage?.trim() || null;
+  if (patch.onUnknown) next.onUnknown = patch.onUnknown;
+  if (patch.ringTimeoutSeconds !== undefined) next.ringTimeoutSeconds = patch.ringTimeoutSeconds;
+  if (patch.amd) next.amd = { ...(prev.amd ?? {}), ...patch.amd };
+  if (patch.speechGate) next.speechGate = { ...(prev.speechGate ?? {}), ...patch.speechGate };
+  if (patch.confirm) {
+    if ((next.complianceMode ?? 'b2b') === 'consumer' && !next.abandonedCallMessage) throw unprocessable('Consumer mode needs an abandoned-call message (your company name and a call-back number) before it can be confirmed', { code: 'ABANDON_MESSAGE_REQUIRED', field: 'abandonedCallMessage' });
+    next.confirmedAt = ctx.clock.now().toISOString();
+    next.confirmedBy = ctx.principal.userId ?? 'api-key';
+  }
+  await ctx.db.update(workspaces).set({ settings: { ...s, parallelDialer: next } }).where(eq(workspaces.id, ctx.principal.workspaceId));
+  return parallelSettingsOf(next);
+}
+
+export async function getParallelSettings(ctx: Ctx) {
+  const s = await workspaceSettings(ctx);
+  return parallelSettingsOf(s.parallelDialer);
 }

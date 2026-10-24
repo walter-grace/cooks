@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api, currentSession, fmtDate, q } from '../api.js';
+import { actionLabel, fmtMoney, fmtPct } from '../lib/format.js';
 import { useApi, toast } from '../hooks.js';
 import { Link, navigate } from '../router.js';
 import { Empty, PageHeader, StateBadge } from '../components/layout.js';
@@ -348,7 +349,7 @@ export function ProspectDetail({ id }: { id: string }) {
               </div>
             )}
             <div className="text-xs text-muted-foreground">
-              confidence {Math.round((r.confidence ?? 0) * 100)}% · {fmtDate(r.researchedAt)} · {r.source}
+              confidence {fmtPct(r.confidence ?? 0)} · {fmtDate(r.researchedAt)} · {r.source}
               {r.citations?.length > 0 && (
                 <>
                   {' '}
@@ -400,7 +401,7 @@ export function ProspectDetail({ id }: { id: string }) {
             {tasks.data?.data.map((t) => (
               <div key={t.id} className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <Badge variant="outline">{t.action.replace(/_/g, ' ')}</Badge>
+                  <Badge variant="outline">{actionLabel(t.action)}</Badge>
                   <div className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{t.note}</div>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
@@ -445,7 +446,7 @@ function CallTimelineItem({ c }: { c: any }) {
         </div>
         <div className="text-xs text-muted-foreground">
           {fmtDate(c.time)} · {fmtDuration(c.duration)}
-          {c.costUsd !== null && c.costUsd !== undefined ? ` · $${Number(c.costUsd).toFixed(2)}` : ''} {c.owner?.name ? `· ${c.owner.name}` : ''}
+          {c.costUsd !== null && c.costUsd !== undefined ? ` · ${fmtMoney(c.costUsd)}` : ''} {c.owner?.name ? `· ${c.owner.name}` : ''}
         </div>
       </div>
       {c.summary && <p className="mt-2 text-sm">{c.summary}</p>}

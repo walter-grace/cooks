@@ -53,4 +53,4 @@ If a user has not linked the provider in Clerk yet, the button fails with a mess
 
 ## API keys and MCP
 
-Unchanged by the mode: `cooks-api-…` keys (Settings → API keys & MCP) authenticate bots and integrations; OAuth 2.1 with PKCE and dynamic client registration serves remote MCP clients. See `docs/mcp.md`.
+Unchanged by the mode: `cooks-api-…` keys (Settings → API keys & MCP) authenticate bots and integrations; OAuth 2.1 with PKCE and dynamic client registration serves remote MCP clients. In Clerk mode the consent flow sends people to `/app/login`, so a connector added in Claude or Grok signs in through Clerk and never needs a Cooks password. See `docs/mcp.md`.

@@ -3,6 +3,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* One palette: ink on paper. No hue anywhere; state is carried by weight, fill and motion. */
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);
@@ -11,65 +12,65 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: oklch(0.145 0 0);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  --secondary: oklch(0.96 0 0);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: oklch(0.5 0 0);
+  --accent: oklch(0.96 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --destructive: oklch(0.145 0 0);
+  --border: oklch(0.9 0 0);
+  --input: oklch(0.9 0 0);
+  --ring: oklch(0.6 0 0);
+  --chart-1: oklch(0.2 0 0);
+  --chart-2: oklch(0.4 0 0);
+  --chart-3: oklch(0.55 0 0);
+  --chart-4: oklch(0.7 0 0);
+  --chart-5: oklch(0.85 0 0);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.145 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-accent: oklch(0.94 0 0);
+  --sidebar-accent-foreground: oklch(0.145 0 0);
+  --sidebar-border: oklch(0.9 0 0);
+  --sidebar-ring: oklch(0.6 0 0);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.13 0 0);
+  --foreground: oklch(0.97 0 0);
+  --card: oklch(0.17 0 0);
+  --card-foreground: oklch(0.97 0 0);
+  --popover: oklch(0.17 0 0);
+  --popover-foreground: oklch(0.97 0 0);
+  --primary: oklch(0.97 0 0);
+  --primary-foreground: oklch(0.145 0 0);
+  --secondary: oklch(0.24 0 0);
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: oklch(0.24 0 0);
+  --muted-foreground: oklch(0.72 0 0);
+  --accent: oklch(0.24 0 0);
+  --accent-foreground: oklch(0.97 0 0);
+  --destructive: oklch(0.97 0 0);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.6 0 0);
+  --chart-1: oklch(0.9 0 0);
+  --chart-2: oklch(0.75 0 0);
+  --chart-3: oklch(0.6 0 0);
+  --chart-4: oklch(0.45 0 0);
+  --chart-5: oklch(0.3 0 0);
+  --sidebar: oklch(0.15 0 0);
+  --sidebar-foreground: oklch(0.95 0 0);
+  --sidebar-primary: oklch(0.97 0 0);
+  --sidebar-primary-foreground: oklch(0.145 0 0);
+  --sidebar-accent: oklch(0.22 0 0);
+  --sidebar-accent-foreground: oklch(0.97 0 0);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.6 0 0);
 }
 
 @theme inline {
@@ -114,7 +115,184 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
   body {
     @apply bg-background text-foreground;
+    /* Every figure in the app lines up: tabular numerals everywhere, not just in tables. */
+    font-variant-numeric: tabular-nums;
   }
+  /* Emoji flags and other glyph art stay in the palette. */
+  .mono-art {
+    filter: grayscale(1);
+  }
+}
+
+/* ---------- dialer cockpit: a dark console in the same ink, motion only on live elements ---------- */
+.cockpit {
+  --ck-bg: oklch(0.13 0 0);
+  --ck-surface: oklch(0.17 0 0);
+  --ck-raised: oklch(0.22 0 0);
+  --ck-line: oklch(1 0 0 / 10%);
+  --ck-line-strong: oklch(1 0 0 / 18%);
+  --ck-text: oklch(0.97 0 0);
+  --ck-dim: oklch(0.8 0 0);
+  --ck-faint: oklch(0.7 0 0);
+  --ck-live: oklch(0.97 0 0);
+  --ck-live-dim: oklch(1 0 0 / 14%);
+  --ck-ring: oklch(0.8 0 0);
+  --ck-ring-dim: oklch(1 0 0 / 10%);
+  --ck-drop: oklch(0.72 0 0);
+  --ck-vm: oklch(0.58 0 0);
+  color: var(--ck-text);
+  background: linear-gradient(180deg, oklch(0.16 0 0), var(--ck-bg) 40%);
+  font-variant-numeric: tabular-nums;
+}
+/* While the dialer is open the whole shell takes the same console surface, so there is one palette on screen. */
+:root.cockpit-mode {
+  --background: oklch(0.13 0 0);
+  --foreground: oklch(0.97 0 0);
+  --card: oklch(0.17 0 0);
+  --card-foreground: oklch(0.97 0 0);
+  --popover: oklch(0.17 0 0);
+  --popover-foreground: oklch(0.97 0 0);
+  --primary: oklch(0.97 0 0);
+  --primary-foreground: oklch(0.13 0 0);
+  --secondary: oklch(0.22 0 0);
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: oklch(0.22 0 0);
+  --muted-foreground: oklch(0.74 0 0);
+  --accent: oklch(0.22 0 0);
+  --accent-foreground: oklch(0.97 0 0);
+  --destructive: oklch(0.97 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.8 0 0);
+  --sidebar: oklch(0.11 0 0);
+  --sidebar-foreground: oklch(0.93 0 0);
+  --sidebar-primary: oklch(0.97 0 0);
+  --sidebar-primary-foreground: oklch(0.13 0 0);
+  --sidebar-accent: oklch(0.2 0 0);
+  --sidebar-accent-foreground: oklch(0.97 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.8 0 0);
+  color-scheme: dark;
+}
+.ck-label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ck-faint);
+}
+.ck-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.ck-cell {
+  background: var(--ck-surface);
+  border: 1px solid var(--ck-line);
+  border-radius: 14px;
+}
+.ck-cell[data-live='true'] {
+  border-color: var(--ck-live);
+  box-shadow: 0 0 0 1px var(--ck-live-dim), 0 0 40px -12px var(--ck-live);
+}
+.ck-cell[data-ringing='true'] {
+  border-color: var(--ck-line-strong);
+}
+/* LEDs: live is a lit white dot, ringing a grey dot with a ripple, voicemail dim, dropped a hollow ring. */
+.ck-led {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  position: relative;
+  background: var(--ck-faint);
+}
+.ck-led[data-tone='ring'] { background: var(--ck-ring); }
+.ck-led[data-tone='live'] { background: var(--ck-live); box-shadow: 0 0 10px var(--ck-live); }
+.ck-led[data-tone='drop'] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ck-drop); }
+.ck-led[data-tone='vm'] { background: var(--ck-vm); }
+.ck-led[data-tone='off'] { background: oklch(1 0 0 / 22%); }
+.ck-led[data-pulse='true']::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  color: var(--ck-ring);
+  animation: ck-ripple 1.2s ease-out infinite;
+}
+@keyframes ck-ripple {
+  0% { transform: scale(0.6); opacity: 0.9; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+.ck-scan {
+  position: relative;
+  overflow: hidden;
+}
+.ck-scan::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 8%), transparent);
+  transform: translateX(-100%);
+  animation: ck-scan 2.4s linear infinite;
+  pointer-events: none;
+}
+@keyframes ck-scan {
+  to { transform: translateX(100%); }
+}
+.ck-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.5rem;
+  padding: 0 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--ck-line-strong);
+  background: var(--ck-raised);
+  color: var(--ck-text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background 120ms, border-color 120ms, transform 80ms;
+}
+.ck-btn:hover:not(:disabled) { background: oklch(0.27 0 0); }
+.ck-btn:active:not(:disabled) { transform: translateY(1px); }
+.ck-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ck-btn[data-tone='live'] { background: var(--ck-live); color: oklch(0.13 0 0); border-color: transparent; }
+.ck-btn[data-tone='live']:hover:not(:disabled) { background: oklch(0.9 0 0); }
+.ck-btn[data-tone='drop'] { background: transparent; border-color: var(--ck-text); color: var(--ck-text); }
+.ck-btn[data-tone='drop']:hover:not(:disabled) { background: oklch(1 0 0 / 10%); }
+.ck-kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--ck-line-strong);
+  color: var(--ck-dim);
+  background: oklch(0 0 0 / 40%);
+}
+.ck-input {
+  height: 2.25rem;
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--ck-line-strong);
+  background: oklch(0 0 0 / 40%);
+  color: var(--ck-text);
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+}
+.ck-input::placeholder { color: var(--ck-faint); }
+.ck-input:focus { outline: none; border-color: var(--ck-live); }
+.ck-row {
+  border: 1px solid var(--ck-line);
+  border-radius: 10px;
+  background: oklch(0 0 0 / 30%);
+}
+.ck-row[data-picked='true'] { border-color: var(--ck-live); background: var(--ck-live-dim); }
+.ck-row:hover { border-color: var(--ck-line-strong); }
+@media (prefers-reduced-motion: reduce) {
+  .ck-led[data-pulse='true']::after, .ck-scan::before { animation: none; }
 }

@@ -1,6 +1,8 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { dirname, extname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { OpenAPIHono } from '@hono/zod-openapi';
+import { createNodeWebSocket } from '@hono/node-ws';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { Scalar } from '@scalar/hono-api-reference';
@@ -20,8 +22,9 @@ import { mountInkboxWebhook } from './routes/channels.js';
 import { makeVerifyJwt, mountOAuth } from './oauth/routes.js';
 import { mountConnect } from './routes/connect.js';
 import { clerkBrokers, mountClerkAuth, mountClerkConnectors } from './routes/clerk.js';
+import { mountPractice, mountPracticeSocket } from './routes/practice.js';
 import type { ClerkGateway } from '@cooks/auth';
-import type { ConnectorApps } from '@cooks/core';
+import type { ConnectorApps, PracticeConfig, SpeechConfig, TwilioEnv } from '@cooks/core';
 import type { ActiveKey } from '@cooks/auth';
 import { SCOPES, SCOPE_DESCRIPTIONS } from '@cooks/core';
 
@@ -50,7 +53,7 @@ export interface AppDeps {
   /** HubSpot OAuth app (optional; private-app tokens work without it). */
   hubspotApp?: { clientId: string; clientSecret: string };
   /** Twilio: override the API base for mocks; `trustWebhookSignature: false` skips X-Twilio-Signature checks (tests only). */
-  telephony?: { apiBase?: string; trustWebhookSignature?: boolean; speko?: { apiKey?: string; apiBase?: string } };
+  telephony?: { apiBase?: string; trustWebhookSignature?: boolean; speko?: { apiKey?: string; apiBase?: string }; twilioEnv?: TwilioEnv; speech?: SpeechConfig; practice?: PracticeConfig };
   channels?: { inkboxApiBase?: string; trustWebhookSignature?: boolean };
   /** Directory with the built web UI (apps/web/dist). Served at /app with SPA fallback. */
   webDir?: string;
@@ -107,6 +110,16 @@ export function createApp(deps: AppDeps) {
     });
     app.get('/app', (c) => c.redirect('/app/', 302));
   }
+  // Landing-page art and screenshots (apps/api/public/landing). Allow-listed names only; cached for a day.
+  const landingDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'landing');
+  app.get('/landing/:file', (c, next) => {
+    const name = c.req.param('file');
+    if (!/^[a-z0-9-]+\.(png|svg|webp)$/.test(name)) return next();
+    const file = join(landingDir, name);
+    if (!existsSync(file) || !statSync(file).isFile()) return next();
+    const type = { '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp' }[extname(name)] ?? 'application/octet-stream';
+    return c.body(readFileSync(file), 200, { 'content-type': type, 'cache-control': 'public, max-age=86400' });
+  });
   app.get('/', (c) => c.html(landingHtml({ publicUrl, release: 'https://github.com/walter-grace/cooks/releases/latest/download/cooks-mcp.tgz' })));
 
   // Authenticated API surface. Everything under /v1 except /v1/public-ip-list.
@@ -123,17 +136,21 @@ export function createApp(deps: AppDeps) {
 
   const brokers = deps.clerk ? clerkBrokers(deps.db, deps.clerk.gateway) : undefined;
   const reg: Registrar = { app, store, now: () => clock.now(), registry: [], crmDeps: { kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp, brokerHubspotToken: brokers?.brokerHubspotToken } };
-  const dialer = { kek: deps.kek, fetchImpl: deps.fetchImpl, apiBase: deps.telephony?.apiBase, speko: deps.telephony?.speko, publicUrl };
+  const dialer = { kek: deps.kek, fetchImpl: deps.fetchImpl, apiBase: deps.telephony?.apiBase, speko: deps.telephony?.speko, twilioEnv: deps.telephony?.twilioEnv, speech: deps.telephony?.speech, publicUrl };
+  const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
   const channels = { kek: deps.kek, fetchImpl: deps.fetchImpl, inkbox: { apiBase: deps.channels?.inkboxApiBase }, publicUrl };
   mountRoutes(reg, { publicIps: deps.publicIps ?? [], kek: deps.kek, fetchImpl: deps.fetchImpl, keyPrefix: deps.keyPrefix, crm: { db: deps.db, publicUrl, now: () => clock.now(), kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp, brokerHubspotToken: brokers?.brokerHubspotToken }, dialer, channels });
   const secureCookies = deps.oauth?.secureCookies ?? publicUrl.startsWith('https');
   mountClerkAuth(app, deps.clerk ? { gateway: deps.clerk.gateway, publishableKey: deps.clerk.publishableKey, defaultWorkspaceSlug: deps.clerk.defaultWorkspaceSlug, db: deps.db, kek: deps.kek, clock, secureCookies, crm: reg.crmDeps } : null);
   if (deps.clerk) mountClerkConnectors(reg, { gateway: deps.clerk.gateway, publishableKey: deps.clerk.publishableKey, defaultWorkspaceSlug: deps.clerk.defaultWorkspaceSlug, db: deps.db, kek: deps.kek, clock, secureCookies, crm: reg.crmDeps });
   mountTracking(app, { db: deps.db, secret: deps.kek ?? 'cooks-dev', clock, jobs, publicUrl });
-  mountTelephonyWebhooks(app, { db: deps.db, jobs, clock, publicUrl, dialer, trustSignature: deps.telephony?.trustWebhookSignature === false });
+  mountTelephonyWebhooks(app, { db: deps.db, jobs, clock, publicUrl, dialer, trustSignature: deps.telephony?.trustWebhookSignature === false, upgradeWebSocket, fetchImpl: deps.fetchImpl });
+  const practice = { db: deps.db, jobs, clock, publicUrl, kek: deps.kek, practice: deps.telephony?.practice };
+  mountPractice(reg, practice);
+  mountPracticeSocket(app, { ...practice, upgradeWebSocket });
   mountInkboxWebhook(app, { db: deps.db, jobs, clock, publicUrl, channels, trustSignature: deps.channels?.trustWebhookSignature === false });
   mountConnect(app, { db: deps.db, publicUrl, kek: deps.kek, apps: deps.connectorApps ?? {}, msTenant: deps.msTenant, fetchImpl: deps.fetchImpl, now: () => clock.now() });
-  if (deps.oauth) mountOAuth(app, { db: deps.db, issuer: publicUrl, key: deps.oauth.key, clock, dcrEnabled: deps.oauth.dcrEnabled ?? true, secureCookies: deps.oauth.secureCookies ?? publicUrl.startsWith('https') });
+  if (deps.oauth) mountOAuth(app, { db: deps.db, issuer: publicUrl, key: deps.oauth.key, clock, dcrEnabled: deps.oauth.dcrEnabled ?? true, loginUrl: deps.clerk ? '/app/login' : undefined, secureCookies: deps.oauth.secureCookies ?? publicUrl.startsWith('https') });
 
   // OpenAPI document, served at the same paths as upstream (/openapi.yml) plus JSON and docs.
   app.openAPIRegistry.registerComponent('securitySchemes', 'BearerAuth', {
@@ -158,8 +175,8 @@ export function createApp(deps: AppDeps) {
       title: 'Cooks API',
       version: deps.version ?? '0.1.0',
       description:
-        'Open-source sales engagement API. Wire-compatible with the public Nooks Sequencing API: ' +
-        'switch the base URL and existing clients keep working. Cooks is an independent project and is not affiliated with Nooks.',
+        'Open-source sales engagement API. Wire-compatible with the public sequencing API it mirrors (see docs/api-compat.md): ' +
+        'switch the base URL and existing clients keep working. Cooks is an independent project with no vendor affiliation.',
       license: { name: 'MIT' },
     },
     servers: [{ url: `${publicUrl}/v1` }],
@@ -176,7 +193,7 @@ export function createApp(deps: AppDeps) {
   app.get('/openapi.yml', (c) => c.text(toYaml(buildDoc()), 200, { 'content-type': 'application/yaml; charset=utf-8' }));
   app.get('/docs', Scalar({ url: '/openapi.json', pageTitle: 'Cooks API' }));
 
-  return { app, registry: reg.registry };
+  return { app, registry: reg.registry, injectWebSocket };
 }
 
 export type App = ReturnType<typeof createApp>['app'];

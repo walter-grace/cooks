@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api, fmtDate, q } from '../api.js';
+import { actionLabel } from '../lib/format.js';
 import { useApi, toast } from '../hooks.js';
 import { Link } from '../router.js';
 import { Empty, PageHeader, StateBadge } from '../components/layout.js';
@@ -70,8 +71,8 @@ export function Tasks() {
                 <TableHead>Due</TableHead>
                 <TableHead>Action</TableHead>
                 <TableHead>Prospect</TableHead>
-                <TableHead className="w-[40%]">Note</TableHead>
-                <TableHead>Priority</TableHead>
+                <TableHead className="min-w-[16rem] md:w-[40%]">Note</TableHead>
+                <TableHead className="hidden md:table-cell">Priority</TableHead>
                 <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>
@@ -80,7 +81,7 @@ export function Tasks() {
                 <TableRow key={t.id} data-testid="task-row">
                   <TableCell className="text-muted-foreground whitespace-nowrap">{fmtDate(t.dueAt)}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{t.action.replace(/_/g, ' ')}</Badge>
+                    <Badge variant="outline">{actionLabel(t.action)}</Badge>
                   </TableCell>
                   <TableCell>
                     {t.prospect?.name ? (
@@ -93,7 +94,7 @@ export function Tasks() {
                     <div className="text-xs text-muted-foreground">{t.prospect?.title}</div>
                   </TableCell>
                   <TableCell className="whitespace-pre-wrap text-sm">{t.note}</TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <Badge variant={t.priority === 'urgent' || t.priority === 'high' ? 'default' : 'secondary'}>{t.priority}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -109,7 +110,7 @@ export function Tasks() {
                             Draft
                           </Button>
                         )}
-                        <Button size="sm" onClick={() => act(t.id, 'complete')}>
+                        <Button size="sm" variant="outline" onClick={() => act(t.id, 'complete')}>
                           Done
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => act(t.id, 'skip')}>

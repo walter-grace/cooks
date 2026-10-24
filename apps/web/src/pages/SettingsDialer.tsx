@@ -5,9 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { api, currentSession } from '../api.js';
+import { fmtInt, fmtMoney, fmtPctValue, plural } from '../lib/format.js';
 import { toast, useApi } from '../hooks.js';
 
 export function Dialer({ isAdmin }: { isAdmin: boolean }) {
@@ -51,6 +53,7 @@ export function Dialer({ isAdmin }: { isAdmin: boolean }) {
       </div>
       <Speko isAdmin={isAdmin} data={d.speko} reload={dialer.reload} />
       <Twilio isAdmin={isAdmin} t={d.twilio} reload={dialer.reload} />
+      {d.twilio.status === 'connected' && <ParallelCompliance isAdmin={isAdmin} reload={dialer.reload} />}
     </div>
   );
 }
@@ -143,7 +146,7 @@ function Speko({ isAdmin, data: s, reload }: { isAdmin: boolean; data: any; relo
           </CardTitle>
           <CardDescription>
             {s.status === 'connected'
-              ? `Key ${s.keySource === 'server' ? 'from the server' : `…${s.keyLast4}`} · ${s.fromNumbers.length} number${s.fromNumbers.length === 1 ? '' : 's'}${b ? ` · balance $${b.balanceUsd?.toFixed?.(2) ?? '?'} · spent today $${b.spentTodayUsd.toFixed(2)} of $${b.dailySpendCapUsd}` : ''}`
+              ? `Key ${s.keySource === 'server' ? 'from the server' : `…${s.keyLast4}`} · ${plural(s.fromNumbers.length, 'number')}${b ? `${b.balanceUsd === null ? '' : ` · balance ${fmtMoney(b.balanceUsd)}`} · spent today ${fmtMoney(b.spentTodayUsd)} of ${fmtMoney(b.dailySpendCapUsd)}` : ''}`
               : 'Paste a Speko API key (platform.speko.ai → API keys). Calls are placed by a voice agent, recorded and transcribed on Speko, and land here with outcome, summary and cost.'}
           </CardDescription>
         </div>
@@ -156,10 +159,10 @@ function Speko({ isAdmin, data: s, reload }: { isAdmin: boolean; data: any; relo
       <CardContent className="grid gap-4">
         {s.status === 'connected' && b && (
           <div className="grid gap-3 md:grid-cols-4" data-testid="speko-balance">
-            <Stat k="Balance" v={b.balanceUsd === null ? 'n/a' : `$${Number(b.balanceUsd).toFixed(2)}`} />
-            <Stat k="Spent today" v={`$${b.spentTodayUsd.toFixed(2)}`} />
-            <Stat k="Daily cap" v={`$${b.dailySpendCapUsd}`} />
-            <Stat k="In flight" v={String(b.inFlight)} />
+            <Stat k="Balance" v={fmtMoney(b.balanceUsd, 'USD', 'n/a')} />
+            <Stat k="Spent today" v={fmtMoney(b.spentTodayUsd)} />
+            <Stat k="Daily cap" v={fmtMoney(b.dailySpendCapUsd)} />
+            <Stat k="In flight" v={fmtInt(b.inFlight)} />
           </div>
         )}
         {s.status === 'connected' && (
@@ -167,14 +170,19 @@ function Speko({ isAdmin, data: s, reload }: { isAdmin: boolean; data: any; relo
             <div className="grid gap-3 md:grid-cols-3">
               <div className="grid gap-2">
                 <Label>Caller id</Label>
-                <select className="h-9 rounded-md border bg-background px-2 text-sm" value={f.fromNumber} onChange={(e) => set('fromNumber', e.target.value)} disabled={!isAdmin} data-testid="speko-from">
-                  <option value="">first number</option>
-                  {s.fromNumbers.map((n: string) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
+                <Select value={f.fromNumber || 'first'} onValueChange={(v) => set('fromNumber', v === 'first' ? '' : v)} disabled={!isAdmin}>
+                  <SelectTrigger className="w-full" data-testid="speko-from">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="first">First number</SelectItem>
+                    {s.fromNumbers.map((n: string) => (
+                      <SelectItem key={n} value={n}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
                 <Label>Max length (seconds, up to {s.settings.maxAllowedSeconds})</Label>
@@ -197,11 +205,16 @@ function Speko({ isAdmin, data: s, reload }: { isAdmin: boolean; data: any; relo
             <div className="grid gap-2 md:grid-cols-3">
               <div className="grid gap-2">
                 <Label>On voicemail</Label>
-                <select className="h-9 rounded-md border bg-background px-2 text-sm" value={f.onMachine} onChange={(e) => set('onMachine', e.target.value)} disabled={!isAdmin}>
-                  <option value="leave_message">Leave a message</option>
-                  <option value="hangup">Hang up</option>
-                  <option value="agent_decides">Let the agent decide</option>
-                </select>
+                <Select value={f.onMachine} onValueChange={(v) => set('onMachine', v)} disabled={!isAdmin}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="leave_message">Leave a message</SelectItem>
+                    <SelectItem value="hangup">Hang up</SelectItem>
+                    <SelectItem value="agent_decides">Let the agent decide</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3 md:col-span-2">
                 <div>
@@ -418,5 +431,126 @@ function Twilio({ isAdmin, t, reload }: { isAdmin: boolean; t: any; reload: () =
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/** Parallel dialer: compliance mode an admin must confirm, line cap, AMD tuning, abandonment rate. */
+function ParallelCompliance({ isAdmin, reload }: { isAdmin: boolean; reload: () => void }) {
+  const cfg = useApi<{ data: any }>('/v1/workspace/dialer/compliance');
+  const c = cfg.data?.data;
+  const [mode, setMode] = useState<'b2b' | 'consumer'>('b2b');
+  const [msg, setMsg] = useState('');
+  const [lines, setLines] = useState('3');
+  const [onUnknown, setOnUnknown] = useState<'hangup' | 'connect'>('hangup');
+  const [gate, setGate] = useState<'off' | 'rules' | 'jev'>('rules');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!c) return;
+    setMode(c.complianceMode);
+    setMsg(c.abandonedCallMessage ?? '');
+    setLines(String(c.maxLines));
+    setOnUnknown(c.onUnknown);
+    setGate(c.speechGate?.enabled === false ? 'off' : c.speechGate?.judge === 'jev' ? 'jev' : 'rules');
+  }, [c?.confirmedAt, c?.complianceMode]);
+  if (!c) return null;
+  const save = async (confirm: boolean) => {
+    setBusy(true);
+    try {
+      await api('/v1/workspace/dialer/compliance', { method: 'PUT', json: { data: { complianceMode: mode, abandonedCallMessage: msg || null, maxLines: Number(lines), onUnknown, confirm, speechGate: { enabled: gate !== 'off', judge: gate === 'jev' ? 'jev' : 'rules' } } } });
+      toast(confirm ? 'Compliance mode confirmed' : 'Saved');
+      cfg.reload();
+      reload();
+    } catch (e: any) {
+      toast(e.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const rate = c.abandonment;
+  return (
+    <Card data-testid="parallel-compliance">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          Parallel dialer
+          <Badge variant={c.confirmed ? 'default' : 'outline'}>{c.confirmed ? `${c.complianceMode === 'consumer' ? 'consumer' : 'B2B'} · confirmed` : 'not confirmed'}</Badge>
+        </CardTitle>
+        <CardDescription>
+          Dialing several prospects at once means a second person who answers is dropped. For calls to US consumers that is an abandoned call under the FTC Telemarketing Sales Rule (16 CFR 310.4), which allows at most 3% abandoned over 30 days and requires a recorded message with your name and number. Business-to-business calls are largely exempt. Pick the mode that matches who your reps call and confirm it. This is not legal advice.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-2">
+            <Label>Who you call</Label>
+            <Select value={mode} onValueChange={(v) => setMode(v as 'b2b' | 'consumer')} disabled={!isAdmin}>
+              <SelectTrigger data-testid="pc-mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="b2b">Businesses (B2B)</SelectItem>
+                <SelectItem value="consumer">Consumers</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>Lines per batch (max {mode === 'consumer' ? 2 : 6})</Label>
+            <Input type="number" min={1} max={mode === 'consumer' ? 2 : 6} value={lines} onChange={(e) => setLines(e.target.value)} disabled={!isAdmin} data-testid="pc-lines" />
+          </div>
+          <div className="grid gap-2">
+            <Label>When detection is unsure</Label>
+            <Select value={onUnknown} onValueChange={(v) => setOnUnknown(v as 'hangup' | 'connect')} disabled={!isAdmin}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="hangup">Hang up (safer)</SelectItem>
+                <SelectItem value="connect">Connect to the rep</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="grid gap-2">
+          <Label>Fast pickup (speech gate)</Label>
+          <Select value={gate} onValueChange={(v) => setGate(v as 'off' | 'rules' | 'jev')} disabled={!isAdmin}>
+            <SelectTrigger data-testid="pc-gate">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="off">Off: wait for carrier AMD</SelectItem>
+              <SelectItem value="rules">Hear the first words, decide by rules</SelectItem>
+              <SelectItem value="jev" disabled={!c.speech?.jevAvailable}>Rules, with Jev deciding unclear pickups{c.speech?.jevAvailable ? '' : ' (set OPENROUTER_API_KEY)'}</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {c.speech?.provider
+              ? `Each answered line streams its first seconds to the ${c.speech.provider} recognizer; a person saying "Hello?" is connected in well under a second, a voicemail greeting is dropped on its first phrase. Carrier AMD still runs as the fallback. No audio is stored; the first words are kept on the line as evidence.`
+              : 'No recognizer is configured on this server (SPEECH_PROVIDER is off), so lines wait for carrier AMD. See docs/dialer.md → Fast pickup.'}
+          </p>
+        </div>
+        {mode === 'consumer' && (
+          <div className="grid gap-2">
+            <Label>Abandoned-call message (played to a dropped person)</Label>
+            <Textarea rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="This was Acme calling. Reach us at 555 000 1111." disabled={!isAdmin} data-testid="pc-message" />
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          {rate && (
+            <span className="text-muted-foreground" data-testid="pc-rate">
+              Last {plural(rate.windowDays, 'day')}: {fmtInt(rate.humansAnswered)} people answered, {fmtInt(rate.dropped)} dropped{rate.ratePct !== null ? ` (${fmtPctValue(rate.ratePct)})` : ''}. Safe harbor {fmtPctValue(rate.safeHarborMaxPct)}.
+            </span>
+          )}
+          {isAdmin && (
+            <span className="ml-auto flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => save(false)} disabled={busy}>
+                Save
+              </Button>
+              <Button size="sm" onClick={() => save(true)} disabled={busy} data-testid="pc-confirm">
+                {c.confirmed && c.complianceMode === mode ? 'Re-confirm' : 'Confirm mode'}
+              </Button>
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

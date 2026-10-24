@@ -14,6 +14,7 @@ import { mountSequenceSteps } from './sequence-steps.js';
 import { mountSequences } from './sequences.js';
 import { mountSignals } from './signals.js';
 import { mountTelephony } from './telephony.js';
+import { mountParallelDialer } from './parallel.js';
 import { mountTags } from './tags.js';
 import { mountTasks } from './tasks.js';
 import { mountUsers } from './users.js';
@@ -35,7 +36,10 @@ export function mountRoutes(reg: Registrar, opts: { publicIps: string[]; kek?: s
   mountMailboxes(reg, { kek: opts.kek });
   mountCalls(reg);
   mountSignals(reg);
-  if (opts.dialer) mountTelephony(reg, opts.dialer);
+  if (opts.dialer) {
+    mountTelephony(reg, opts.dialer);
+    mountParallelDialer(reg, opts.dialer);
+  }
   if (opts.channels) mountChannels(reg, opts.channels);
   mountWebhooks(reg, { kek: opts.kek, fetchImpl: opts.fetchImpl });
   mountWorkspace(reg, { keyPrefix: opts.keyPrefix ?? 'cooks' });

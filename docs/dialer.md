@@ -1,7 +1,7 @@
 # Dialer
 
-Cooks has two dialer providers. **Twilio** carries calls a rep makes (phone bridge or browser
-softphone). **Speko** places AI-voiced calls: a voice agent dials the prospect, follows your
+Cooks has two dialer providers. **Twilio** carries calls a rep makes (phone bridge, browser
+softphone, or the parallel power dialer). **Speko** places AI-voiced calls: a voice agent dials the prospect, follows your
 script, and the outcome, transcript, summary, cost and recording land in Cooks. Both can be
 connected at once; an admin picks which one the Call button uses under Settings → Dialer.
 Every provider sits behind the same interface (`packages/core/src/dialer/providers`): place,
@@ -36,6 +36,148 @@ For browser calling also:
 Cooks must be reachable from Twilio for status, recording and TwiML callbacks. For local
 development use a tunnel (`ngrok http 8080`, Cloudflare Tunnel) and set `COOKS_PUBLIC_URL` to it.
 Every callback is verified with `X-Twilio-Signature` against your auth token.
+
+## Parallel dialing (power dialer)
+
+The power dialer at `/app/dialer` rings several prospects at once and connects the first person who
+answers to the rep, with no beep, announcement or AI voice. It is the flow the commercial parallel dialers sell, built on
+Twilio Programmable Voice and Twilio's asynchronous answering-machine detection (AMD).
+
+![Power dialer with one line connected, one voicemail, one canceled](screenshots/power-dialer.png)
+
+The page is an instrument console: your own line in a rail at the top (a live scope and link quality
+when you join from the browser, a console ticker of line events in either mode), one channel per
+line with an LED that ripples while ringing and the AMD verdict latency once it lands, and the
+connected line expanded into a caller-ID dossier (formatted number, flag, area-code region, local
+time with a quiet-hours flag, recent emails, calls and signals) beside the log form. Keyboard:
+<kbd>D</kbd> dial, <kbd>H</kbd> hang up, <kbd>M</kbd> mute, <kbd>K</kbd> keypad, <kbd>L</kbd> notes.
+
+How a batch works:
+
+1. **The rep joins first.** From the browser (Voice SDK, needs the API key pair and TwiML App) or by
+   phone (Twilio rings the rep, who lands in a silent conference). Nothing is dialed until the rep is in
+   the room.
+2. **Cooks dials N lines** (default 3, admin-set cap, 1–6) with `calls.create`, `MachineDetection=Enable`
+   and `AsyncAmd=true`. A leg that answers hears silence (`<Pause>`) while the verdict is reached. With a
+   recognizer configured, the same TwiML also forks the callee's audio to the speech gate (below), which
+   usually calls it first.
+3. **First human wins.** The verdict that says `human`, whether it came from the speech gate or the AMD
+   callback, claims the session with one `UPDATE … WHERE connected_line_id IS NULL` statement. Only one such
+   update can return a row, so two simultaneous humans can never both reach the rep. A line takes exactly one
+   verdict: `UPDATE dial_lines … WHERE answered_by IS NULL`, so the slower detector is a no-op. The winner is redirected into the conference
+   (`beep="false"`), a dual-channel recording starts on the rep's leg, and in the same moment every sibling
+   is handled: still ringing → canceled silently; already answered → dropped (see compliance).
+4. **Losers become callbacks.** A second human is hung up and a high-priority call task due in 15 minutes
+   is created for the rep, noting the dropped call. Machines (`machine_*`), faxes and `unknown` verdicts
+   are hung up, never connected; machine and no-answer legs are logged automatically as No answer or Busy,
+   which completes their sequence tasks.
+5. **Wrap and repeat.** When the prospect leaves, the session is `wrapping`: the rep logs the call (same
+   dialog as any other call) and dials the next batch. With auto-dial on, a batch that ends with nobody
+   connected rings the next one by itself. The rep leaving the room ends the session; sessions idle for two
+   hours are closed by the worker.
+
+Every carrier webhook is recorded in `dial_events` under a unique key before it is acted on, so Twilio
+retrying a callback changes nothing. All parallel webhooks are signature-checked like the rest.
+
+### Compliance mode (required)
+
+Dropping a person who answered is an **abandoned call** under the FTC Telemarketing Sales Rule
+(16 CFR 310.4(b)(1)(iv)) when the callee is a consumer. Before the first session an admin must choose a
+mode under Settings → Dialer and confirm it:
+
+| Mode | Rules Cooks applies |
+| --- | --- |
+| **B2B** | Up to 6 lines. Dropped humans still get a callback task. Business-to-business calls are largely exempt from the rule (310.6(b)(7)). |
+| **Consumer** | At most 2 lines. An abandoned-call message (your name and number) is required and is played to a dropped person before the hangup, as 310.4(b)(4)(iii) requires. Cooks tracks the 30-day abandonment rate (dropped ÷ answered by a person) and falls back to one line per batch while it is at or above the 3% safe harbor. |
+
+In both modes prospects on the do-not-call list (do-not-contact flag or a Do-not-call disposition), without a
+phone number, or outside 08:00–21:00 in their time zone are skipped with the reason shown. Ring timeout is
+25 s by default (15–60; the rule asks for at least 15 s or four rings). None of this is legal advice;
+the TCPA and state rules apply on top.
+
+### Fast pickup (speech gate)
+
+Carrier AMD listens for about 2.4 s of speech and then a pause before it will say "human". A person who
+answers says "Hello?" and is done in 600 ms; every second of silence after that is a second in which they
+hang up. The speech gate closes that gap. When a leg answers, the hold TwiML adds
+`<Start><Stream track="inbound_track">` so Twilio forks the callee's audio (8 kHz μ-law, 20 ms frames) to
+`wss://<PUBLIC_URL>/telephony/parallel/stream`. Cooks measures the voice (when speech started, how long the
+run is, the silence after it, a 1 kHz beep), streams the frames to a recognizer, and decides:
+
+| What it hears | Verdict | Typical time after pickup |
+| --- | --- | --- |
+| A short greeting ("Hello?", "Yeah, this is Sam") then ≥ 350 ms of silence | person, connected | 0.9–1.3 s |
+| "you've reached", "leave a message", "press one", 40 more voicemail and IVR phrases | machine, hung up and logged | the moment the phrase lands, ~1 s |
+| Speech that runs 2.6 s with no pause, or a beep | machine | 2.6 s |
+| A bare name or company ("Dana Lee") | person at low confidence, or **Jev** decides when enabled | 1.2 s |
+| Nothing usable for 6 s | no verdict; AMD decides | |
+
+AMD keeps running beside it as the fallback, and `unknown` from the gate never settles anything. The
+connected line shows which detector won ("person (heard) in 1.1s" vs "(AMD) in 3.2s") and the first words,
+which are also kept on the line (`speech.text`) as evidence. No audio is stored; the socket is closed the
+instant a verdict exists.
+
+**Jev.** [TypeSafe's Jev](https://openrouter.ai/docs/guides/community/jev) on OpenRouter is a decision
+model: it takes state plus a typed question and returns a choice with probabilities in a few hundred
+milliseconds, with free output tokens. When an admin picks "Rules, with Jev deciding unclear pickups", the
+gate sends the transcript and timing of an ambiguous pickup to the Decisions API (`typesafe/jev-1.14`) with
+one Choice question (human / voicemail / ivr / unclear) and takes the answer; rules decide if Jev is slow
+(700 ms cap) or unreachable. Needs `OPENROUTER_API_KEY`; about $0.00002 per question.
+
+**Recognizers** (`SPEECH_PROVIDER`):
+
+| Provider | Setting | Notes |
+| --- | --- | --- |
+| `openai` | `SPEECH_API_KEY` (or `OPENAI_API_KEY`), optional `SPEECH_MODEL` (default `gpt-live-transcribe`) | OpenAI Realtime transcription over WebSocket; audio resampled to 24 kHz. Written to the published guide, not yet run against a live account from this repo. |
+| `sherpa` | `SPEECH_MODEL_DIR` pointing at a sherpa-onnx streaming transducer (encoder/decoder/joiner `.onnx` + `tokens.txt`), plus `pnpm --filter @cooks/api add sherpa-onnx-node` | Fully local. NVIDIA's Nemotron Speech streaming model (80 ms chunks) or a Zipformer; sherpa-onnx is Apache-2.0. Written to the package's JS API, not yet run against a downloaded model here. |
+| `mock` | none | Scripted transcript for QA with `scripts/qa/mock-twilio.mjs`. |
+| `off` | | Default. Lines wait for AMD. |
+
+Settings → Dialer → "Fast pickup" turns the gate off, on with rules, or on with Jev, per workspace. The
+gate only ever hears the first seconds of a leg that has not yet been connected to anyone, the same window
+AMD listens to.
+
+### AMD tuning
+
+Settings → Dialer exposes Twilio's knobs with these defaults: analysis timeout 5 s, speech threshold
+2400 ms, speech-end threshold 1200 ms, silence timeout 3000 ms, and `unknown` → hang up. Twilio's own
+guidance for the shortest wait is a speech threshold of 1800–3000 ms and a speech-end threshold of
+1400–1500 ms. Expect one to four seconds between the prospect's hello and the bridge; that gap is the
+cost of never connecting a voicemail.
+
+### Trying it without Twilio
+
+```bash
+pnpm qa:mock-twilio                     # :18100, auth token qa-auth-token
+TWILIO_API_BASE=http://127.0.0.1:18100 pnpm --filter @cooks/api dev
+TWILIO_API_BASE=http://127.0.0.1:18100 pnpm --filter @cooks/worker dev
+```
+
+Connect Twilio in Settings → Dialer with any Account SID and the token `qa-auth-token`, confirm B2B mode,
+then open the power dialer in phone mode. The mock picks a scenario from the last digit of each
+prospect's number: `…1` human, `…2` answering machine, `…3` no answer, `…4` busy, `…5` slow human.
+Start the API with `SPEECH_PROVIDER=mock` as well and each answered leg forks synthetic line audio plus a
+scripted transcript to the speech gate, so the human line connects on "Hello?" about a second after pickup
+while the mock's AMD verdict only lands at three; `QA_EXPECT_SPEECH=1 pnpm qa:parallel` asserts it.
+
+### API and tools
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET/PUT | `/v1/workspace/dialer/compliance` | Mode, confirmation, lines, AMD tuning, abandonment rate |
+| POST | `/v1/dialSessions` | Start a session (`repMode`, `repPhone`, `maxLines`, `autoDial`, `prospectIds`, `taskIds`) |
+| GET | `/v1/dialSessions`, `/v1/dialSessions/current`, `/v1/dialSessions/{id}` | Sessions and live line status |
+| PATCH | `/v1/dialSessions/{id}` | Auto-dial, lines per batch |
+| POST | `/v1/dialSessions/{id}/actions/queue` | Add prospects or call tasks |
+| POST | `/v1/dialSessions/{id}/actions/dial` | Ring the next batch |
+| POST | `/v1/dialSessions/{id}/actions/hangup` | End the live conversation, stay in the room |
+| POST | `/v1/dialSessions/{id}/actions/end` | End the session |
+| POST | `/telephony/parallel/{rep/voice,rep/status,conference,prospect/voice,prospect/amd,prospect/status}` | Twilio webhooks (signed) |
+
+MCP: `cooks_start_dial_session`, `cooks_dial_next_batch`, `cooks_dial_session_status`,
+`cooks_hangup_dial_line`, `cooks_end_dial_session`, then `cooks_log_call` with the connected line's
+`callId`. Research notes and the sources behind the design are in
+[parallel-dialing-research.md](parallel-dialing-research.md).
 
 ## Speko (AI calls)
 

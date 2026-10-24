@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, fmtDate, q } from '../api.js';
+import { fmtInt } from '../lib/format.js';
 import { toast, useApi } from '../hooks.js';
 import { Link } from '../router.js';
 import { Empty, PageHeader } from '../components/layout.js';
@@ -93,7 +94,7 @@ export function Signals() {
           <Badge variant="secondary">{s.new} new</Badge>
           <Badge variant="outline">{s.total} in {s.days} days</Badge>
           {kinds.slice(0, 8).map((k) => (
-            <button key={k} className="rounded-full border px-2.5 py-0.5 text-xs hover:bg-accent" onClick={() => setKind(kind === k ? 'all' : k)}>
+            <button key={k} className="inline-flex h-7 items-center rounded-full border px-2.5 text-xs hover:bg-accent" onClick={() => setKind(kind === k ? 'all' : k)}>
               {kindLabel(k)} · {s.byKind[k]}
             </button>
           ))}
@@ -155,7 +156,7 @@ export function Signals() {
                       <Badge variant={KIND_TONE[g.kind.split('.')[0]] ?? 'outline'}>{kindLabel(g.kind)}</Badge>
                       <span className="line-clamp-2">{g.title ?? g.kind}</span>
                       {g.url && (
-                        <a href={g.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground" aria-label="Source">
+                        <a href={g.url} target="_blank" rel="noreferrer" className="-my-1.5 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Source">
                           <ExternalLink className="size-3.5" />
                         </a>
                       )}
@@ -175,7 +176,7 @@ export function Signals() {
                     ) : null}
                     {g.account?.name ? <div className="text-xs text-muted-foreground">{g.account.name}</div> : null}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums text-sm">{g.score === null ? '' : Math.round(g.score * 100)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-sm">{g.score === null ? <span className="text-muted-foreground">—</span> : fmtInt(g.score * 100)}</TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
                       {g.account?.id && (
@@ -307,14 +308,14 @@ export function SignalRules({ isAdmin }: { isAdmin: boolean }) {
                   <TableCell className="font-medium">{r.name}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{r.kindPattern}</Badge>
-                    {r.minScore !== null && <span className="ml-2 text-xs text-muted-foreground">score ≥ {Math.round(r.minScore * 100)}</span>}
+                    {r.minScore !== null && <span className="ml-2 text-xs text-muted-foreground">score ≥ {fmtInt(r.minScore * 100)}</span>}
                   </TableCell>
                   <TableCell className="text-sm">
                     → {r.action}
                     {r.sequenceName ? ` into ${r.sequenceName}` : ''}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    fired {r.firedCount}×{r.lastFiredAt ? `, last ${fmtDate(r.lastFiredAt)}` : ''}
+                    fired {fmtInt(r.firedCount)}×{r.lastFiredAt ? `, last ${fmtDate(r.lastFiredAt)}` : ''}
                   </TableCell>
                   <TableCell className="text-right">
                     {isAdmin && (

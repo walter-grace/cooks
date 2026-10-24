@@ -1,0 +1,7 @@
+*
+!apps
+!apps/site
+!apps/site/**
+apps/site/node_modules
+apps/site/.next
+apps/site/out

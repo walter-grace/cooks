@@ -5,6 +5,7 @@ import { useAuthConfig } from './hooks.js';
 import { match, navigate, useRoute } from './router.js';
 import { Shell } from './components/layout.js';
 import { Login } from './pages/Login.js';
+import { Practice } from './pages/Practice.js';
 import { Tasks } from './pages/Tasks.js';
 import { ProspectDetail, Prospects } from './pages/Prospects.js';
 import { SequenceDetail, Sequences } from './pages/Sequences.js';
@@ -13,6 +14,7 @@ import { Settings } from './pages/Settings.js';
 import { Signals } from './pages/Signals.js';
 import { CallDetail, Calls } from './pages/Calls.js';
 import { Inbox } from './pages/Inbox.js';
+import { PowerDialer } from './pages/PowerDialer.js';
 
 export function App() {
   const path = useRoute();
@@ -31,18 +33,22 @@ export function App() {
   }, [session, path]);
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const apply = () => document.documentElement.classList.toggle('dark', mq.matches);
+    const cockpit = path === '/dialer';
+    const apply = () => {
+      document.documentElement.classList.toggle('dark', mq.matches || cockpit);
+      document.documentElement.classList.toggle('cockpit-mode', cockpit);
+    };
     apply();
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
-  }, []);
+  }, [path]);
 
   if (session === undefined || auth === null) return <main className="p-8 text-sm text-muted-foreground">Loading…</main>;
   if (!session || path === '/login') {
     return (
       <>
         <Login onLogin={setSession} mode={auth.mode} clerkKey={auth.clerkPublishableKey} />
-        <Toaster richColors />
+        <Toaster />
       </>
     );
   }
@@ -56,6 +62,8 @@ export function App() {
   else if (path === '/emails') page = <Emails />;
   else if ((p = match(path, '/calls/:id'))) page = <CallDetail id={p.id!} />;
   else if (path === '/calls') page = <Calls />;
+  else if (path === '/dialer') page = <PowerDialer />;
+  else if (path === '/practice') page = <Practice />;
   else if (path === '/inbox') page = <Inbox />;
   else if (path === '/signals') page = <Signals />;
   else if (path === '/settings') page = <Settings authMode={auth.mode} />;
@@ -74,7 +82,7 @@ export function App() {
       >
         {page}
       </Shell>
-      <Toaster richColors />
+      <Toaster />
     </>
   );
 }

@@ -117,10 +117,12 @@ export async function coachCall(d: CoachDeps, callId: string, opts: { force?: bo
   const [u] = c.ownerId ? await d.db.select({ name: users.name }).from(users).where(eq(users.id, c.ownerId)).limit(1) : [];
   const [disp] = c.callDispositionId ? await d.db.select({ name: callDispositions.name }).from(callDispositions).where(eq(callDispositions.id, c.callDispositionId)).limit(1) : [];
   const [step] = c.sequenceStepId ? await d.db.select({ name: sequenceSteps.name }).from(sequenceSteps).where(eq(sequenceSteps.id, c.sequenceStepId)).limit(1) : [];
+  // Practice calls have no CRM prospect; the AI partner's persona stands in.
+  const persona = (c.aiConfig as { practice?: { persona?: { name?: string; title?: string; company?: string } } } | null)?.practice?.persona;
   const input: CoachCallInput = {
     transcript: tr.text.length > 14_000 ? `${tr.text.slice(0, 14_000)}\n[... transcript truncated ...]` : tr.text,
     stats: tr.stats as unknown as CoachCallInput['stats'],
-    prospect: { name: p?.name ?? null, title: p?.title ?? null, company: a?.name ?? null },
+    prospect: { name: p?.name ?? persona?.name ?? null, title: p?.title ?? persona?.title ?? null, company: a?.name ?? persona?.company ?? null },
     rep: { name: u?.name ?? null },
     callDurationSeconds: c.durationSeconds || c.recordingDurationSeconds || 0,
     disposition: disp?.name ?? null,

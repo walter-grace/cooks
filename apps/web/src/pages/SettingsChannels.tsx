@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { api } from '../api.js';
+import { fmtInt, plural } from '../lib/format.js';
 import { toast, useApi } from '../hooks.js';
 
 /** Settings → Channels: Inkbox connection, identities mapped to reps, webhook subscriptions. */
@@ -57,7 +59,7 @@ export function Channels({ isAdmin }: { isAdmin: boolean }) {
             </CardTitle>
             <CardDescription>
               {d.status === 'connected'
-                ? `${d.identities.length} identit${d.identities.length === 1 ? 'y' : 'ies'} · today: ${d.stats?.sentToday ?? 0} sent, ${d.stats?.receivedToday ?? 0} received, ${d.stats?.blockedToday ?? 0} blocked`
+                ? `${plural(d.identities.length, 'identity', 'identities')} · today: ${fmtInt(d.stats?.sentToday ?? 0)} sent, ${fmtInt(d.stats?.receivedToday ?? 0)} received, ${fmtInt(d.stats?.blockedToday ?? 0)} blocked`
                 : 'Each rep or agent gets an Inkbox identity with an email address, a phone number for SMS and an iMessage line. Sequences send from them; replies flow back through a signed webhook.'}
             </CardDescription>
           </div>
@@ -89,14 +91,19 @@ export function Channels({ isAdmin }: { isAdmin: boolean }) {
                       {[i.emailAddress, i.phoneNumber ? `${i.phoneNumber}${i.smsStatus && i.smsStatus !== 'ready' ? ` (sms ${i.smsStatus})` : ''}` : null, i.imessageEnabled ? 'iMessage' : null].filter(Boolean).join(' · ') || 'no channels yet'}
                     </div>
                   </div>
-                  <select className="h-9 rounded-md border bg-background px-2 text-sm" value={i.user?.id ?? ''} onChange={(e) => mapUser(i.id, e.target.value)} disabled={!isAdmin} data-testid="identity-user">
-                    <option value="">Not mapped</option>
-                    {users.data?.data.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name ?? u.email}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={i.user?.id ?? 'none'} onValueChange={(v) => mapUser(i.id, v === 'none' ? '' : v)} disabled={!isAdmin}>
+                    <SelectTrigger className="w-full sm:w-56" data-testid="identity-user">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not mapped</SelectItem>
+                      {users.data?.data.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name ?? u.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <div className="flex items-center gap-2">
                     <Badge variant={i.subscriptions ? 'secondary' : 'outline'}>{i.subscriptions ? `webhook${i.signed ? ' · signed' : ''}` : 'no webhook'}</Badge>
                     {isAdmin && (
