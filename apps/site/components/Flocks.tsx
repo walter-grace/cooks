@@ -37,7 +37,7 @@ export function Brand({ href = '#top', label = 'Cooks home' }: { href?: string; 
         <path d="M24.5 18h16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
         <path d="M11 6c-1.5-2 1.5-3 0-5M16 6c-1.5-2 1.5-3 0-5M21 6c-1.5-2 1.5-3 0-5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
       </svg>
-      Cooks
+      <span>C<span className="oo">oo</span>ks</span>
     </a>
   );
 }
