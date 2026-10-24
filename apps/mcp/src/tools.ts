@@ -575,6 +575,20 @@ export const TOOLS: ToolDef[] = [
     run: (api, a) => api.call('GET', '/signals', { query: { 'filter[kind]': a.kind, 'filter[status]': a.status, 'filter[prospect][id]': a.prospectId, 'filter[account][id]': a.accountId, 'filter[occurredAt][gte]': a.since, include: 'prospect,account', ...pq(a) } }),
   }),
   def({
+    name: 'cooks_search',
+    title: 'Search the workspace',
+    description: 'Full-text search across prospects, accounts, calls, transcript lines, signals, emails, notes, tasks and sequences. Use it to find "the call where she asked about seats" or every mention of a competitor before drafting a follow-up. Each hit has a type, a snippet with matches in « », the prospect and account ids, and the web app path.',
+    input: {
+      q: z.string().min(1).max(200).describe('Words or a quoted phrase; -word excludes'),
+      types: z.array(z.enum(['prospect', 'account', 'call', 'transcript', 'signal', 'email', 'note', 'task', 'sequence'])).optional(),
+      prospectId: uuid.optional(),
+      accountId: uuid.optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+    },
+    readOnly: true,
+    run: (api, a) => api.call('GET', '/search', { query: { q: a.q, types: a.types?.join(','), prospectId: a.prospectId, accountId: a.accountId, limit: a.limit } }),
+  }),
+  def({
     name: 'cooks_signal_summary',
     title: 'Signal summary',
     description: 'Counts of signals by kind for the last N days plus the catalog of known kinds.',

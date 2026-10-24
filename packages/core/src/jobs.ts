@@ -31,7 +31,9 @@ export type JobName =
   | 'inkbox.call'
   | 'inkbox.call_poll'
   | 'ai.coach_call'
-  | 'telephony.dial_sweep';
+  | 'telephony.dial_sweep'
+  | 'search.index'
+  | 'search.index_all';
 
 export interface JobsPort {
   send(name: JobName, data: Record<string, unknown>, opts?: JobOptions): Promise<string | null>;

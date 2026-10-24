@@ -390,7 +390,7 @@ export function landingBody(opts: LandingOptions): string {
     <h1>Let your reps <em>cook</em>.</h1>
     <p class="lead">Cooks is open-source sales engagement you host yourself: sequences, a parallel dialer, buying signals and call coaching on one Postgres. Point Claude, Grok or any MCP client at it and the bot does the typing.</p>
     <div class="ctas"><a class="cta fill" href="${esc(app)}">Open the app</a><a class="cta" href="#selfhost">Self-host in five minutes <span aria-hidden="true">↓</span></a></div>
-    <p class="fine"><span>MIT licensed</span><span>One Postgres, no Redis</span><span>66 MCP tools</span><span>Yours to fork</span></p>
+    <p class="fine"><span>MIT licensed</span><span>One Postgres, no Redis</span><span>67 MCP tools</span><span>Yours to fork</span></p>
   </section>
 
   <section class="feats" id="features">
@@ -468,7 +468,7 @@ export function landingBody(opts: LandingOptions): string {
         <p>Cooks ships an MCP server, so the assistant you already pay for can research an account, enroll the prospect, draft the email, place the call and log the outcome. It is a thin client over the REST API: it runs on a laptop against a hosted Cooks, or next to the API for the whole team. In that mode Cooks spends no tokens of its own.</p>
         <p class="soft">Prefer hosted agents? Give a workspace its own key on Anthropic, xAI, OpenAI, OpenRouter or Ollama. Drafts, reply classification and research then run in the worker with a ledger of every run's tokens and cost.</p>
         <div class="panel" role="img" aria-label="A chat with an assistant that uses Cooks tools to find accounts, enroll prospects and place a call">
-          <div class="bar"><b>Claude Code</b><span>cooks · 66 tools</span></div>
+          <div class="bar"><b>Claude Code</b><span>cooks · 67 tools</span></div>
           <div class="chat">
             <div class="msg me">Find the three accounts with the strongest signals this week, enroll their champions in the Q4 sequence, and call the one who clicked twice.</div>
             <div class="msg">Strongest this week: Globex, Initech, Hooli. <span class="tool">cooks_list_signals</span><br>Enrolled Maya Chen, Dev Patel and Sam Okafor in Q4 outbound. <span class="tool">cooks_enroll_prospect</span> ×3<br>Maya clicked twice, so I'm ringing her now and will log the outcome. <span class="tool">cooks_dial</span></div>
@@ -560,7 +560,7 @@ export function landingBody(opts: LandingOptions): string {
         <tr><td>Telephony</td><td class="us">Twilio at its published rate: $0.014 a minute in the US, $1.15 a month per number</td><td>Not published</td><td>Not published</td></tr>
         <tr><td>Try it</td><td class="us">Whole product, locally, against a mock carrier, for as long as you like</td><td>Not published</td><td>Trial capped at 500 dials</td></tr>
         <tr><td>Where the data lives</td><td class="us">Your Postgres, your server</td><td>Their cloud</td><td>Their cloud</td></tr>
-        <tr><td>Driven by your assistant</td><td class="us">66 MCP tools for Claude, Grok, Cursor</td><td>Not on their public pages</td><td>Not on their public pages</td></tr>
+        <tr><td>Driven by your assistant</td><td class="us">67 MCP tools for Claude, Grok, Cursor</td><td>Not on their public pages</td><td>Not on their public pages</td></tr>
       </tbody>
     </table>
     <p class="cap">Nooks, Orum and Twilio facts read from their pricing pages in October 2026, linked in the footer. Check them before you buy, since they change.</p>

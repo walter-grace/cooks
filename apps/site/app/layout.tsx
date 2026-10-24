@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   title: 'Cooks: open-source sales engagement',
   description:
     'Cooks is open-source sales engagement you host yourself: sequences, a parallel dialer, buying signals and call coaching, with an MCP server for Claude, Grok and Cursor.',
-  metadataBase: new URL('https://cooks-site.vercel.app'),
+  metadataBase: new URL('https://cooks-sales.vercel.app'),
   openGraph: {
     title: 'Cooks',
     description: 'Open-source sales engagement with an MCP server for your assistant.',

@@ -18,7 +18,8 @@ import { applyClassification, evaluateSignal, signalFromEmailEvent, loadCreds, l
 import { crmConnections } from '@cooks/db';
 import { emails as emailsTable, prospects as prospectsTable, accounts as accountsTable } from '@cooks/db';
 import { eq } from 'drizzle-orm';
-import { SmtpProvider, decrypt } from '@cooks/core';
+import { SmtpProvider, decrypt, indexWorkspace } from '@cooks/core';
+import { workspaces } from '@cooks/db';
 
 export interface WorkerDeps {
   db: Db;
@@ -142,6 +143,13 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
     return { queued: due.length };
   }, 1);
   void work<{ taskId: string; workspaceId: string }>('ai.draft_email', (job) => draftEmailForTask({ db: deps.db, env: deps.aiEnv, now: () => new Date() }, job.data.taskId), 2);
+  void work<{ workspaceId: string; full?: boolean }>('search.index', (job) => indexWorkspace(deps.db, job.data.workspaceId, { full: !!job.data.full }), 1);
+  void work<Record<string, never>>('search.index_all', async () => {
+    const all = await deps.db.select({ id: workspaces.id }).from(workspaces);
+    let indexed = 0;
+    for (const w of all) indexed += (await indexWorkspace(deps.db, w.id)).indexed;
+    return { workspaces: all.length, indexed };
+  }, 1);
   void work<Record<string, never>>('outbox.publish', async () => ({ published: await publishOutbox(deps.db, deps.jobs, { onEvent: (ev) => dispatchInternal(deps, ev) }) }), 1);
   void work<{ workspaceId: string; emailId?: string; taskId?: string; callId?: string }>('crm.sync', async (job) => {
     const ctx = mkCtx(deps, job.data.workspaceId);
@@ -214,6 +222,7 @@ export async function registerSchedules(boss: PgBoss) {
   await boss.schedule('outbox.publish', '* * * * *', {}, { tz: 'UTC' });
   await boss.schedule('signals.scan_due', '15 6 * * *', {}, { tz: 'UTC' });
   await boss.schedule('telephony.dial_sweep', '* * * * *', {}, { tz: 'UTC' });
+  await boss.schedule('search.index_all', '*/2 * * * *', {}, { tz: 'UTC' });
 }
 
 /** Low-latency outbox drain between the cron ticks. Safe with several workers (SKIP LOCKED). */
