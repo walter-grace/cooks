@@ -2,12 +2,12 @@
  * The worker as a cron tick. Vercel calls this every minute with `Authorization: Bearer $CRON_SECRET`;
  * it starts pg-boss with the same handlers and schedules as the long-running worker, processes
  * jobs for most of the minute, then stops cleanly. Overlapping ticks are safe: pg-boss hands each
- * job to one consumer, and the singleton queues keep crons from doubling up.
+ * job to one consumer, and the singleton queues keep crons from doubling up. Migrations run at build time.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { loadEnv } from '@cooks/config';
 import { MemoryMailProvider, SmtpProvider } from '@cooks/core';
-import { createDb, runMigrations } from '@cooks/db';
+import { createDb } from '@cooks/db';
 import { createBoss, PgBossJobs } from '@cooks/jobs';
 import { registerHandlers, registerSchedules } from '@cooks/worker/handlers';
 import { workerDepsFrom } from '@cooks/worker/boot';
@@ -25,8 +25,6 @@ export default async function tick(req: IncomingMessage, res: ServerResponse) {
   const env = loadEnv({ COOKS_AUTO_MIGRATE: 'false' });
   const started = Date.now();
   const handle = createDb(env.DATABASE_URL, { max: 4 });
-  // Migrations take an advisory lock, which needs a direct (unpooled) connection on Neon.
-  if (process.env.COOKS_TICK_MIGRATE === 'true') await runMigrations(handle.db, process.env.DATABASE_URL_UNPOOLED ?? env.DATABASE_URL);
   const boss = await createBoss(env.DATABASE_URL);
   const mailProvider = process.env.COOKS_MAIL_DRY_RUN === 'true' || !process.env.SMTP_URL ? new MemoryMailProvider() : new SmtpProvider(env.SMTP_URL);
   const deps = workerDepsFrom(env, { db: handle.db, jobs: new PgBossJobs(boss), mailProvider });

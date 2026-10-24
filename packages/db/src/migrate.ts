@@ -31,7 +31,8 @@ export async function runMigrations(db: Db, lockUrl?: string): Promise<void> {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+// CLI entry (`pnpm --filter @cooks/db migrate`). The file-name check keeps a bundle that inlines this module from running it.
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1] && /migrate\.[cm]?[jt]s$/.test(process.argv[1])) {
   const env = loadEnv();
   const h = createDb(env.DATABASE_URL, { max: 1 });
   runMigrations(h.db, env.DATABASE_URL)

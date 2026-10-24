@@ -5,10 +5,13 @@
   "type": "module",
   "description": "Cooks on Vercel: the API and web app as one function, the worker as a cron tick.",
   "scripts": {
-    "build": "pnpm -w --filter @cooks/web build && rm -rf public && mkdir -p public && cp -R ../web/dist public/app && DATABASE_URL=\"${DATABASE_URL_UNPOOLED:-$DATABASE_URL}\" pnpm -w --filter @cooks/db migrate",
+    "build": "pnpm -w --filter @cooks/web build && rm -rf public && mkdir -p public && cp -R ../web/dist public/app && node build.mjs && DATABASE_URL=\"${DATABASE_URL_UNPOOLED:-$DATABASE_URL}\" pnpm -w --filter @cooks/db migrate",
+    "build:fn": "node build.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.1.0",
+    "@clerk/backend": "^2",
     "@cooks/api": "workspace:*",
     "@cooks/auth": "workspace:*",
     "@cooks/config": "workspace:*",
@@ -16,6 +19,26 @@
     "@cooks/db": "workspace:*",
     "@cooks/jobs": "workspace:*",
     "@cooks/worker": "workspace:*",
-    "@hono/node-server": "^2.1.0"
+    "@hono/node-server": "^2.1.0",
+    "@hono/node-ws": "^1.3.1",
+    "@hono/zod-openapi": "^1.6.0",
+    "@scalar/hono-api-reference": "^0.12.0",
+    "cooks-mcp": "workspace:*",
+    "drizzle-orm": "^0.45.0",
+    "hono": "^4.13.0",
+    "imapflow": "^2.9.0",
+    "jose": "^6.0.0",
+    "liquidjs": "^10.30.0",
+    "luxon": "^3.7.0",
+    "mailparser": "^3.12.0",
+    "nodemailer": "^10.2.0",
+    "openai": "^7.42.0",
+    "pg-boss": "^12.38.0",
+    "postgres": "^3.4.5",
+    "yaml": "^2.7.0",
+    "zod": "^4.6.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12"
   }
 }
