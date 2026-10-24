@@ -25,7 +25,8 @@ export default async function tick(req: IncomingMessage, res: ServerResponse) {
   const env = loadEnv({ COOKS_AUTO_MIGRATE: 'false' });
   const started = Date.now();
   const handle = createDb(env.DATABASE_URL, { max: 4 });
-  if (process.env.COOKS_TICK_MIGRATE === 'true') await runMigrations(handle.db, env.DATABASE_URL);
+  // Migrations take an advisory lock, which needs a direct (unpooled) connection on Neon.
+  if (process.env.COOKS_TICK_MIGRATE === 'true') await runMigrations(handle.db, process.env.DATABASE_URL_UNPOOLED ?? env.DATABASE_URL);
   const boss = await createBoss(env.DATABASE_URL);
   const mailProvider = process.env.COOKS_MAIL_DRY_RUN === 'true' || !process.env.SMTP_URL ? new MemoryMailProvider() : new SmtpProvider(env.SMTP_URL);
   const deps = workerDepsFrom(env, { db: handle.db, jobs: new PgBossJobs(boss), mailProvider });

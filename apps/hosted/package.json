@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Cooks on Vercel: the API and web app as one function, the worker as a cron tick.",
   "scripts": {
-    "build": "pnpm -w --filter @cooks/web build && rm -rf public && mkdir -p public && cp -R ../web/dist public/app && pnpm -w --filter @cooks/db migrate",
+    "build": "pnpm -w --filter @cooks/web build && rm -rf public && mkdir -p public && cp -R ../web/dist public/app && DATABASE_URL=\"${DATABASE_URL_UNPOOLED:-$DATABASE_URL}\" pnpm -w --filter @cooks/db migrate",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
