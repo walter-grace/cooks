@@ -100,7 +100,7 @@ export function mountOAuth(app: OpenAPIHono<AppEnv>, d: OAuthDeps) {
     const ws = memberships.find((m) => m.id === body.workspaceId) ?? memberships[0];
     if (!ws) return c.json({ error: 'no_workspace', error_description: 'Not a member of any workspace' }, 403);
     const tokens = await issueSessionAccessToken(d, { userId: user.id, workspaceId: ws.id, role: ws.role });
-    return c.json({ ...tokens, workspace: { id: ws.id, name: ws.name, role: ws.role }, user: { id: user.id, email: user.email, name: user.name }, workspaces: memberships }, 200, { 'cache-control': 'no-store' });
+    return c.json({ ...tokens, workspace: { id: ws.id, name: ws.name, role: ws.role }, user: { id: user.id, email: user.email, name: user.name, emailVerified: !!user.emailVerifiedAt }, workspaces: memberships }, 200, { 'cache-control': 'no-store' });
   });
   app.get('/auth/me', async (c) => {
     const user = await getSessionUser(d.db, getCookie(c, SESSION_COOKIE), d.clock.now());

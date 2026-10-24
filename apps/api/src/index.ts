@@ -6,6 +6,7 @@ import { loadEnv } from '@cooks/config';
 import { createDb, runMigrations } from '@cooks/db';
 import { createBoss, PgBossJobs } from '@cooks/jobs';
 import { clerkGateway, ensureSigningKey } from '@cooks/auth';
+import { authMailerFrom } from './auth-mail.js';
 import { createApp } from './app.js';
 import { PgRateLimitStore } from './middleware/rate-limit.js';
 
@@ -38,6 +39,7 @@ const { app, registry, injectWebSocket } = createApp({
     practice: { provider: env.PRACTICE_PROVIDER, apiKey: env.PRACTICE_API_KEY ?? env.OPENAI_API_KEY, apiBase: env.PRACTICE_API_BASE, model: env.PRACTICE_MODEL, voice: env.PRACTICE_VOICE, localUrl: env.PRACTICE_LOCAL_URL, maxSeconds: env.PRACTICE_MAX_SECONDS },
   },
   channels: { inkboxApiBase: env.INKBOX_API_BASE },
+  account: { signup: env.COOKS_SIGNUP, mailer: authMailerFrom(env).mailer, log: (msg, data) => console.log(msg, data ? JSON.stringify(data) : '') },
   webDir: [join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist'), process.env.COOKS_WEB_DIR ?? ''].find((d) => d && existsSync(join(d, 'index.html'))),
   acceptNooksPrefix: env.COOKS_ACCEPT_NOOKS_PREFIX,
   publicIps: env.COOKS_PUBLIC_IPS.split(',').map((s) => s.trim()).filter(Boolean),

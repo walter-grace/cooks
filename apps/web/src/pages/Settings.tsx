@@ -525,6 +525,105 @@ function HostedAi({ isAdmin }: { isAdmin: boolean }) {
 }
 
 function Workspace({ isAdmin }: { isAdmin: boolean }) {
+  return (
+    <div className="grid gap-4 pt-2">
+      <SendingRules isAdmin={isAdmin} />
+      <Members isAdmin={isAdmin} />
+    </div>
+  );
+}
+
+function Members({ isAdmin }: { isAdmin: boolean }) {
+  const users = useApi<{ data: Array<{ id: string; name: string; email: string }> }>('/v1/users?page[size]=100');
+  const invites = useApi<{ data: Array<{ id: string; email: string; role: string | null; expiresAt: string }> }>(isAdmin ? '/v1/workspace/invites' : null);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('user');
+  const [busy, setBusy] = useState(false);
+  const [link, setLink] = useState<string | null>(null);
+  const invite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setLink(null);
+    try {
+      const r = await api<{ data: { link?: string } }>('/v1/workspace/invites', { method: 'POST', json: { data: { email, role } } });
+      setEmail('');
+      if (r.data.link) setLink(r.data.link);
+      else toast(`Invite sent to ${email}`);
+      invites.reload();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Members</CardTitle>
+        <CardDescription>{plural(users.data?.data.length ?? 0, 'person', 'people')} in this workspace.{isAdmin ? ' Invite teammates by email; the link creates their account.' : ''}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <ul className="divide-y text-sm" data-testid="members">
+          {users.data?.data.map((u) => (
+            <li key={u.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 first:pt-0">
+              <span className="font-medium">{u.name}</span>
+              <span className="text-muted-foreground">{u.email}</span>
+            </li>
+          ))}
+        </ul>
+        {isAdmin && (
+          <form className="flex flex-wrap items-end gap-2" onSubmit={invite} data-testid="invite-form">
+            <div className="grid min-w-56 flex-1 gap-2">
+              <Label htmlFor="inv-email">Invite by email</Label>
+              <Input id="inv-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="rep@company.com" required data-testid="invite-email" />
+            </div>
+            <div className="grid gap-2">
+              <Label>Role</Label>
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger className="w-32" data-testid="invite-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">Rep</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="submit" disabled={busy} data-testid="invite-send">
+              Send invite
+            </Button>
+          </form>
+        )}
+        {link && (
+          <Alert data-testid="invite-link">
+            <AlertTitle>No mail server is configured, so pass this link on yourself</AlertTitle>
+            <AlertDescription className="break-all">{link}</AlertDescription>
+          </Alert>
+        )}
+        {isAdmin && invites.data && invites.data.data.length > 0 && (
+          <div>
+            <div className="mb-2 text-xs text-muted-foreground">Pending invites</div>
+            <ul className="divide-y text-sm" data-testid="invites">
+              {invites.data.data.map((i) => (
+                <li key={i.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2">
+                  <span className="font-medium">{i.email}</span>
+                  <Badge variant="outline">{i.role ?? 'user'}</Badge>
+                  <span className="text-muted-foreground">expires {fmtDate(i.expiresAt)}</span>
+                  <Button size="sm" variant="ghost" className="ml-auto" onClick={() => api(`/v1/workspace/invites/${i.id}`, { method: 'DELETE' }).then(invites.reload)}>
+                    Revoke
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SendingRules({ isAdmin }: { isAdmin: boolean }) {
   const ws = useApi<{ data: any }>('/v1/workspace');
   const [settings, setSettings] = useState<any>(null);
   const saveSettings = async (e: React.FormEvent) => {
@@ -537,7 +636,7 @@ function Workspace({ isAdmin }: { isAdmin: boolean }) {
   if (!ws.data) return null;
   const s = ws.data.data.settings;
   return (
-    <Card className="mt-2">
+    <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4">
         <div className="grid gap-1">
           <CardTitle>Sending rules</CardTitle>

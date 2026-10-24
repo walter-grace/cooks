@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CheckSquare, Users, GitBranch, Mail, Mic, Phone, PhoneForwarded, Radar, Inbox as InboxIcon, Settings as SettingsIcon, BookOpen, LogOut, Search } from 'lucide-react';
 import { CommandPalette } from '@/components/command-palette';
+import { toast } from '../hooks.js';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -103,7 +104,25 @@ export function Shell({ session, path, onSwitchWorkspace, onLogout, children }: 
           </div>
         </div>
       </aside>
-      <main className="mx-auto w-full min-w-0 max-w-6xl p-4 md:p-8">{children}</main>
+      <div className="min-w-0">
+        {session.user.emailVerified === false && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted px-4 py-2 text-sm md:px-8" data-testid="verify-banner">
+            <span>Confirm your email address. We sent a link to {session.user.email}.</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                fetch('/auth/verify/resend', { method: 'POST', credentials: 'same-origin' })
+                  .then((r) => (r.ok ? toast('Sent. Check your inbox.') : toast('Could not send right now', 'error')))
+                  .catch(() => toast('Could not send right now', 'error'))
+              }
+            >
+              Resend
+            </Button>
+          </div>
+        )}
+        <main className="mx-auto w-full min-w-0 max-w-6xl p-4 md:p-8">{children}</main>
+      </div>
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
   );

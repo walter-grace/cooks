@@ -17,9 +17,10 @@ export function navigate(to: string) {
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
-export function Link({ to, children, className }: { to: string; children: React.ReactNode; className?: string }) {
+export function Link({ to, children, className, ...rest }: { to: string; children: React.ReactNode; className?: string } & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href' | 'onClick' | 'className' | 'children'>) {
   return (
     <a
+      {...rest}
       href={`${BASE}${to}`}
       className={className}
       onClick={(e) => {

@@ -72,7 +72,7 @@ The part that makes it different is the brain. Cooks ships an MCP server with 67
 - Inkbox as a channel: every rep or agent gets an email address, an SMS number and an iMessage line. Sequences send through them, replies come back through a signed webhook into one inbox, texts respect consent and quiet hours, and STOP opts the prospect out.
 - HubSpot connector: contact and company sync, list and deal-stage auto-enroll, notes and email/call logging. Salesforce users run the Salesforce MCP next to the Cooks MCP in the same bot today.
 - Hosted AI per workspace with the model provider you choose, or a local model, with a run ledger that records tokens and cost.
-- Workspace API keys and OAuth 2.1 with PKCE and dynamic client registration. Clerk SSO when you want it, where organizations become workspaces.
+- Sign-up, email verification, password reset and invites built in (`COOKS_SIGNUP=open|invite|off`). Workspace API keys and OAuth 2.1 with PKCE and dynamic client registration. Clerk SSO when you want it, where organizations become workspaces.
 - Signed, retried webhooks for calls, emails, enrollments, tasks and prospects.
 
 ## Quick start
@@ -169,7 +169,7 @@ Details and the list of deliberately mirrored behaviors are in [docs/api-compat.
 | Topic | Guide |
 | --- | --- |
 | Self-hosting and configuration | [docs/self-host.md](docs/self-host.md) |
-| Authentication, API keys, OAuth 2.1, Clerk SSO | [docs/auth.md](docs/auth.md) |
+| Authentication: sign-up and invites, API keys, OAuth 2.1, Clerk SSO | [docs/auth.md](docs/auth.md) |
 | MCP server and assistant setup | [docs/mcp.md](docs/mcp.md) |
 | AI providers, hosted agents, guardrails | [docs/ai.md](docs/ai.md) |
 | Dialer on Twilio, parallel dialing | [docs/dialer.md](docs/dialer.md) |

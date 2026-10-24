@@ -48,8 +48,27 @@ If a user has not linked the provider in Clerk yet, the button fails with a mess
 ## Password mode
 
 - `POST /auth/login` with `{email, password}` (JSON or form) sets the session cookie.
-- `POST /auth/session-token` exchanges the cookie for a one-hour bearer token the UI uses against `/v1`.
+- `POST /auth/session-token` exchanges the cookie for a one-hour bearer token the UI uses against `/v1`. The `user` object carries `emailVerified`.
 - Mailboxes connect through Cooks' own OAuth apps (`GOOGLE_CLIENT_ID`, `MS_CLIENT_ID`, `HUBSPOT_CLIENT_ID`) or with SMTP/IMAP URLs and HubSpot private-app tokens.
+
+## Self-serve accounts
+
+`COOKS_SIGNUP` decides who can create an account without an admin:
+
+| Value | Behaviour |
+| --- | --- |
+| `off` (default) | Accounts come from `pnpm bootstrap` or an admin. The login page says so. |
+| `invite` | Admins invite by email from Settings → Workspace; the link creates the account. The sign-up page is closed. |
+| `open` | Anyone can create a workspace at `/app/signup` and becomes its admin. |
+
+Flows, all under `/auth/*` and used by the web app:
+
+- `POST /auth/signup` `{email, name, password, workspaceName}` creates the user, the workspace and the admin membership, sets the session cookie and mails a verification link (`/app/verify?token=`). Passwords need at least 10 characters. The app shows a banner until the address is confirmed; `POST /auth/verify/resend` sends another link.
+- `POST /auth/password/forgot` `{email}` always answers 200 and mails a one-hour reset link (`/app/reset?token=`) when the address exists. `POST /auth/password/reset` `{token, password}` sets the password, signs out every other browser and signs this one in.
+- `GET /auth/invite/{token}` describes an invite; `POST /auth/invite/accept` `{token, name?, password?}` creates the account (new address) or adds the workspace to an existing one.
+- Admins manage invites at `/v1/workspace/invites` (list, create, revoke; extension routes, scopes `users:read` and `users:write`). An invite lasts seven days and replaces any earlier live invite for the same address.
+
+Links are one-time tokens; only a hash is stored in `auth_tokens`. Mail goes through Resend when `RESEND_API_KEY` is set, otherwise through `SMTP_URL`, from `COOKS_MAIL_FROM` (default `no-reply@<public host>`). With no mailer configured the API logs the link and the invite response includes it, so an admin can pass it on by hand.
 
 ## API keys and MCP
 
