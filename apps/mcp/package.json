@@ -46,5 +46,9 @@
   ],
   "engines": {
     "node": ">=20"
+  },
+  "exports": {
+    "./tools": "./src/tools.ts",
+    "./client": "./src/client.ts"
   }
 }

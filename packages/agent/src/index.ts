@@ -15,3 +15,4 @@ export * from './jobs/research.js';
 export * from './transcribe.js';
 export * from './contracts/coach-call.js';
 export * from './jobs/coach-call.js';
+export * from './chat.js';

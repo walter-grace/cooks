@@ -16,7 +16,7 @@ export function fakeClock(start = new Date('2026-03-02T15:00:00Z')): FakeClock {
   return { now: () => t, set: (d) => (t = d), advance: (ms) => (t = new Date(t.getTime() + ms)) };
 }
 
-export async function createTestApp(opts: { fetchImpl?: typeof fetch; telephony?: AppDeps['telephony']; channels?: AppDeps['channels']; account?: AppDeps['account'] } = {}) {
+export async function createTestApp(opts: { fetchImpl?: typeof fetch; telephony?: AppDeps['telephony']; channels?: AppDeps['channels']; account?: AppDeps['account']; chat?: AppDeps['chat'] } = {}) {
   const t = await createTestDb();
   const [ws] = await t.db.insert(workspaces).values({ name: 'Acme', slug: 'acme' }).returning();
   const pw = await hashPassword('hunter22');
@@ -31,7 +31,7 @@ export async function createTestApp(opts: { fetchImpl?: typeof fetch; telephony?
   const clock = fakeClock();
   const kek = Buffer.alloc(32, 9).toString('base64');
   const key = await ensureSigningKey(t.db, undefined);
-  const { app, registry } = createApp({ db: t.db, jobs, clock, rateLimitStore: new MemoryRateLimitStore(), publicIps: ['203.0.113.7'], fetchImpl: opts.fetchImpl, telephony: opts.telephony, channels: opts.channels, account: opts.account, publicUrl: 'http://localhost', kek, oauth: { key, secureCookies: false, mcpPublicUrl: 'http://mcp.localhost' } });
+  const { app, registry } = createApp({ db: t.db, jobs, clock, rateLimitStore: new MemoryRateLimitStore(), publicIps: ['203.0.113.7'], fetchImpl: opts.fetchImpl, telephony: opts.telephony, channels: opts.channels, account: opts.account, chat: opts.chat, publicUrl: 'http://localhost', kek, oauth: { key, secureCookies: false, mcpPublicUrl: 'http://mcp.localhost' } });
 
   const request = async (path: string, init: RequestInit & { json?: unknown; token?: string | null } = {}) => {
     const headers = new Headers(init.headers);

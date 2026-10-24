@@ -6,6 +6,12 @@ Two ways to put a model to work. They are independent and you can use both.
 
 Connect Claude, Grok, Cursor or any MCP client to the Cooks MCP server (`docs/mcp.md`). Your assistant is the brain: it searches prospects, builds sequences, works the task queue, drafts emails for you to approve. Cooks never calls a model on your behalf in this mode.
 
+## 3. The in-app assistant
+
+Press ⌘J (Ctrl+J) or click **Assistant** in the sidebar. It runs on the workspace's model provider from section 2 and uses the same tool catalog as the MCP server, executed as you: your role, your scopes, the workspace rate limits. Ask it things ("who clicked a link this week", "find the call where someone asked about seats") or tell it what to do ("enroll Ada in Q4 outbound"). It shows each step as it works, and when an answer is a record or a page it opens it.
+
+Anything that sends, dials, deletes, enrolls or changes settings is only called when your latest message asks for exactly that; otherwise it says what it would do and asks you to confirm. Under the hood it is `POST /v1/chat` (scope `agents:run`), a server-sent event stream of `thinking`, `tool_call`, `tool_result`, `reply` and `done`. Each step is one structured-output call, so every provider in section 2 works, including a local model.
+
 ## 2. Hosted agents (Cooks calls a model for you)
 
 Configure a provider for the workspace, then mark sequence steps with `aiEmail`. The worker drafts emails and classifies replies with structured, schema-validated calls, records every run with tokens and cost, and routes anything uncertain to a human.

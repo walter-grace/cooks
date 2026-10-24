@@ -42,6 +42,7 @@ export function apiDepsFrom(env: Env, x: ApiBoot): AppDeps {
     practice: { provider: env.PRACTICE_PROVIDER, apiKey: env.PRACTICE_API_KEY ?? env.OPENAI_API_KEY, apiBase: env.PRACTICE_API_BASE, model: env.PRACTICE_MODEL, voice: env.PRACTICE_VOICE, localUrl: env.PRACTICE_LOCAL_URL, maxSeconds: env.PRACTICE_MAX_SECONDS },
   },
   channels: { inkboxApiBase: env.INKBOX_API_BASE },
+  chat: { env: { ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY, OPENAI_API_KEY: env.OPENAI_API_KEY, XAI_API_KEY: env.XAI_API_KEY, OPENROUTER_API_KEY: env.OPENROUTER_API_KEY, OLLAMA_BASE_URL: env.OLLAMA_BASE_URL, COOKS_KEK: env.COOKS_KEK } },
   account: { signup: env.COOKS_SIGNUP, mailer: authMailerFrom(env).mailer, log: (msg, data) => console.log(msg, data ? JSON.stringify(data) : '') },
   webDir: x.webDir,
   acceptNooksPrefix: env.COOKS_ACCEPT_NOOKS_PREFIX,

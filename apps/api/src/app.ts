@@ -23,6 +23,7 @@ import { makeVerifyJwt, mountOAuth } from './oauth/routes.js';
 import { mountConnect } from './routes/connect.js';
 import { clerkBrokers, mountClerkAuth, mountClerkConnectors } from './routes/clerk.js';
 import { mountAccountAuth, mountInvites } from './routes/account.js';
+import { mountChat, type ChatDeps } from './routes/chat.js';
 import type { AuthMailer } from './auth-mail.js';
 import { mountPractice, mountPracticeSocket } from './routes/practice.js';
 import type { ClerkGateway } from '@cooks/auth';
@@ -53,6 +54,8 @@ export interface AppDeps {
   /** Clerk SSO (optional). With it, sign-in and provider tokens come from Clerk. */
   clerk?: { gateway: ClerkGateway; publishableKey?: string; defaultWorkspaceSlug?: string };
   /** Self-serve sign-up, email verification, password reset and invites. Off unless configured. */
+  /** The in-app assistant: model keys from the environment plus whatever the workspace configured. */
+  chat?: ChatDeps;
   account?: { signup: 'open' | 'invite' | 'off'; mailer?: AuthMailer; log?: (msg: string, data?: Record<string, unknown>) => void };
   /** HubSpot OAuth app (optional; private-app tokens work without it). */
   hubspotApp?: { clientId: string; clientSecret: string };
@@ -149,6 +152,7 @@ export function createApp(deps: AppDeps) {
   const account = { db: deps.db, clock, publicUrl, secureCookies, signup: deps.account?.signup ?? 'off', mailer: deps.account?.mailer, log: deps.account?.log };
   mountAccountAuth(app, account);
   mountInvites(reg, account);
+  mountChat(reg, deps.chat ?? { env: {} });
   if (deps.clerk) mountClerkConnectors(reg, { gateway: deps.clerk.gateway, publishableKey: deps.clerk.publishableKey, defaultWorkspaceSlug: deps.clerk.defaultWorkspaceSlug, db: deps.db, kek: deps.kek, clock, secureCookies, crm: reg.crmDeps });
   mountTracking(app, { db: deps.db, secret: deps.kek ?? 'cooks-dev', clock, jobs, publicUrl });
   mountTelephonyWebhooks(app, { db: deps.db, jobs, clock, publicUrl, dialer, trustSignature: deps.telephony?.trustWebhookSignature === false, upgradeWebSocket, fetchImpl: deps.fetchImpl });

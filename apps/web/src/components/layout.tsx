@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { CheckSquare, Users, GitBranch, Mail, Mic, Phone, PhoneForwarded, Radar, Inbox as InboxIcon, Settings as SettingsIcon, BookOpen, LogOut, Search } from 'lucide-react';
+import { CheckSquare, Users, GitBranch, Mail, Mic, Phone, PhoneForwarded, Radar, Inbox as InboxIcon, Settings as SettingsIcon, BookOpen, LogOut, Search, Sparkles } from 'lucide-react';
 import { CommandPalette } from '@/components/command-palette';
+import { Assistant } from '@/components/assistant';
 import { toast } from '../hooks.js';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -26,11 +27,16 @@ const NAV = [
 export function Shell({ session, path, onSwitchWorkspace, onLogout, children }: { session: Session; path: string; onSwitchWorkspace: (id: string) => void; onLogout: () => void; children: React.ReactNode }) {
   const active = (to: string) => (to === '/' ? path === '/' : path.startsWith(to));
   const [searchOpen, setSearchOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setSearchOpen((o) => !o);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        setAssistantOpen((o) => !o);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -58,6 +64,16 @@ export function Shell({ session, path, onSwitchWorkspace, onLogout, children }: 
           <Search className="size-4" />
           <span>Search</span>
           <kbd className="ml-auto hidden rounded border px-1.5 font-mono text-[10px] md:block">⌘K</kbd>
+        </button>
+        <button
+          type="button"
+          onClick={() => setAssistantOpen(true)}
+          className="mb-1 flex h-9 shrink-0 items-center gap-2 rounded-md border bg-background px-2.5 text-sm text-muted-foreground hover:bg-sidebar-accent md:w-full"
+          data-testid="assistant-open"
+        >
+          <Sparkles className="size-4" />
+          <span>Assistant</span>
+          <kbd className="ml-auto hidden rounded border px-1.5 font-mono text-[10px] md:block">⌘J</kbd>
         </button>
         <nav className="flex flex-row gap-1 overflow-x-auto [scrollbar-width:none] md:flex-col md:overflow-visible" data-testid="nav">
           {NAV.map(({ to, label, icon: Icon }) => (
@@ -124,6 +140,7 @@ export function Shell({ session, path, onSwitchWorkspace, onLogout, children }: 
         <main className="mx-auto w-full min-w-0 max-w-6xl p-4 md:p-8">{children}</main>
       </div>
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
+      <Assistant open={assistantOpen} onOpenChange={setAssistantOpen} path={path} />
     </div>
   );
 }
