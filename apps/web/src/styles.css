@@ -296,3 +296,45 @@
 @media (prefers-reduced-motion: reduce) {
   .ck-led[data-pulse='true']::after, .ck-scan::before { animation: none; }
 }
+
+/* ---------- account pages: the house behind the form ---------- */
+.account-shell { --paper: var(--background); --ink: var(--foreground); }
+/* wide screens: the whole building sits at the foot of the left panel and drifts slowly */
+.account-shell .house-stage { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.account-shell .house-stage svg { position: absolute; left: 50%; bottom: -1.5%; width: min(100%, 88vh); height: auto; transform-origin: 50% 100%; transform: translateX(-50%); will-change: transform; animation: houseDrift 38s ease-in-out infinite alternate; }
+.account-shell .house-stage::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, var(--background) 0, transparent 28%); }
+/* phones: a strip of the building above the card, cropped to the roofline */
+.account-shell .house-strip { position: relative; overflow: hidden; height: clamp(170px, 54vw, 250px); }
+.account-shell .house-strip svg { position: absolute; left: 50%; bottom: -8%; width: 124%; height: auto; transform-origin: 50% 100%; transform: translateX(-50%); animation: houseDrift 38s ease-in-out infinite alternate; }
+.account-shell .house-strip::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 70%, var(--background) 100%); }
+@keyframes houseDrift { from { transform: translateX(-51%) scale(1); } to { transform: translateX(-49%) scale(1.06); } }
+
+.house-svg { color: var(--foreground); display: block; }
+.house-svg .pp { fill: var(--paper); }
+.house-svg .lab { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; font-weight: 500; letter-spacing: .16em; fill: currentColor; opacity: .75; }
+.house-svg .tiny { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 9px; font-weight: 500; letter-spacing: .08em; fill: currentColor; opacity: .8; }
+.house-svg .marquee { font-family: inherit; font-size: 30px; font-weight: 500; fill: var(--ink); }
+.house-svg .puff { fill: var(--paper); stroke: currentColor; stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: puff 5.2s linear infinite; }
+.house-svg .ring { transform-box: fill-box; transform-origin: center; animation: ringOut 1.3s ease-out infinite; }
+.house-svg .led { animation: housePulse 1.6s ease-in-out infinite; }
+.house-svg .blip { animation: housePulse 1.3s ease-in-out infinite; }
+.house-svg .belt { animation: belt 1.1s linear infinite; }
+.house-svg .parcels { animation: parcels 7s linear infinite; }
+.house-svg .sweep { transform-origin: 0 0; animation: sweep 3.2s linear infinite; }
+.house-svg .needle { transform-origin: 0 0; animation: needle 2.6s ease-in-out infinite alternate; }
+.house-svg .stamp { animation: stamp 1.7s ease-in-out infinite; }
+.house-svg .bulb { transform-origin: 0 0; animation: swing 3.4s ease-in-out infinite alternate; }
+.house-svg .drip { animation: drip 1.9s linear infinite; }
+@keyframes housePulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+@keyframes puff { from { transform: translateY(0) scale(.7); opacity: 1; } to { transform: translateY(-90px) scale(1.5); opacity: 0; } }
+@keyframes ringOut { from { transform: scale(.85); opacity: 1; } to { transform: scale(1.35); opacity: 0; } }
+@keyframes belt { to { stroke-dashoffset: -18; } }
+@keyframes parcels { from { transform: translateX(-40px); } to { transform: translateX(40px); } }
+@keyframes sweep { to { transform: rotate(360deg); } }
+@keyframes needle { from { transform: rotate(-10deg); } to { transform: rotate(12deg); } }
+@keyframes stamp { 0%, 60%, 100% { transform: translateY(0); } 75% { transform: translateY(14px); } }
+@keyframes swing { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+@keyframes drip { from { transform: translateY(0); opacity: 1; } to { transform: translateY(16px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .house-svg *, .account-shell .house-stage svg, .account-shell .house-strip svg { animation: none !important; }
+}

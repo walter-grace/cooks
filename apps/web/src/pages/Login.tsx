@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { loadSession, type Session } from '../api.js';
 import { Link, navigate } from '../router.js';
+import { AccountShell } from '../components/account-shell.js';
 
 /** `?next=` is set when an OAuth consent screen (a Claude or Grok connector) sent the user here to sign in. Same-origin paths only. */
 function nextAfterLogin(): string | null {
@@ -52,15 +53,17 @@ function ClerkBridge({ onLogin }: { onLogin: (s: Session) => void }) {
     })();
   }, [isLoaded, isSignedIn, getToken, onLogin]);
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 p-4">
-      {!isSignedIn && <SignIn routing="hash" />}
-      {isSignedIn && !err && <p className="text-sm text-muted-foreground">Signed in as {user?.primaryEmailAddress?.emailAddress}. Opening Cooks…</p>}
-      {err && (
-        <Alert variant="destructive">
-          <AlertDescription>{err}</AlertDescription>
-        </Alert>
-      )}
-    </div>
+    <AccountShell>
+      <div className="grid justify-items-center gap-4">
+        {!isSignedIn && <SignIn routing="hash" />}
+        {isSignedIn && !err && <p className="text-sm text-muted-foreground">Signed in as {user?.primaryEmailAddress?.emailAddress}. Opening Cooks…</p>}
+        {err && (
+          <Alert variant="destructive">
+            <AlertDescription>{err}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+    </AccountShell>
   );
 }
 
@@ -87,21 +90,24 @@ function PasswordLogin({ onLogin, signup }: { onLogin: (s: Session) => void; sig
     } else setErr('Signed in, but no workspace membership was found.');
   };
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
+    <AccountShell>
+      <Card className="w-full">
         <CardHeader>
-          <CardTitle className="text-xl">Sign in to Cooks</CardTitle>
-          <CardDescription>Open-source sales engagement</CardDescription>
+          <CardTitle className="text-xl">Sign in</CardTitle>
+          <CardDescription>Welcome back. Use the email and password you signed up with.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="grid gap-4" onSubmit={submit} data-testid="login-form">
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus autoComplete="email" />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link to="/forgot" className="text-xs text-muted-foreground underline underline-offset-4" data-testid="login-forgot">Forgot password?</Link>
+              </div>
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
             </div>
             {err && (
               <Alert variant="destructive">
@@ -111,22 +117,22 @@ function PasswordLogin({ onLogin, signup }: { onLogin: (s: Session) => void; sig
             <Button type="submit" disabled={busy}>
               Sign in
             </Button>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-              <Link to="/forgot" className="underline underline-offset-4" data-testid="login-forgot">Forgot password?</Link>
-              {signup === 'open' && (
-                <Link to="/signup" className="underline underline-offset-4" data-testid="login-signup">
-                  Create a workspace
-                </Link>
-              )}
-            </div>
-            {signup !== 'open' && (
-              <p className="text-xs text-muted-foreground">
-                {signup === 'invite' ? 'New here? Ask an admin for an invite link.' : <>No account yet? Run <code>pnpm bootstrap --email you@example.com --password …</code> on the server, or set COOKS_SIGNUP=open.</>}
-              </p>
-            )}
           </form>
+          {signup === 'open' ? (
+            <div className="mt-6 border-t pt-5">
+              <p className="text-sm font-medium">New to Cooks?</p>
+              <p className="mt-1 text-xs text-muted-foreground">Create a workspace for your team. It takes a minute, you will be its admin, and you can invite people right after.</p>
+              <Button asChild variant="outline" className="mt-3 w-full">
+                <Link to="/signup" data-testid="login-signup">Create a workspace</Link>
+              </Button>
+            </div>
+          ) : (
+            <p className="mt-6 border-t pt-5 text-xs text-muted-foreground">
+              {signup === 'invite' ? 'New here? Ask a workspace admin for an invite link; it creates your account and adds you to their workspace.' : <>No account yet? Run <code>pnpm bootstrap --email you@example.com --password …</code> on the server, or set COOKS_SIGNUP=open.</>}
+            </p>
+          )}
         </CardContent>
       </Card>
-    </div>
+    </AccountShell>
   );
 }

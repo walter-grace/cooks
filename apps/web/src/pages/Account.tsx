@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { loadSession, type Session } from '../api.js';
 import { Link, navigate } from '../router.js';
+import { AccountShell } from '../components/account-shell.js';
 
 /** Sign-up, password reset, invite acceptance and email verification. All talk to /auth/* directly, no bearer token. */
 
@@ -19,15 +20,15 @@ const tokenParam = () => new URLSearchParams(location.search).get('token') ?? ''
 
 function Frame({ title, description, children, testid }: { title: string; description?: string; children: React.ReactNode; testid?: string }) {
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-sm" data-testid={testid}>
+    <AccountShell>
+      <Card className="w-full" data-testid={testid}>
         <CardHeader>
           <CardTitle className="text-xl">{title}</CardTitle>
           {description && <CardDescription>{description}</CardDescription>}
         </CardHeader>
         <CardContent>{children}</CardContent>
       </Card>
-    </div>
+    </AccountShell>
   );
 }
 const Err = ({ msg }: { msg: string | null }) =>
@@ -60,7 +61,7 @@ export function Signup({ onLogin }: { onLogin: (s: Session) => void }) {
     }
   };
   return (
-    <Frame title="Create your workspace" description="You will be its admin. Invite the team from Settings afterwards." testid="signup">
+    <Frame title="Create your workspace" description="One account for you, one workspace for your team. You will be its admin and can invite people from Settings." testid="signup">
       <form className="grid gap-4" onSubmit={submit}>
         <div className="grid gap-2">
           <Label htmlFor="su-name">Your name</Label>
@@ -69,6 +70,7 @@ export function Signup({ onLogin }: { onLogin: (s: Session) => void }) {
         <div className="grid gap-2">
           <Label htmlFor="su-ws">Workspace name</Label>
           <Input id="su-ws" value={f.workspaceName} onChange={set('workspaceName')} placeholder="Acme Sales" required autoComplete="organization" />
+          <p className="text-xs text-muted-foreground">Usually your company or team name. Teammates you invite land here. You can rename it later.</p>
         </div>
         <div className="grid gap-2">
           <Label htmlFor="su-email">Work email</Label>
