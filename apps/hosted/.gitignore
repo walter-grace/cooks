@@ -2,4 +2,4 @@ public/
 .vercel/
 .vercel
 .env*
-api/*.js
+dist/

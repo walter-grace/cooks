@@ -7,7 +7,7 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 const external = Object.keys(pkg.dependencies).filter((d) => !d.startsWith('@cooks/') && d !== 'cooks-mcp');
 await build({
   entryPoints: { server: 'src/server.ts', tick: 'src/tick.ts' },
-  outdir: 'api',
+  outdir: 'dist',
   bundle: true,
   platform: 'node',
   format: 'esm',
