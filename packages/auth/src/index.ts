@@ -4,3 +4,4 @@ export * from './sessions.js';
 export * from './keys.js';
 export * from './oauth.js';
 export * from './clerk.js';
+export * from './accounts.js';

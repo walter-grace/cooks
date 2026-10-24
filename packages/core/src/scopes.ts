@@ -26,7 +26,7 @@ export const UPSTREAM_SCOPES = [
   'notes:write',
 ] as const;
 
-export const EXTENSION_SCOPES = ['webhooks:write', 'api-keys:write', 'agents:run', 'emails:send'] as const;
+export const EXTENSION_SCOPES = ['webhooks:write', 'api-keys:write', 'agents:run', 'emails:send', 'users:write'] as const;
 
 export const SCOPES = [...UPSTREAM_SCOPES, ...EXTENSION_SCOPES] as const;
 export type Scope = (typeof SCOPES)[number];
@@ -60,6 +60,7 @@ export const SCOPE_DESCRIPTIONS: Record<Scope, string> = {
   'api-keys:write': 'Manage API keys',
   'agents:run': 'Run hosted agents',
   'emails:send': 'Send emails through connected mailboxes',
+  'users:write': 'Invite and manage workspace members',
 };
 
 export function isScope(s: string): s is Scope {

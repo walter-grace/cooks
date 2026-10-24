@@ -3,7 +3,7 @@ export interface Session {
   access_token: string;
   expires_in: number;
   workspace: { id: string; name: string; role: string };
-  user: { id: string; email: string; name: string };
+  user: { id: string; email: string; name: string; emailVerified?: boolean };
   workspaces: Array<{ id: string; name: string; role: string }>;
 }
 

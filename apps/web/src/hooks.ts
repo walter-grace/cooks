@@ -27,12 +27,12 @@ export function useApi<T>(path: string | null, deps: unknown[] = []) {
 export const toast = (msg: string, kind: 'success' | 'error' | 'info' = 'success') => (kind === 'error' ? sonner.error(msg) : kind === 'info' ? sonner.info(msg) : sonner.success(msg));
 
 export function useAuthConfig() {
-  const [cfg, setCfg] = useState<{ mode: 'password' | 'clerk'; clerkPublishableKey: string | null } | null>(null);
+  const [cfg, setCfg] = useState<{ mode: 'password' | 'clerk'; clerkPublishableKey: string | null; signup?: 'open' | 'invite' | 'off' | 'clerk' } | null>(null);
   useEffect(() => {
     fetch('/auth/config')
       .then((r) => r.json())
       .then(setCfg)
-      .catch(() => setCfg({ mode: 'password', clerkPublishableKey: null }));
+      .catch(() => setCfg({ mode: 'password', clerkPublishableKey: null, signup: 'off' }));
   }, []);
   return cfg;
 }

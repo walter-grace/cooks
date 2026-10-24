@@ -45,6 +45,22 @@ Migrations run on boot (`COOKS_AUTO_MIGRATE=true`) under an advisory lock, so AP
 
 The UI is monochrome by design: every colour token in `apps/web/src/styles.css` has zero chroma, and state is carried by weight (filled, soft, outlined, quiet). `pnpm qa:design <chromium> <base-url> <out-dir>` screenshots every page at desktop, phone and dark scheme and measures hue, contrast, tap targets, clipped text, spacing scale and numeric alignment (`scripts/qa/design-audit.mjs`); `scripts/qa/jev_design_review.py <out-dir> [--diff <other>]` sends those screenshots and metrics to Jev for a scored critique.
 
+## Vercel
+
+`apps/hosted` runs the whole product on Vercel with Neon for Postgres: the API and web app as one function, the worker as a cron tick. Create a project with the root directory `apps/hosted`, connect the repository, add Neon from the Marketplace (it sets `DATABASE_URL` and `DATABASE_URL_UNPOOLED`), and add these variables for production and preview:
+
+| Variable | Value |
+| --- | --- |
+| `COOKS_KEK` | 32 random bytes, base64 (`openssl rand -base64 32`) |
+| `CRON_SECRET` | random; Vercel sends it to the cron route |
+| `COOKS_PUBLIC_URL` | `https://<project>.vercel.app` or your domain |
+| `COOKS_MCP_PUBLIC_URL` | the same host; the function serves the MCP transport at `/mcp` on it |
+| `COOKS_SIGNUP` | `open`, `invite` or `off` |
+| `COOKS_AUTO_MIGRATE` | `false` (migrations run at build time) |
+| `RESEND_API_KEY` or `SMTP_URL` | optional, for verification, reset and invite mail |
+
+The build bundles the two functions, copies the web app to the CDN and runs migrations over the direct connection. WebSockets (practice calls, the speech gate) ride on the same function, so set the function duration to the plan's maximum; `vercel.json` asks for 800 seconds. The cron tick runs every minute, which is the floor for the sequencing engine's timing. Previews are protected by Vercel Authentication; use `vercel curl` to probe them.
+
 ## Process management
 
 Run each process under systemd, pm2 or your platform's supervisor. The worker is safe to run with several replicas: every job is idempotent and step executions are unique per enrollment. The API is stateless; put it behind any reverse proxy with TLS.

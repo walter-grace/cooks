@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { loadSession, type Session } from '../api.js';
-import { navigate } from '../router.js';
+import { Link, navigate } from '../router.js';
 
 /** `?next=` is set when an OAuth consent screen (a Claude or Grok connector) sent the user here to sign in. Same-origin paths only. */
 function nextAfterLogin(): string | null {
@@ -19,7 +19,7 @@ function finishLogin() {
   else navigate('/');
 }
 
-export function Login({ onLogin, mode, clerkKey }: { onLogin: (s: Session) => void; mode: 'password' | 'clerk'; clerkKey: string | null }) {
+export function Login({ onLogin, mode, clerkKey, signup = 'off' }: { onLogin: (s: Session) => void; mode: 'password' | 'clerk'; clerkKey: string | null; signup?: 'open' | 'invite' | 'off' | 'clerk' }) {
   if (mode === 'clerk' && clerkKey) {
     return (
       <ClerkProvider publishableKey={clerkKey} afterSignOutUrl="/app/login" signInUrl="/app/login" signInFallbackRedirectUrl={location.pathname + location.search}>
@@ -27,7 +27,7 @@ export function Login({ onLogin, mode, clerkKey }: { onLogin: (s: Session) => vo
       </ClerkProvider>
     );
   }
-  return <PasswordLogin onLogin={onLogin} />;
+  return <PasswordLogin onLogin={onLogin} signup={signup} />;
 }
 
 /** After Clerk sign-in, exchange the Clerk session for a Cooks session cookie. */
@@ -64,7 +64,7 @@ function ClerkBridge({ onLogin }: { onLogin: (s: Session) => void }) {
   );
 }
 
-function PasswordLogin({ onLogin }: { onLogin: (s: Session) => void }) {
+function PasswordLogin({ onLogin, signup }: { onLogin: (s: Session) => void; signup: 'open' | 'invite' | 'off' | 'clerk' }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -111,9 +111,19 @@ function PasswordLogin({ onLogin }: { onLogin: (s: Session) => void }) {
             <Button type="submit" disabled={busy}>
               Sign in
             </Button>
-            <p className="text-xs text-muted-foreground">
-              No password yet? Run <code>pnpm bootstrap --email you@example.com --password …</code> on the server, or configure Clerk SSO.
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <Link to="/forgot" className="underline underline-offset-4" data-testid="login-forgot">Forgot password?</Link>
+              {signup === 'open' && (
+                <Link to="/signup" className="underline underline-offset-4" data-testid="login-signup">
+                  Create a workspace
+                </Link>
+              )}
+            </div>
+            {signup !== 'open' && (
+              <p className="text-xs text-muted-foreground">
+                {signup === 'invite' ? 'New here? Ask an admin for an invite link.' : <>No account yet? Run <code>pnpm bootstrap --email you@example.com --password …</code> on the server, or set COOKS_SIGNUP=open.</>}
+              </p>
+            )}
           </form>
         </CardContent>
       </Card>

@@ -26,8 +26,8 @@ export interface ClerkDeps {
   crm: CrmDeps;
 }
 
-export function mountClerkAuth(app: OpenAPIHono<AppEnv>, d: ClerkDeps | null) {
-  app.get('/auth/config', (c) => c.json({ mode: d ? 'clerk' : 'password', clerkPublishableKey: d?.publishableKey ?? null }));
+export function mountClerkAuth(app: OpenAPIHono<AppEnv>, d: ClerkDeps | null, opts: { signup?: 'open' | 'invite' | 'off' } = {}) {
+  app.get('/auth/config', (c) => c.json({ mode: d ? 'clerk' : 'password', clerkPublishableKey: d?.publishableKey ?? null, signup: d ? 'clerk' : (opts.signup ?? 'off') }));
   if (!d) return;
   app.post('/auth/clerk/session', async (c) => {
     const body = (await c.req.json().catch(() => ({}))) as { token?: string };

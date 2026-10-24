@@ -34,8 +34,9 @@ export const QUEUES: Record<JobName, { policy?: string; retryLimit?: number; ret
   'search.index_all': { policy: 'singleton', retryLimit: 0, expireInSeconds: 110 },
 };
 
-export async function createBoss(connectionString: string, opts: { schema?: string } = {}): Promise<PgBoss> {
-  const boss = new PgBoss({ connectionString: withDefaultUser(connectionString), schema: opts.schema ?? 'pgboss', application_name: 'cooks' });
+/** `supervise: false, schedule: false` for request handlers that only enqueue (serverless); the worker keeps both on. */
+export async function createBoss(connectionString: string, opts: { schema?: string; supervise?: boolean; schedule?: boolean } = {}): Promise<PgBoss> {
+  const boss = new PgBoss({ connectionString: withDefaultUser(connectionString), schema: opts.schema ?? 'pgboss', application_name: 'cooks', ...(opts.supervise === false ? { supervise: false } : {}), ...(opts.schedule === false ? { schedule: false } : {}) });
   boss.on('error', (e: unknown) => console.error('[pg-boss]', e));
   await boss.start();
   for (const [name, q] of Object.entries(QUEUES)) {
@@ -63,3 +64,25 @@ export class PgBossJobs implements JobsPort {
 
 export { PgBoss };
 export type { PgBoss as Boss };
+
+/**
+ * JobsPort that starts pg-boss on the first send. Request handlers in a serverless function
+ * should not pay for pg-boss at cold start when most requests never enqueue anything.
+ */
+export class LazyPgBossJobs implements JobsPort {
+  private boss: Promise<PgBossJobs> | null = null;
+  constructor(private readonly factory: () => Promise<PgBoss>) {}
+  private get(): Promise<PgBossJobs> {
+    if (!this.boss) {
+      this.boss = this.factory().then((b) => new PgBossJobs(b));
+      this.boss.catch(() => (this.boss = null));
+    }
+    return this.boss;
+  }
+  async send(name: JobName, data: Record<string, unknown>, opts: JobOptions = {}) {
+    return (await this.get()).send(name, data, opts);
+  }
+  async cancel(name: JobName, jobId: string) {
+    await (await this.get()).cancel(name, jobId);
+  }
+}

@@ -49,7 +49,7 @@ describe('Clerk SSO mode', () => {
   let bearer = '';
   it('exposes the publishable key and rejects bad sessions', async () => {
     const cfg: any = await (await app.request('/auth/config')).json();
-    expect(cfg).toEqual({ mode: 'clerk', clerkPublishableKey: 'pk_test_x' });
+    expect(cfg).toEqual({ mode: 'clerk', clerkPublishableKey: 'pk_test_x', signup: 'clerk' });
     expect((await post('/auth/clerk/session', { token: 'nope' })).status).toBe(401);
   });
   it('maps a Clerk org admin to a new workspace as admin and sets the Cooks cookie', async () => {

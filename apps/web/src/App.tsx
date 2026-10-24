@@ -5,6 +5,7 @@ import { useAuthConfig } from './hooks.js';
 import { match, navigate, useRoute } from './router.js';
 import { Shell } from './components/layout.js';
 import { Login } from './pages/Login.js';
+import { Forgot, Join, Reset, Signup, Verify } from './pages/Account.js';
 import { Practice } from './pages/Practice.js';
 import { Tasks } from './pages/Tasks.js';
 import { ProspectDetail, Prospects } from './pages/Prospects.js';
@@ -15,6 +16,8 @@ import { Signals } from './pages/Signals.js';
 import { CallDetail, Calls } from './pages/Calls.js';
 import { Inbox } from './pages/Inbox.js';
 import { PowerDialer } from './pages/PowerDialer.js';
+
+const ACCOUNT_PATHS = new Set(['/login', '/signup', '/forgot', '/reset', '/join', '/verify']);
 
 export function App() {
   const path = useRoute();
@@ -28,7 +31,7 @@ export function App() {
     loadSession(ws).then(setSession);
   }, []);
   useEffect(() => {
-    if (session === null && path !== '/login') navigate('/login');
+    if (session === null && !ACCOUNT_PATHS.has(path)) navigate('/login');
     if (session && path === '/login') navigate('/');
   }, [session, path]);
   useEffect(() => {
@@ -44,10 +47,29 @@ export function App() {
   }, [path]);
 
   if (session === undefined || auth === null) return <main className="p-8 text-sm text-muted-foreground">Loading…</main>;
-  if (!session || path === '/login') {
+  if (path === '/verify') {
+    return (
+      <Verify
+        onDone={() => {
+          loadSession(undefined, true).then((s) => {
+            setSession(s);
+            navigate(s ? '/' : '/login');
+          });
+        }}
+      />
+    );
+  }
+  if (!session || ACCOUNT_PATHS.has(path)) {
+    const signupOpen = auth.mode === 'password' && auth.signup === 'open';
+    let gate: React.ReactNode;
+    if (path === '/signup' && signupOpen) gate = <Signup onLogin={setSession} />;
+    else if (path === '/forgot' && auth.mode === 'password') gate = <Forgot />;
+    else if (path === '/reset' && auth.mode === 'password') gate = <Reset onLogin={setSession} />;
+    else if (path === '/join') gate = <Join onLogin={setSession} />;
+    else gate = <Login onLogin={setSession} mode={auth.mode} clerkKey={auth.clerkPublishableKey} signup={auth.signup ?? 'off'} />;
     return (
       <>
-        <Login onLogin={setSession} mode={auth.mode} clerkKey={auth.clerkPublishableKey} />
+        {gate}
         <Toaster />
       </>
     );

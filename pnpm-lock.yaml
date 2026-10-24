@@ -77,6 +77,9 @@ importers:
       '@scalar/hono-api-reference':
         specifier: ^0.12.0
         version: 0.12.13(hono@4.13.13)
+      cooks-mcp:
+        specifier: workspace:*
+        version: link:../mcp
       drizzle-orm:
         specifier: ^0.45.0
         version: 0.45.4(@electric-sql/pglite@0.5.11)(@opentelemetry/api@1.10.0)(pg@8.23.1)(postgres@3.4.9)
@@ -92,6 +95,100 @@ importers:
       zod:
         specifier: ^4.6.0
         version: 4.6.7
+
+  apps/hosted:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^1.1.0
+        version: 1.1.0(zod@4.6.7)
+      '@clerk/backend':
+        specifier: ^2
+        version: 2.33.8(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@cooks/api':
+        specifier: workspace:*
+        version: link:../api
+      '@cooks/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@cooks/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@cooks/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@cooks/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@cooks/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
+      '@cooks/worker':
+        specifier: workspace:*
+        version: link:../worker
+      '@hono/mcp':
+        specifier: ^0.3.0
+        version: 0.3.2(@modelcontextprotocol/sdk@1.32.1(zod@4.6.7))(hono-rate-limiter@0.5.4(hono@4.13.13))(hono@4.13.13)(zod@4.6.7)
+      '@hono/node-server':
+        specifier: ^2.1.0
+        version: 2.1.5(hono@4.13.13)
+      '@hono/node-ws':
+        specifier: ^1.3.1
+        version: 1.3.1(@hono/node-server@2.1.5(hono@4.13.13))(hono@4.13.13)
+      '@hono/zod-openapi':
+        specifier: ^1.6.0
+        version: 1.6.3(hono@4.13.13)(zod@4.6.7)
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.32.0
+        version: 1.32.1(zod@4.6.7)
+      '@scalar/hono-api-reference':
+        specifier: ^0.12.0
+        version: 0.12.13(hono@4.13.13)
+      cooks-mcp:
+        specifier: workspace:*
+        version: link:../mcp
+      drizzle-orm:
+        specifier: ^0.45.0
+        version: 0.45.4(@electric-sql/pglite@0.5.11)(@opentelemetry/api@1.10.0)(pg@8.23.1)(postgres@3.4.9)
+      hono:
+        specifier: ^4.13.0
+        version: 4.13.13
+      imapflow:
+        specifier: ^2.9.0
+        version: 2.9.0
+      jose:
+        specifier: ^6.0.0
+        version: 6.2.13
+      liquidjs:
+        specifier: ^10.30.0
+        version: 10.30.0
+      luxon:
+        specifier: ^3.7.0
+        version: 3.7.2
+      mailparser:
+        specifier: ^3.12.0
+        version: 3.12.3
+      nodemailer:
+        specifier: ^10.2.0
+        version: 10.2.1
+      openai:
+        specifier: ^7.42.0
+        version: 7.42.0(ws@8.22.0)(zod@4.6.7)
+      pg-boss:
+        specifier: ^12.38.0
+        version: 12.38.0(@opentelemetry/api@1.10.0)
+      postgres:
+        specifier: ^3.4.5
+        version: 3.4.9
+      yaml:
+        specifier: ^2.7.0
+        version: 2.9.1
+      zod:
+        specifier: ^4.6.0
+        version: 4.6.7
+    devDependencies:
+      esbuild:
+        specifier: ^0.25.12
+        version: 0.25.12
 
   apps/mcp:
     dependencies:

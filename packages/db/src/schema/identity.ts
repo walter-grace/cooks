@@ -62,6 +62,8 @@ export const users = pgTable(
     calendarUrl: text('calendar_url'),
     signatureHtml: text('signature_html'),
     passwordHash: text('password_hash'),
+    /** Set once the address was confirmed through a verification link (self-serve sign-up). */
+    emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
     clerkUserId: text('clerk_user_id').unique(),
     ...timestamps,
   },
@@ -174,3 +176,24 @@ export const sessions = pgTable('sessions', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: timestamps.createdAt,
 });
+
+export const authTokenKind = pgEnum('auth_token_kind', ['verify', 'reset', 'invite']);
+
+/** One-time links: email verification, password reset and workspace invites. Only the hash is stored. */
+export const authTokens = pgTable(
+  'auth_tokens',
+  {
+    id: id(),
+    kind: authTokenKind('kind').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    email: text('email').notNull(),
+    userId: uuid('user_id'),
+    workspaceId: uuid('workspace_id'),
+    role: memberRole('role'),
+    invitedBy: uuid('invited_by'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [index('auth_tokens_kind_email_idx').on(t.kind, sql`lower(${t.email})`), index('auth_tokens_ws_idx').on(t.workspaceId, t.kind)],
+);

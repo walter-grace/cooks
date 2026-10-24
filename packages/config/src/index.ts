@@ -55,6 +55,12 @@ const EnvSchema = z.object({
   MS_CLIENT_ID: z.string().optional(),
   MS_CLIENT_SECRET: z.string().optional(),
   MS_TENANT: z.string().default('common'),
+  /** Self-serve accounts: open (anyone can sign up), invite (only by invite link), off (bootstrap and admins create users). */
+  COOKS_SIGNUP: z.enum(['open', 'invite', 'off']).default('off'),
+  /** From address for verification, reset and invite mail. Defaults to no-reply at the public host. */
+  COOKS_MAIL_FROM: z.string().optional(),
+  /** Send account mail through Resend instead of SMTP_URL. */
+  RESEND_API_KEY: z.string().optional(),
   CLERK_SECRET_KEY: z.string().optional(),
   CLERK_PUBLISHABLE_KEY: z.string().optional(),
   CLERK_JWT_KEY: z.string().optional(),
