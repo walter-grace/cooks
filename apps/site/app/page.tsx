@@ -1,6 +1,8 @@
 import { Brand, Flocks } from '@/components/Flocks';
 import { DialerDemo } from '@/components/DialerDemo';
 import { FooterReveal } from '@/components/FooterReveal';
+import { House } from '@/components/House';
+import { HouseScene } from '@/components/HouseScene';
 
 const GITHUB = 'https://github.com/walter-grace/cooks';
 const RELEASE = `${GITHUB}/releases/latest/download/cooks-mcp.tgz`;
@@ -11,38 +13,110 @@ const API_URL = 'http://localhost:8080';
 export default function Page() {
   return (
     <>
-      <header className="top wrap" id="top">
-        <Brand />
-        <nav className="top">
-          <a className="sub" href="#features">Features</a>
-          <a className="sub" href="#dialer">Dialer</a>
-          <a className="sub" href="#assistant">Assistant</a>
-          <a className="sub" href="#compare">Compare</a>
-          <a className="sub" href="#selfhost">Self-host</a>
-          <a href={doc('api-compat')}>API</a>
-          <a href={GITHUB}>GitHub</a>
-        </nav>
-      </header>
+      <div className="topbar">
+        <header className="top wrap" id="top">
+          <Brand />
+          <nav className="top">
+            <a className="sub" href="#house">Tour</a>
+            <a className="sub" href="#dialer">Dialer</a>
+            <a className="sub" href="#assistant">Assistant</a>
+            <a className="sub" href="#compare">Compare</a>
+            <a className="sub" href="#selfhost">Self-host</a>
+            <a href={doc('api-compat')}>API</a>
+            <a href={GITHUB}>GitHub</a>
+          </nav>
+        </header>
+      </div>
+
+      <HouseScene scene={<House />}>
+        <li className="stop hero on" id="hero">
+          <div className="wrap">
+            <div className="card">
+              <h1>Let your reps <em>cook</em>.</h1>
+              <p className="lead">Cooks is open-source sales engagement you host yourself: sequences, a parallel dialer, buying signals and call coaching on one Postgres. Point Claude, Grok or any MCP client at it and the bot does the typing.</p>
+              <div className="ctas">
+                <a className="cta fill" href={QUICKSTART}>Get the code</a>
+                <a className="cta" href="#room-dialer">Walk through the house <span aria-hidden="true">↓</span></a>
+              </div>
+              <p className="fine"><span>MIT licensed</span><span>One Postgres, no Redis</span><span>66 MCP tools</span><span>Yours to fork</span></p>
+            </div>
+          </div>
+        </li>
+
+        <li className="stop" id="room-dialer">
+          <div className="wrap">
+            <div className="card">
+              <div className="n">Switchboard · Parallel dialer</div>
+              <h2>Four lines ring. One person answers.</h2>
+              <p>The power dialer rings up to four prospects at once and puts the first human in the rep&apos;s ear, with no beep and no recorded message. Machines are hung up before anyone hears them.</p>
+              <p className="soft">The gate listens to the pickup itself, so a &quot;Hello?&quot; is judged in under a second instead of waiting three for the carrier.</p>
+              <a className="more" href="#dialer">How the speech gate works <span aria-hidden="true">↓</span></a>
+            </div>
+          </div>
+        </li>
+
+        <li className="stop" id="room-sequencing">
+          <div className="wrap">
+            <div className="card">
+              <div className="n">Prep line · Sequencing</div>
+              <h2>Cadences that respect the clock.</h2>
+              <p>Email, call, LinkedIn and manual steps go out in the prospect&apos;s time zone, inside the send window and under each mailbox&apos;s daily cap. A reply or a bounce stops the line for that person.</p>
+              <p className="soft">AI drafts any email step and hands it to a rep when it is unsure. One-click unsubscribe and A/B variants are built in.</p>
+            </div>
+          </div>
+        </li>
+
+        <li className="stop" id="room-signals">
+          <div className="wrap">
+            <div className="card">
+              <div className="n">Lookout · Signals</div>
+              <h2>Call when there is a reason.</h2>
+              <p>Engagement, web research, CRM changes and anything your bot pushes in arrive as one feed with the prospect and account attached. Rules watch it and act: a second click in a week enrolls the prospect and puts a task in front of the owner.</p>
+              <p className="soft">Accounts in active sequences get a web scan every seven days.</p>
+            </div>
+          </div>
+        </li>
+
+        <li className="stop" id="room-coaching">
+          <div className="wrap">
+            <div className="card">
+              <div className="n">Tasting room · Coaching</div>
+              <h2>Every call gets a scorecard.</h2>
+              <p>Recordings are split by speaker, transcribed and scored on six parts, from the opener to the next step, with talk ratio, longest monologue and one concrete tip.</p>
+              <p className="soft">In the booth next door a rep rehearses against an AI prospect who interrupts and pushes back. The practice call is scored the same way as a real one.</p>
+              <a className="more" href={doc('coaching')}>Read about coaching</a>
+            </div>
+          </div>
+        </li>
+
+        <li className="stop" id="room-assistant">
+          <div className="wrap">
+            <div className="card">
+              <div className="n">Control desk · Your assistant</div>
+              <h2>Sixty-six tools, zero tokens of ours.</h2>
+              <p>Cooks ships an MCP server, so the Claude, Grok or Cursor you already pay for can research an account, enroll the prospect, draft the email, place the call and log the outcome.</p>
+              <p className="soft">Suppression lists, unsubscribes and daily caps are enforced in the send pipeline, where the model cannot reach them.</p>
+              <a className="more" href="#assistant">Connect yours <span aria-hidden="true">↓</span></a>
+            </div>
+          </div>
+        </li>
+
+        <li className="stop" id="room-selfhost">
+          <div className="wrap">
+            <div className="card">
+              <div className="n">Cellar · Self-host</div>
+              <h2>One Postgres under the whole house.</h2>
+              <p>Jobs, rate limits, the webhook outbox and MCP sessions live in the same database as your prospects, so there is nothing else to run. Five commands bring it up, and Docker Compose does it in one.</p>
+              <div className="ctas">
+                <a className="cta fill" href={QUICKSTART}>Get the code</a>
+                <a className="cta" href="#selfhost">The five commands <span aria-hidden="true">↓</span></a>
+              </div>
+            </div>
+          </div>
+        </li>
+      </HouseScene>
 
       <main className="wrap">
-        <section className="hero">
-          <h1>Let your reps <em>cook</em>.</h1>
-          <p className="lead">Cooks is open-source sales engagement you host yourself: sequences, a parallel dialer, buying signals and call coaching on one Postgres. Point Claude, Grok or any MCP client at it and the bot does the typing.</p>
-          <div className="ctas">
-            <a className="cta fill" href={QUICKSTART}>Get the code</a>
-            <a className="cta" href="#selfhost">Self-host in five minutes <span aria-hidden="true">↓</span></a>
-          </div>
-          <p className="fine"><span>MIT licensed</span><span>One Postgres, no Redis</span><span>66 MCP tools</span><span>Yours to fork</span></p>
-        </section>
-
-        <section className="feats" id="features">
-          <h2 className="sr">What Cooks does</h2>
-          <div><div className="n">Sequencing</div><h3>Cadences that respect the clock</h3><p>Email, call, LinkedIn and manual steps with per-prospect time zones, send windows and daily caps per mailbox. Reply and bounce detection, A/B variants, one-click unsubscribe. AI drafts any email step and hands it to a person when unsure.</p></div>
-          <div><div className="n">Dialer</div><h3>Four lines ring, one person answers</h3><p>Reps call on Twilio from the browser or a bridge to their phone. The power dialer rings three or four prospects at once and drops the first human into the rep&apos;s ear, with no beep and no message. Machines are hung up before anyone hears them.</p></div>
-          <div><div className="n">Signals</div><h3>One feed of reasons to call</h3><p>Email engagement, web research, CRM changes and anything your bot pushes in, as one stream. Rules turn a matching signal into an enrollment or a task. Accounts in active sequences get a web scan every seven days.</p></div>
-          <div><div className="n">Coaching</div><h3>Every call gets a scorecard</h3><p>Recorded calls are split by speaker, transcribed, and scored on six parts: opener, discovery, listening, value, objections, next step. Talk ratio, monologues, questions asked and one concrete tip per call. Reps rehearse against an AI prospect before the real call.</p></div>
-        </section>
-
         <section className="sec" id="dialer">
           <div className="split">
             <div>
@@ -69,36 +143,12 @@ export default function Page() {
           </div>
         </section>
 
-        <section className="sec" id="signals">
-          <div className="split">
-            <div>
-              <div className="n">Signals</div>
-              <h2>Call when there is a reason.</h2>
-              <p>Every engagement event, web find, CRM change and reply lands in one feed with the prospect and account attached. Rules watch the feed and act: a second click in a week enrolls the prospect in a follow-up and puts a task in front of the owner.</p>
-              <p className="soft">Your bot can push its own signals through the API, so research it does in the morning shows up as reasons to call in the afternoon.</p>
-            </div>
-            <div>
-              <figure>
-                <div className="panel" role="img" aria-label="The signals feed with four recent signals and the rule that acts on them">
-                  <div className="bar"><b>Signals</b><span>This week · 14 new</span></div>
-                  <div className="sig"><div className="k">Clicked ×2</div><div className="d">Maya Chen opened the pricing link twice<small>Q4 outbound, step 3 · Globex</small></div><div className="t">2 h ago</div></div>
-                  <div className="sig"><div className="k soft">Hiring</div><div className="d">Initech posted three SDR roles<small>Weekly web scan · careers page</small></div><div className="t">Yesterday</div></div>
-                  <div className="sig"><div className="k soft">Deal stage</div><div className="d">Hooli moved to Evaluation<small>HubSpot sync</small></div><div className="t">Mon</div></div>
-                  <div className="sig"><div className="k soft">Replied</div><div className="d">Lena Fischer: &quot;loop in my VP&quot;<small>Classified as a referral, confidence 0.92</small></div><div className="t">Mon</div></div>
-                  <div className="rule"><b>Rule</b> · clicked twice within 7 days → enroll in Hot follow-up, task for the owner</div>
-                </div>
-                <figcaption className="cap">The feed and one rule. Example data.</figcaption>
-              </figure>
-            </div>
-          </div>
-        </section>
-
         <section className="sec" id="assistant">
           <div className="n">Your bot is the brain</div>
-          <h2>Sixty-six tools, zero tokens of ours.</h2>
+          <h2>Connect the assistant you already have.</h2>
           <div className="split">
             <div>
-              <p>Cooks ships an MCP server, so the assistant you already pay for can research an account, enroll the prospect, draft the email, place the call and log the outcome. It is a thin client over the REST API: it runs on a laptop against a hosted Cooks, or next to the API for the whole team. In that mode Cooks spends no tokens of its own.</p>
+              <p>The MCP server is a thin client over the REST API: it runs on a laptop against a hosted Cooks, or next to the API for the whole team. In that mode Cooks spends no tokens of its own.</p>
               <p className="soft">Prefer hosted agents? Give a workspace its own key on Anthropic, xAI, OpenAI, OpenRouter or Ollama. Drafts, reply classification and research then run in the worker with a ledger of every run&apos;s tokens and cost.</p>
               <div className="panel" role="img" aria-label="A chat with an assistant that uses Cooks tools to find accounts, enroll prospects and place a call">
                 <div className="bar"><b>Claude Code</b><span>cooks · 66 tools</span></div>
@@ -170,7 +220,7 @@ export default function Page() {
             <div><h3>Drop-in API</h3><p>Same paths, envelopes and paging as the commercial API it mirrors. Existing clients change one base URL.</p></div>
             <div><h3>Webhooks</h3><p>Signed, retried events for calls, emails, enrollments, tasks and prospects.</p></div>
             <div><h3>Sign-in your way</h3><p>API keys, OAuth 2.1 with PKCE, or Clerk SSO. Secrets encrypted at rest with a key you hold.</p></div>
-            <div><h3>Web app</h3><p>Tasks, prospects, sequences, emails, calls, dialer, signals and settings. Light and dark.</p></div>
+            <div><h3>Web app</h3><p>Tasks, prospects, sequences, emails, calls, dialer, practice, signals and settings. Black and white, light and dark.</p></div>
           </div>
         </section>
 
