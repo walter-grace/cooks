@@ -41,7 +41,7 @@ export default function Page() {
                 <a className="cta" href={QUICKSTART}>Get the code</a>
                 <a className="cta" href="#room-dialer">Take the tour <span aria-hidden="true">↓</span></a>
               </div>
-              <p className="fine"><span>MIT license</span><span>Hosted for you, or Node and Postgres on your own server</span></p>
+              <p className="fine"><span>MIT license</span><span>Hosted for you</span><span>Or self-host on Node and Postgres</span></p>
             </div>
           </div>
         </li>
