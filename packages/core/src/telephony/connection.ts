@@ -4,7 +4,7 @@ import type { Ctx } from '../context.js';
 import type { SpeechConfig } from './speech/providers/types.js';
 import { decrypt, encrypt } from '../crypto.js';
 import { insufficientPermission, unprocessable } from '../errors.js';
-import { SpekoClient, SpekoProvider, DialerError, type DialerKind } from '../dialer/providers/index.js';
+import { DIAL_MIN_CALL_SECONDS, DialClient, DialProvider, DialerError, SpekoClient, SpekoProvider, type DialerKind } from '../dialer/providers/index.js';
 import { TwilioClient, TwilioError, normalizePhone, type TwilioClientOpts } from './twilio.js';
 
 export type TelephonyRow = typeof telephonyConnections.$inferSelect;
@@ -26,6 +26,8 @@ export interface TelephonyDeps extends TwilioClientOpts {
   speech?: SpeechConfig;
   /** Server-wide Speko key and base override (mocks). Workspaces can store their own key instead. */
   speko?: { apiKey?: string; apiBase?: string };
+  /** Server-wide Dial key and base override (mocks). Workspaces can store their own key instead. */
+  dial?: { apiKey?: string; apiBase?: string };
 }
 
 const NO_KEK = 'COOKS_KEK is required to store telephony credentials';
@@ -306,6 +308,7 @@ export async function disconnectSpeko(ctx: Ctx) {
 }
 
 export interface SpekoHandle {
+  kind: 'speko';
   row: TelephonyRow;
   client: SpekoClient;
   provider: SpekoProvider;
@@ -320,13 +323,173 @@ export async function spekoFor(ctx: Ctx, d: TelephonyDeps): Promise<SpekoHandle 
   if (!key) return null;
   const client = spekoClient(key, d);
   const settings = spekoSettingsOf(row);
-  return { row, client, provider: new SpekoProvider(client), settings, webhookSecret: settings.webhookSecretEncrypted ? open(settings.webhookSecretEncrypted, d.kek) : null };
+  return { kind: 'speko', row, client, provider: new SpekoProvider(client), settings, webhookSecret: settings.webhookSecretEncrypted ? open(settings.webhookSecretEncrypted, d.kek) : null };
 }
 
 export async function requireSpeko(ctx: Ctx, d: TelephonyDeps): Promise<SpekoHandle> {
   const s = await spekoFor(ctx, d);
   if (!s) throw unprocessable('Connect Speko under Settings → Dialer first', { code: 'NO_SPEKO' });
   return s;
+}
+
+/* -------------------------------------------------------------------- Dial */
+
+export type AiDialerKind = 'speko' | 'dial';
+export const AI_DIALERS: readonly AiDialerKind[] = ['speko', 'dial'];
+export const isAiDialer = (k: unknown): k is AiDialerKind => k === 'speko' || k === 'dial';
+export const DIALER_LABEL: Record<DialerKind, string> = { twilio: 'Twilio', speko: 'Speko', dial: 'Dial' };
+
+/** Same settings shape as Speko; `voice` holds Dial's `male` or `female`, `agentId` and the webhook secret are unused. */
+export type DialSettings = Omit<SpekoSettings, 'webhookSecretEncrypted' | 'agentId'>;
+export const DIAL_DEFAULTS = SPEKO_DEFAULTS;
+
+export function dialSettingsOf(row: TelephonyRow | null): Required<Omit<DialSettings, 'fromNumber' | 'voice' | 'voicemailMessage'>> & DialSettings {
+  const s = (row?.settings ?? {}) as DialSettings;
+  return { ...DIAL_DEFAULTS, ...s, maxDurationSeconds: Math.min(Math.max(DIAL_MIN_CALL_SECONDS, s.maxDurationSeconds ?? DIAL_DEFAULTS.maxDurationSeconds), MAX_AI_CALL_SECONDS) };
+}
+
+export function serializeDial(row: TelephonyRow | null, serverKey: boolean) {
+  if (!row) return { provider: 'dial' as const, status: 'disconnected' as const, keySource: null as 'workspace' | 'server' | null, keyLast4: null as string | null, fromNumbers: [] as string[], settings: { ...DIAL_DEFAULTS, fromNumber: null, maxAllowedSeconds: MAX_AI_CALL_SECONDS, minSeconds: DIAL_MIN_CALL_SECONDS }, serverKeyAvailable: serverKey, record: false, transcribe: false, coach: true, updatedAt: null as string | null };
+  const s = dialSettingsOf(row);
+  return {
+    provider: 'dial' as const,
+    status: 'connected' as const,
+    keySource: row.authTokenEncrypted === ENV_KEY ? ('server' as const) : ('workspace' as const),
+    keyLast4: row.accountSid.length >= 4 && row.authTokenEncrypted !== ENV_KEY ? row.accountSid.slice(-4) : null,
+    fromNumbers: row.fromNumbers,
+    settings: { ...s, fromNumber: s.fromNumber ?? row.fromNumbers[0] ?? null, maxAllowedSeconds: MAX_AI_CALL_SECONDS, minSeconds: DIAL_MIN_CALL_SECONDS },
+    serverKeyAvailable: serverKey,
+    record: row.record,
+    transcribe: row.transcribe,
+    coach: row.coach,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export interface ConnectDialInput extends DialSettings {
+  /** Omit to use the server's DIAL_API_KEY. */
+  apiKey?: string | null;
+  coach?: boolean;
+}
+
+const dialClient = (key: string, d: TelephonyDeps) => new DialClient(key, { apiBase: d.dial?.apiBase, fetchImpl: d.fetchImpl });
+
+const normalizeDialSettings = (settings: DialSettings) => {
+  if (settings.fromNumber) settings.fromNumber = normalizePhone(settings.fromNumber) ?? settings.fromNumber;
+  if (settings.maxDurationSeconds !== undefined) settings.maxDurationSeconds = Math.min(Math.max(DIAL_MIN_CALL_SECONDS, settings.maxDurationSeconds), MAX_AI_CALL_SECONDS);
+  if (settings.dailySpendCapUsd !== undefined) settings.dailySpendCapUsd = Math.max(0, settings.dailySpendCapUsd);
+  return settings;
+};
+
+/** Store a Dial key after verifying it and discover the account's numbers that can place calls. */
+export async function connectDial(ctx: Ctx, input: ConnectDialInput, d: TelephonyDeps) {
+  assertAdmin(ctx, 'connect Dial');
+  if (!d.kek && process.env.NODE_ENV === 'production') throw unprocessable(NO_KEK);
+  const key = input.apiKey?.trim() || d.dial?.apiKey;
+  if (!key) throw unprocessable('Paste a Dial API key (or set DIAL_API_KEY on the server)', { field: 'apiKey' });
+  const client = dialClient(key, d);
+  let verified: { balanceUsd: number | null; limits: { maxCallDurationSeconds?: number; maxConcurrentCalls?: number } | null } = { balanceUsd: null, limits: null };
+  try {
+    verified = await client.verify();
+  } catch (e) {
+    if (e instanceof DialerError && (e.status === 401 || e.status === 403)) throw unprocessable('Dial rejected the API key', { field: 'apiKey' });
+    throw e;
+  }
+  const numbers = await client.listNumbers().catch(() => []);
+  const fromNumbers = numbers.filter((n) => n.callingEnabled !== false && (!n.capabilities || n.capabilities.includes('call'))).map((n) => normalizePhone(n.number) ?? n.number);
+  const existing = await getTelephony(ctx, 'dial');
+  const prev = (existing?.settings ?? {}) as DialSettings;
+  const { apiKey: _k, coach, ...rest } = input;
+  const settings = normalizeDialSettings({ ...prev, ...stripUndefined(rest) });
+  const values = {
+    workspaceId: ctx.principal.workspaceId,
+    provider: 'dial',
+    /** Not a real account id: Dial keys are account-scoped. Keep the key's tail for display. */
+    accountSid: input.apiKey ? `dial-${key.slice(-4)}` : 'dial-server',
+    authTokenEncrypted: input.apiKey ? seal(key, d.kek) : ENV_KEY,
+    fromNumbers,
+    record: false,
+    transcribe: false,
+    coach: coach ?? existing?.coach ?? true,
+    settings: settings as Record<string, unknown>,
+    updatedAt: ctx.clock.now(),
+  };
+  const [row] = existing
+    ? await ctx.db.update(telephonyConnections).set(values).where(eq(telephonyConnections.id, existing.id)).returning()
+    : await ctx.db.insert(telephonyConnections).values(values).returning();
+  await ensureDialerProvider(ctx, 'dial');
+  return { ...serializeDial(row!, !!d.dial?.apiKey), balanceUsd: verified.balanceUsd, limits: verified.limits };
+}
+
+export async function updateDialSettings(ctx: Ctx, patch: DialSettings & { coach?: boolean; fromNumbers?: string[] }, d: TelephonyDeps) {
+  assertAdmin(ctx, 'change Dial settings');
+  const existing = await getTelephony(ctx, 'dial');
+  if (!existing) throw unprocessable('Dial is not connected');
+  const prev = (existing.settings ?? {}) as DialSettings;
+  const { coach, fromNumbers, ...rest } = patch;
+  const settings = normalizeDialSettings({ ...prev, ...stripUndefined(rest) });
+  const [row] = await ctx.db
+    .update(telephonyConnections)
+    .set({ settings: settings as Record<string, unknown>, ...(coach !== undefined ? { coach } : {}), ...(fromNumbers ? { fromNumbers: fromNumbers.map((n) => normalizePhone(n)).filter((n): n is string => !!n) } : {}), updatedAt: ctx.clock.now() })
+    .where(eq(telephonyConnections.id, existing.id))
+    .returning();
+  return serializeDial(row!, !!d.dial?.apiKey);
+}
+
+export async function disconnectDial(ctx: Ctx) {
+  assertAdmin(ctx, 'disconnect Dial');
+  await ctx.db.delete(telephonyConnections).where(and(eq(telephonyConnections.workspaceId, ctx.principal.workspaceId), eq(telephonyConnections.provider, 'dial')));
+  await clearDialerProviderIf(ctx, 'dial');
+}
+
+export interface DialHandle {
+  kind: 'dial';
+  row: TelephonyRow;
+  client: DialClient;
+  provider: DialProvider;
+  settings: ReturnType<typeof dialSettingsOf>;
+  webhookSecret: null;
+}
+
+export async function dialFor(ctx: Ctx, d: TelephonyDeps): Promise<DialHandle | null> {
+  const row = await getTelephony(ctx, 'dial');
+  if (!row) return null;
+  const key = row.authTokenEncrypted === ENV_KEY ? d.dial?.apiKey : open(row.authTokenEncrypted, d.kek);
+  if (!key) return null;
+  const client = dialClient(key, d);
+  return { kind: 'dial', row, client, provider: new DialProvider(client), settings: dialSettingsOf(row), webhookSecret: null };
+}
+
+export async function requireDial(ctx: Ctx, d: TelephonyDeps): Promise<DialHandle> {
+  const h = await dialFor(ctx, d);
+  if (!h) throw unprocessable('Connect Dial under Settings → Dialer first', { code: 'NO_DIAL' });
+  return h;
+}
+
+/* -------------------------------------------------------- AI dialer (either) */
+
+export type AiDialerHandle = SpekoHandle | DialHandle;
+
+/**
+ * The AI-voiced dialer to use: the one named by `kind`, else the workspace's chosen dialer when it
+ * is an AI one, else whichever of Speko and Dial is connected (Speko first).
+ */
+export async function aiDialerFor(ctx: Ctx, d: TelephonyDeps, kind?: AiDialerKind | string | null): Promise<AiDialerHandle | null> {
+  if (kind) return isAiDialer(kind) ? (kind === 'dial' ? dialFor(ctx, d) : spekoFor(ctx, d)) : null;
+  const s = await workspaceSettings(ctx);
+  const pref = isAiDialer(s.dialerProvider) ? s.dialerProvider : null;
+  const order: AiDialerKind[] = pref ? [pref, ...AI_DIALERS.filter((k) => k !== pref)] : [...AI_DIALERS];
+  for (const k of order) {
+    const h = await aiDialerFor(ctx, d, k);
+    if (h) return h;
+  }
+  return null;
+}
+
+export async function requireAiDialer(ctx: Ctx, d: TelephonyDeps, kind?: AiDialerKind | string | null): Promise<AiDialerHandle> {
+  const h = await aiDialerFor(ctx, d, kind);
+  if (!h) throw unprocessable(kind && isAiDialer(kind) ? `Connect ${DIALER_LABEL[kind]} under Settings → Dialer first` : 'Connect Speko or Dial under Settings → Dialer first', { code: kind === 'speko' ? 'NO_SPEKO' : kind === 'dial' ? 'NO_DIAL' : 'NO_AI_DIALER' });
+  return h;
 }
 
 /* ----------------------------------------------------------- provider pick */
@@ -345,14 +508,19 @@ async function ensureDialerProvider(ctx: Ctx, provider: DialerKind) {
 async function clearDialerProviderIf(ctx: Ctx, provider: DialerKind) {
   const s = await workspaceSettings(ctx);
   if (s.dialerProvider !== provider) return;
-  const other: DialerKind = provider === 'twilio' ? 'speko' : 'twilio';
-  const next = (await getTelephony(ctx, other)) ? other : undefined;
+  let next: DialerKind | undefined;
+  for (const other of (['twilio', 'speko', 'dial'] as DialerKind[]).filter((k) => k !== provider)) {
+    if (await getTelephony(ctx, other)) {
+      next = other;
+      break;
+    }
+  }
   await ctx.db.update(workspaces).set({ settings: { ...s, dialerProvider: next } }).where(eq(workspaces.id, ctx.principal.workspaceId));
 }
 
 export async function setDialerProvider(ctx: Ctx, provider: DialerKind) {
   assertAdmin(ctx, 'choose the dialer provider');
-  if (!(await getTelephony(ctx, provider))) throw unprocessable(`${provider === 'twilio' ? 'Twilio' : 'Speko'} is not connected`, { field: 'provider' });
+  if (!(await getTelephony(ctx, provider))) throw unprocessable(`${DIALER_LABEL[provider]} is not connected`, { field: 'provider' });
   const s = await workspaceSettings(ctx);
   await ctx.db.update(workspaces).set({ settings: { ...s, dialerProvider: provider } }).where(eq(workspaces.id, ctx.principal.workspaceId));
   return provider;
@@ -360,9 +528,10 @@ export async function setDialerProvider(ctx: Ctx, provider: DialerKind) {
 
 /** Everything the Settings → Dialer page and `cooks_dialer_status` need in one read. */
 export async function dialerOverview(ctx: Ctx, d: TelephonyDeps) {
-  const [tw, sp, s] = await Promise.all([getTelephony(ctx, 'twilio', d), getTelephony(ctx, 'speko'), workspaceSettings(ctx)]);
-  const provider: DialerKind | null = s.dialerProvider && ((s.dialerProvider === 'twilio' && tw) || (s.dialerProvider === 'speko' && sp)) ? s.dialerProvider : tw ? 'twilio' : sp ? 'speko' : null;
-  return { provider, twilio: serializeTelephony(tw), speko: serializeSpeko(sp, !!d.speko?.apiKey), parallel: serializeParallelSettings(s.parallelDialer) };
+  const [tw, sp, dl, s] = await Promise.all([getTelephony(ctx, 'twilio', d), getTelephony(ctx, 'speko'), getTelephony(ctx, 'dial'), workspaceSettings(ctx)]);
+  const connected: Record<DialerKind, boolean> = { twilio: !!tw, speko: !!sp, dial: !!dl };
+  const provider: DialerKind | null = s.dialerProvider && connected[s.dialerProvider] ? s.dialerProvider : tw ? 'twilio' : sp ? 'speko' : dl ? 'dial' : null;
+  return { provider, twilio: serializeTelephony(tw), speko: serializeSpeko(sp, !!d.speko?.apiKey), dial: serializeDial(dl, !!d.dial?.apiKey), parallel: serializeParallelSettings(s.parallelDialer) };
 }
 
 /* ------------------------------------------------------ parallel dialer settings */

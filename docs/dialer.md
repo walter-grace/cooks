@@ -1,7 +1,7 @@
 # Dialer
 
 Cooks has two dialer providers. **Twilio** carries calls a rep makes (phone bridge, browser
-softphone, or the parallel power dialer). **Speko** places AI-voiced calls: a voice agent dials the prospect, follows your
+softphone, or the parallel power dialer). **Speko** and **Dial** place AI-voiced calls: a voice agent dials the prospect, follows your
 script, and the outcome, transcript, summary, cost and recording land in Cooks. Both can be
 connected at once; an admin picks which one the Call button uses under Settings → Dialer.
 Every provider sits behind the same interface (`packages/core/src/dialer/providers`): place,
@@ -222,6 +222,47 @@ returned in the error details so a bot can branch on it.
 `scripts/qa/mock-speko.mjs` stands in for the Speko API locally (`SPEKO_API_BASE=http://127.0.0.1:18200`,
 key `sk_live_qa`): sessions auto-play to a finished call with a transcript and recording.
 
+## Dial (AI calls from an agent phone number)
+
+[Dial](https://getdial.ai) gives an agent a real phone number with calls, SMS, WhatsApp and
+iMessage, provisioned from a CLI in minutes. Cooks uses it the same way it uses Speko: a voice
+agent places the call from your script and the transcript lands on the call record.
+
+1. Sign up with the Dial CLI (`npm i -g @getdial/cli`, `dial auth login you@example.com`) or on
+   getdial.ai, then paste the API key (`sk_live_…`, also `dial auth rotate-key`) under
+   Settings → Dialer → Dial. Cooks verifies it against the account, stores it encrypted with
+   `COOKS_KEK` and lists the numbers that can place calls. `DIAL_API_KEY` on the server lets
+   workspaces connect without pasting a key.
+2. Pick a caller id. Numbers are bought in the Dial dashboard or with `dial number purchase`;
+   Cooks never buys them.
+3. Set the script, length and daily cap as for Speko. Dial takes one prompt per call, so the
+   opening line and the voicemail rule are folded into the instruction. Calls run 60 to 600
+   seconds (Dial's own floor is 60; free accounts are cut at 300 by Dial), and `voice` is
+   `male` or `female`.
+
+Placement, polling, the safety checks and the disposition flow are identical to Speko
+(`POST /v1/calls/actions/aiCall`, `cooks_place_ai_call`, `telephony.ai_poll`). Differences:
+
+- Dial reports no per-call cost, no summary and no recording, so those fields stay empty and
+  the daily spend cap is enforced on the running estimate only. Balance comes from
+  `GET /v1/workspace/telephony/dial/balance` (Dial's prepaid credit).
+- There is no answering-machine detection; a completed call with no prospect speech is stored
+  as `no_answer`.
+- Hangup cancels a queued or ringing call (not charged) or ends a live one; the call is stored
+  as `failed` with end reason `canceled`.
+- Free Dial accounts allow two concurrent calls, so the parallel dialer stays on Twilio. Dial's
+  self-hosted audio mode (raw call audio over a websocket) could carry it later; see the
+  research note in the launch kit.
+
+Each prospect can carry its own call script (the **Call script** card on the prospect page, stored
+as `crmCustomFields.aiCallScript` with `firstMessage` and `systemPrompt`). For Speko and Dial alike
+the order is: the script sent with the call, then the prospect's script, then the workspace default.
+
+Every call placed carries an `Idempotency-Key` of `cooks-<call id>`, so a retried request never
+dials twice. Dial error codes (`insufficient_credit`, `unsupported_region`, `calling_disabled`,
+`call_limit_reached`) are translated into rep-facing messages with the original code in the
+error details.
+
 ## Calling
 
 - **From a task**: call steps in sequences show a Call button; logging the call completes the task
@@ -260,7 +301,10 @@ Not interested, Call back later, Do not call. Add more with `POST /v1/callDispos
 | POST | `/v1/calls/{id}/actions/coach` | Re-run transcription/coaching |
 | POST | `/telephony/voice`, `/telephony/voice/bridge`, `/telephony/status`, `/telephony/recording` | Twilio webhooks (signed) |
 | GET | `/v1/workspace/dialer` | Both connections and the chosen provider |
-| PUT | `/v1/workspace/dialer/provider` | Choose `twilio` or `speko` |
+| PUT | `/v1/workspace/dialer/provider` | Choose `twilio`, `speko` or `dial` |
+| GET | `/v1/workspace/dialer/balance` | Balance and spend on whichever AI dialer is active |
+| PUT/PATCH/DELETE | `/v1/workspace/telephony/dial` | Dial key, script, caps, caller id |
+| GET | `/v1/workspace/telephony/dial/balance`, `…/dial/numbers` | Dial credit, spend today, cap; numbers on the account |
 | PUT/PATCH/DELETE | `/v1/workspace/telephony/speko` | Speko key, script, caps, caller id |
 | GET | `/v1/workspace/telephony/speko/balance` | Credits, spend today, cap |
 | GET/POST | `/v1/workspace/telephony/speko/numbers`, `…/numbers/available` | Owned numbers, search, buy (admin, `confirm: true`) |
@@ -269,7 +313,7 @@ Not interested, Call back later, Do not call. Add more with `POST /v1/callDispos
 | GET | `/v1/calls/{id}/transcript` | Outcome, summary, cost, transcript |
 | POST | `/telephony/speko/webhook?ws=` | Speko `call.*` events (Standard Webhooks signature) |
 
-Environment: `TWILIO_API_BASE` and `SPEKO_API_BASE` point the clients at `scripts/qa/mock-twilio.mjs` and `scripts/qa/mock-speko.mjs` for local QA; `SPEKO_API_KEY` is an optional server-wide key.
+Environment: `TWILIO_API_BASE` and `SPEKO_API_BASE` point the clients at `scripts/qa/mock-twilio.mjs` and `scripts/qa/mock-speko.mjs` for local QA; `SPEKO_API_KEY` is an optional server-wide key; `DIAL_API_KEY` and `DIAL_API_BASE` do the same for Dial.
 
 ## Privacy
 

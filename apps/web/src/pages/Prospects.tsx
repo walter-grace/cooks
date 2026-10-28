@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Phone, ExternalLink, MessageSquare, Search, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -225,13 +226,13 @@ export function ProspectDetail({ id }: { id: string }) {
             <Button variant="outline" onClick={() => setLogCall(true)} data-testid="prospect-log-call">
               Log a call
             </Button>
-            {dp?.speko?.status === 'connected' && (
-              <Button variant={dp.provider === 'speko' ? 'default' : 'outline'} onClick={() => setAiCall(true)} data-testid="prospect-ai-call">
+            {(dp?.speko?.status === 'connected' || dp?.dial?.status === 'connected') && (
+              <Button variant={dp.provider === 'speko' || dp.provider === 'dial' ? 'default' : 'outline'} onClick={() => setAiCall(true)} data-testid="prospect-ai-call">
                 <Sparkles className="size-4" /> AI call
               </Button>
             )}
             {(dp?.twilio?.status === 'connected' || !dp) && (
-              <Button variant={dp?.provider === 'speko' ? 'outline' : 'default'} onClick={() => setDial(true)} data-testid="prospect-call">
+              <Button variant={dp?.provider === 'speko' || dp?.provider === 'dial' ? 'outline' : 'default'} onClick={() => setDial(true)} data-testid="prospect-call">
                 <Phone className="size-4" /> Call
               </Button>
             )}
@@ -366,6 +367,8 @@ export function ProspectDetail({ id }: { id: string }) {
         )}
       </Card>
 
+      <CallScriptCard prospect={p} onSaved={reload} />
+
       <Card className="mt-4" data-testid="calls-timeline">
         <CardHeader>
           <CardTitle className="text-base">Calls</CardTitle>
@@ -488,5 +491,90 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
       <span className="text-muted-foreground">{k}</span>
       <span className="text-right">{v || '—'}</span>
     </div>
+  );
+}
+
+/** The script an AI call to this prospect uses (crmCustomFields.aiCallScript); empty means the workspace default. */
+function CallScriptCard({ prospect, onSaved }: { prospect: any; onSaved: () => void }) {
+  const own = prospect.crmCustomFields?.aiCallScript as { firstMessage?: string; systemPrompt?: string } | undefined;
+  const [editing, setEditing] = useState(false);
+  const [firstMessage, setFirstMessage] = useState('');
+  const [systemPrompt, setSystemPrompt] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setFirstMessage(own?.firstMessage ?? '');
+    setSystemPrompt(own?.systemPrompt ?? '');
+  }, [own?.firstMessage, own?.systemPrompt]);
+  const save = async (script: { firstMessage: string; systemPrompt: string } | null) => {
+    setBusy(true);
+    try {
+      const { aiCallScript: _drop, ...rest } = prospect.crmCustomFields ?? {};
+      await api(`/v1/prospects/${prospect.id}`, { method: 'PATCH', json: { data: { crmCustomFields: script ? { ...rest, aiCallScript: script } : rest } } });
+      toast(script ? 'Call script saved' : 'Call script removed; AI calls use the workspace default');
+      setEditing(false);
+      onSaved();
+    } catch (e: any) {
+      toast(e.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card className="mt-4" data-testid="call-script-card">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+        <div className="grid gap-1.5">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Sparkles className="size-4" /> Call script
+          </CardTitle>
+          <CardDescription>{own ? 'What the AI agent says and does when it calls this prospect.' : 'No script of its own yet. AI calls use the workspace default from Settings → Dialer.'}</CardDescription>
+        </div>
+        {!editing && (
+          <Button variant="outline" onClick={() => setEditing(true)} data-testid="call-script-edit">
+            {own ? 'Edit' : 'Write a script'}
+          </Button>
+        )}
+      </CardHeader>
+      {(own || editing) && (
+        <CardContent className="grid gap-3 text-sm">
+          {editing ? (
+            <>
+              <div className="grid gap-2">
+                <Label>Opening line</Label>
+                <Input value={firstMessage} onChange={(e) => setFirstMessage(e.target.value)} data-testid="call-script-first" />
+              </div>
+              <div className="grid gap-2">
+                <Label>Instructions for the agent</Label>
+                <Textarea rows={8} value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} data-testid="call-script-prompt" />
+                <p className="text-xs text-muted-foreground">Merge fields: {'{{ prospect.firstName }}'}, {'{{ account.name }}'}, {'{{ owner.name }}'}, {'{{ workspace.name }}'}</p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                {own && (
+                  <Button variant="ghost" disabled={busy} onClick={() => save(null)}>
+                    Use workspace default
+                  </Button>
+                )}
+                <Button variant="outline" disabled={busy} onClick={() => setEditing(false)}>
+                  Cancel
+                </Button>
+                <Button disabled={busy || (!firstMessage.trim() && !systemPrompt.trim())} onClick={() => save({ firstMessage, systemPrompt })} data-testid="call-script-save">
+                  {busy ? 'Saving…' : 'Save script'}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <div className="text-xs text-muted-foreground">Opening line</div>
+                <p className="mt-1">{own?.firstMessage || '—'}</p>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Instructions for the agent</div>
+                <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{own?.systemPrompt || '—'}</p>
+              </div>
+            </>
+          )}
+        </CardContent>
+      )}
+    </Card>
   );
 }

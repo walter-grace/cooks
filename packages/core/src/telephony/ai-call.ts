@@ -1,10 +1,10 @@
 /**
- * AI-voiced calls through Speko: place with safety checks (DNC, quiet hours, duration cap, daily
- * spend cap), poll until the call ends, then store transcript, outcome, cost and recording, log
- * the disposition (which closes the task and fires call.logged), and queue coaching.
+ * AI-voiced calls through Speko or Dial: place with safety checks (DNC, quiet hours, duration cap,
+ * daily spend cap), poll until the call ends, then store transcript, outcome, cost and recording,
+ * log the disposition (which closes the task and fires call.logged), and queue coaching.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { and, desc, eq, gte, isNull } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import { accounts, callDispositions, callTranscripts, calls, prospects, tasks, telephonyConnections, users, workspaces } from '@cooks/db';
 import type { Ctx } from '../context.js';
@@ -15,7 +15,8 @@ import { notFound, unprocessable } from '../errors.js';
 import { serializeCall, type CallRow } from '../services/calls.js';
 import { fullName } from '../services/prospects.js';
 import { isoReq, memberIds, requireMember, uuidOr404 } from '../services/_shared.js';
-import { MAX_AI_CALL_SECONDS, requireSpeko, spekoFor, type TelephonyDeps } from './connection.js';
+import { AI_DIALERS, DIALER_LABEL, MAX_AI_CALL_SECONDS, aiDialerFor, dialFor, isAiDialer, requireAiDialer, spekoFor, type AiDialerKind, type TelephonyDeps } from './connection.js';
+import { DIAL_MIN_CALL_SECONDS } from '../dialer/providers/dial.js';
 import { logCall } from './dialer.js';
 import { normalizePhone } from './twilio.js';
 
@@ -77,13 +78,13 @@ async function resolveOwner(ctx: Ctx, candidates: Array<string | null | undefine
   return first;
 }
 
-/** Speko calls that already cost money today (UTC), plus a running estimate for calls still in flight. */
-export async function spekoSpendToday(ctx: Ctx, now: Date): Promise<{ spentUsd: number; inFlight: number }> {
+/** AI calls that already cost money today (UTC), plus a running estimate for calls still in flight. */
+export async function aiSpendToday(ctx: Ctx, now: Date, provider?: AiDialerKind): Promise<{ spentUsd: number; inFlight: number }> {
   const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const rows = await ctx.db
     .select({ cost: calls.costUsd, status: calls.status, aiConfig: calls.aiConfig })
     .from(calls)
-    .where(and(eq(calls.workspaceId, ctx.principal.workspaceId), eq(calls.provider, 'speko'), gte(calls.createdAt, dayStart), isNull(calls.deletedAt)));
+    .where(and(eq(calls.workspaceId, ctx.principal.workspaceId), provider ? eq(calls.provider, provider) : inArray(calls.provider, [...AI_DIALERS]), gte(calls.createdAt, dayStart), isNull(calls.deletedAt)));
   let spentUsd = 0;
   let inFlight = 0;
   for (const r of rows) {
@@ -95,6 +96,7 @@ export async function spekoSpendToday(ctx: Ctx, now: Date): Promise<{ spentUsd: 
   }
   return { spentUsd: Math.round(spentUsd * 10_000) / 10_000, inFlight };
 }
+export const spekoSpendToday = (ctx: Ctx, now: Date) => aiSpendToday(ctx, now, 'speko');
 
 /** True when the prospect has ever been logged with a Do-not-call disposition. */
 export const dncOutcome = async (ctx: Ctx, prospectId: string) => {
@@ -108,13 +110,16 @@ export const dncOutcome = async (ctx: Ctx, prospectId: string) => {
 };
 
 /**
- * Place an AI call. Safety checks run before any provider request; a provider rejection is
- * stored on the call row with the rep-facing message and re-thrown as a 422 with Speko's code.
+ * Place an AI call through the workspace's AI dialer (Speko or Dial). Safety checks run before any
+ * provider request; a provider rejection is stored on the call row with the rep-facing message and
+ * re-thrown as a 422 with the provider's code.
  */
 export async function placeAiCall(ctx: Ctx, input: AiCallInput, d: AiCallDeps) {
   const ws = ctx.principal.workspaceId;
   const now = ctx.clock.now();
-  const sp = await requireSpeko(ctx, d);
+  const sp = await requireAiDialer(ctx, d);
+  const kind = sp.kind;
+  const label = DIALER_LABEL[kind];
   const task = input.taskId ? (await ctx.db.select().from(tasks).where(and(eq(tasks.workspaceId, ws), eq(tasks.id, uuidOr404(input.taskId, 'Task')))).limit(1))[0] : undefined;
   if (input.taskId && !task) throw notFound('Task');
   const prospectId = input.prospectId ?? task?.prospectId ?? null;
@@ -134,13 +139,13 @@ export async function placeAiCall(ctx: Ctx, input: AiCallInput, d: AiCallDeps) {
     const next = nextCallWindow(now, tz);
     throw unprocessable(`Outside calling hours for ${tz} (${CALL_HOURS.start}:00 to ${CALL_HOURS.end}:00 local). Next window opens ${DateTime.fromJSDate(next).setZone(tz).toFormat('ccc HH:mm ZZZZ')}.`, { code: 'QUIET_HOURS', timezone: tz, nextWindowAt: next.toISOString() });
   }
-  const maxDurationSeconds = Math.min(Math.max(30, input.maxDurationSeconds ?? sp.settings.maxDurationSeconds), MAX_AI_CALL_SECONDS);
+  const maxDurationSeconds = Math.min(Math.max(kind === 'dial' ? DIAL_MIN_CALL_SECONDS : 30, input.maxDurationSeconds ?? sp.settings.maxDurationSeconds), MAX_AI_CALL_SECONDS);
   const cap = sp.settings.dailySpendCapUsd;
-  const spend = await spekoSpendToday(ctx, now);
+  const spend = await aiSpendToday(ctx, now, kind);
   const estimate = (maxDurationSeconds / 60) * EST_USD_PER_MINUTE;
   if (cap > 0 && spend.spentUsd + estimate > cap) throw unprocessable(`Daily AI call budget reached ($${spend.spentUsd.toFixed(2)} of $${cap.toFixed(2)} today). Raise the cap under Settings → Dialer or try tomorrow.`, { code: 'SPEND_CAP', spentUsd: spend.spentUsd, capUsd: cap });
   const from = normalizePhone(input.fromNumber ?? sp.settings.fromNumber ?? sp.row.fromNumbers[0] ?? null);
-  if (!from) throw unprocessable('No caller id: pick or buy a Speko number under Settings → Dialer', { field: 'fromNumber' });
+  if (!from) throw unprocessable(kind === 'speko' ? 'No caller id: pick or buy a Speko number under Settings → Dialer' : 'No caller id: pick a Dial number under Settings → Dialer', { field: 'fromNumber' });
 
   // ---- script
   const vars: Record<string, string | null | undefined> = {
@@ -156,12 +161,14 @@ export async function placeAiCall(ctx: Ctx, input: AiCallInput, d: AiCallDeps) {
     'owner.calendarUrl': owner?.calendarUrl,
     'workspace.name': w?.name,
   };
+  // A prospect can carry its own script (crmCustomFields.aiCallScript); it beats the workspace default.
+  const own = (p?.crmCustomFields?.aiCallScript ?? {}) as { systemPrompt?: string; firstMessage?: string };
   const script: CallScript = {
-    systemPrompt: fillScript(input.systemPrompt ?? sp.settings.systemPrompt, vars),
-    firstMessage: fillScript(input.firstMessage ?? sp.settings.firstMessage, vars),
+    systemPrompt: fillScript(input.systemPrompt ?? own.systemPrompt ?? sp.settings.systemPrompt, vars),
+    firstMessage: fillScript(input.firstMessage ?? own.firstMessage ?? sp.settings.firstMessage, vars),
     language: input.language ?? sp.settings.language,
     voice: input.voice ?? sp.settings.voice ?? undefined,
-    agentId: input.agentId ?? sp.settings.agentId ?? undefined,
+    agentId: input.agentId ?? (kind === 'speko' ? sp.settings.agentId : undefined) ?? undefined,
     onMachine: input.onMachine ?? sp.settings.onMachine,
     voicemailMessage: input.voicemailMessage ?? (sp.settings.voicemailMessage ? fillScript(sp.settings.voicemailMessage, vars) : undefined),
   };
@@ -183,7 +190,7 @@ export async function placeAiCall(ctx: Ctx, input: AiCallInput, d: AiCallDeps) {
       toNumber: to,
       status: 'initiated',
       time: now,
-      provider: 'speko',
+      provider: kind,
       mode: 'ai',
       aiConfig: { ...script, maxDurationSeconds, timezone: tz, from },
     })
@@ -195,9 +202,9 @@ export async function placeAiCall(ctx: Ctx, input: AiCallInput, d: AiCallDeps) {
     await ctx.jobs.send('telephony.ai_poll', { callId: call.id, workspaceId: ws, attempt: 1 }, { startAfter: new Date(now.getTime() + POLL_INTERVAL_SECONDS * 1000), singletonKey: `aipoll:${call.id}:1` });
     return { call: serializeCall(updated!), status: 'queued' as const, maxDurationSeconds, timezone: tz, estimatedUsd: Math.round(estimate * 100) / 100 };
   } catch (e) {
-    const err = e instanceof DialerError ? e : new DialerError('speko', 'UNKNOWN', (e as Error).message, 502, true);
-    await ctx.db.update(calls).set({ status: 'failed', outcome: 'failed', endReason: err.code, notes: `Speko: ${err.message}`, endedAt: now, updatedAt: now }).where(eq(calls.id, call.id));
-    throw unprocessable(err.message, { code: err.code, provider: 'speko', retryable: err.retryable, ...(err.details ?? {}) });
+    const err = e instanceof DialerError ? e : new DialerError(kind, 'UNKNOWN', (e as Error).message, 502, true);
+    await ctx.db.update(calls).set({ status: 'failed', outcome: 'failed', endReason: err.code, notes: `${label}: ${err.message}`, endedAt: now, updatedAt: now }).where(eq(calls.id, call.id));
+    throw unprocessable(err.message, { code: err.code, provider: kind, retryable: err.retryable, ...(err.details ?? {}) });
   }
 }
 
@@ -245,7 +252,7 @@ async function finalizeAiCall(ctx: Ctx, row: CallRow, state: ProviderCallState, 
   const now = ctx.clock.now();
   const outcome: CallOutcome = state.outcome ?? 'failed';
   const transcript = state.transcript ?? [];
-  const sp = await spekoFor(ctx, d);
+  const sp = await aiDialerFor(ctx, d, row.provider);
   let recordingUrl: string | null = null;
   if (sp && row.spekoSessionId && state.recordingStatus !== 'suppressed' && state.recordingStatus !== 'discarded') {
     recordingUrl = (await sp.provider.getRecording(row.spekoSessionId).catch(() => null)) ? `${d.publicUrl.replace(/\/+$/, '')}/v1/calls/${row.id}/recording` : null;
@@ -275,10 +282,10 @@ async function finalizeAiCall(ctx: Ctx, row: CallRow, state: ProviderCallState, 
     const sec = (iso: string | null | undefined) => (iso && t0 ? Math.max(0, (new Date(iso).getTime() - t0) / 1000) : 0);
     const segments = transcript.filter((t) => t.role !== 'system').map((t) => ({ speaker: t.role === 'agent' ? ('rep' as const) : ('prospect' as const), start: sec(t.startedAt), end: sec(t.endedAt ?? t.startedAt), text: t.text }));
     await ctx.db.delete(callTranscripts).where(eq(callTranscripts.callId, row.id));
-    await ctx.db.insert(callTranscripts).values({ workspaceId: row.workspaceId, callId: row.id, provider: 'speko', segments, text: segments.map((s) => `${s.speaker === 'rep' ? 'Agent' : 'Prospect'}: ${s.text}`).join('\n'), summary: state.summary ?? null, stats: transcriptStats(segments) });
+    await ctx.db.insert(callTranscripts).values({ workspaceId: row.workspaceId, callId: row.id, provider: row.provider ?? 'speko', segments, text: segments.map((s) => `${s.speaker === 'rep' ? 'Agent' : 'Prospect'}: ${s.text}`).join('\n'), summary: state.summary ?? null, stats: transcriptStats(segments) });
     if (coach) await ctx.jobs.send('ai.coach_call', { callId: row.id, workspaceId: row.workspaceId }, { singletonKey: `coach:${row.id}` });
   }
-  await emitEvent(ctx.db, { workspaceId: row.workspaceId, type: 'call.completed', aggregateType: 'call', aggregateId: row.id, payload: { callId: row.id, prospectId: row.prospectId, ownerId: row.ownerId, status: STATUS_FOR[outcome], outcome, durationSeconds: duration, costUsd: state.costUsd ?? null, provider: 'speko' }, dedupeKey: `${row.id}:completed` });
+  await emitEvent(ctx.db, { workspaceId: row.workspaceId, type: 'call.completed', aggregateType: 'call', aggregateId: row.id, payload: { callId: row.id, prospectId: row.prospectId, ownerId: row.ownerId, status: STATUS_FOR[outcome], outcome, durationSeconds: duration, costUsd: state.costUsd ?? null, provider: row.provider }, dedupeKey: `${row.id}:completed` });
   if (!row.loggedAt) {
     const notes = [state.summary, state.endReason ? `End reason: ${state.endReason}` : null].filter(Boolean).join('\n') || null;
     await logCall(ctx, row.id, { outcome: DISPOSITION_FOR[outcome], notes }).catch(() => undefined);
@@ -292,9 +299,9 @@ async function finalizeAiCall(ctx: Ctx, row: CallRow, state: ProviderCallState, 
  */
 export async function pollAiCall(ctx: Ctx, callId: string, d: AiCallDeps, opts: { attempt?: number } = {}): Promise<{ done: boolean; status: string; outcome?: CallOutcome; nextDelaySeconds?: number }> {
   const row = await callRow(ctx, callId);
-  if (row.provider !== 'speko' || !row.spekoSessionId) return { done: true, status: row.status };
+  if (!isAiDialer(row.provider) || !row.spekoSessionId) return { done: true, status: row.status };
   if (!['initiated', 'queued', 'ringing', 'in_progress'].includes(row.status)) return { done: true, status: row.status, outcome: (row.outcome as CallOutcome | null) ?? undefined };
-  const sp = await requireSpeko(ctx, d);
+  const sp = await requireAiDialer(ctx, d, row.provider);
   const now = ctx.clock.now();
   const coach = sp.row.coach;
   let state: ProviderCallState;
@@ -319,7 +326,7 @@ export async function pollAiCall(ctx: Ctx, callId: string, d: AiCallDeps, opts: 
   if (state.status === 'in_progress' && row.status !== 'in_progress') {
     patch.status = 'in_progress';
     patch.time = now;
-    await emitEvent(ctx.db, { workspaceId: row.workspaceId, type: 'call.started', aggregateType: 'call', aggregateId: row.id, payload: { callId: row.id, prospectId: row.prospectId, ownerId: row.ownerId, provider: 'speko' }, dedupeKey: `${row.id}:started` });
+    await emitEvent(ctx.db, { workspaceId: row.workspaceId, type: 'call.started', aggregateType: 'call', aggregateId: row.id, payload: { callId: row.id, prospectId: row.prospectId, ownerId: row.ownerId, provider: row.provider }, dedupeKey: `${row.id}:started` });
   }
   if (Object.keys(patch).length > 1) await ctx.db.update(calls).set(patch).where(eq(calls.id, row.id));
   const attempt = opts.attempt ?? 1;
@@ -328,9 +335,9 @@ export async function pollAiCall(ctx: Ctx, callId: string, d: AiCallDeps, opts: 
 
 export async function hangupAiCall(ctx: Ctx, callId: string, d: AiCallDeps) {
   const row = await callRow(ctx, callId);
-  if (row.provider !== 'speko' || !row.spekoSessionId) throw unprocessable('Only AI calls can be ended from here');
+  if (!isAiDialer(row.provider) || !row.spekoSessionId) throw unprocessable('Only AI calls can be ended from here');
   if (!['queued', 'ringing', 'in_progress', 'initiated'].includes(row.status)) return { callId: row.id, status: row.status, ended: false };
-  const sp = await requireSpeko(ctx, d);
+  const sp = await requireAiDialer(ctx, d, row.provider);
   await sp.provider.hangup(row.spekoSessionId);
   await ctx.jobs.send('telephony.ai_poll', { callId: row.id, workspaceId: row.workspaceId, attempt: 1 }, { startAfter: new Date(ctx.clock.now().getTime() + 3000), singletonKey: `aipoll:${row.id}:hangup:${Date.now()}` });
   return { callId: row.id, status: row.status, ended: true };
@@ -338,8 +345,8 @@ export async function hangupAiCall(ctx: Ctx, callId: string, d: AiCallDeps) {
 
 /** Stream a Speko recording through the API so the UI never sees the signed URL or the key. */
 export async function aiRecordingResponse(ctx: Ctx, row: CallRow, d: AiCallDeps): Promise<Response> {
-  if (!row.spekoSessionId) throw notFound('Recording');
-  const sp = await requireSpeko(ctx, d);
+  if (!row.spekoSessionId || !isAiDialer(row.provider)) throw notFound('Recording');
+  const sp = await requireAiDialer(ctx, d, row.provider);
   const ref = await sp.provider.getRecording(row.spekoSessionId);
   if (!ref) throw notFound('Recording');
   const upstream = await (d.fetchImpl ?? fetch)(ref.url, { redirect: 'follow' });
@@ -375,6 +382,12 @@ export async function callTranscript(ctx: Ctx, callId: string) {
 
 /* ---------- Speko numbers and balance ---------- */
 
+const requireSpeko = async (ctx: Ctx, d: AiCallDeps) => {
+  const sp = await spekoFor(ctx, d);
+  if (!sp) throw unprocessable('Connect Speko under Settings → Dialer first', { code: 'NO_SPEKO' });
+  return sp;
+};
+
 export async function spekoNumbers(ctx: Ctx, d: AiCallDeps) {
   const sp = await requireSpeko(ctx, d);
   const list = await sp.client.listNumbers();
@@ -406,11 +419,24 @@ export async function buySpekoNumber(ctx: Ctx, d: AiCallDeps, input: { e164: str
   return { id: bought.id, e164: num, label: bought.label ?? null, status: bought.setupStatus?.status ?? 'unknown', outboundReady: bought.setupStatus?.outboundReady ?? null, issues: bought.setupStatus?.issues ?? [], nextChargeAt: bought.nextChargeAt ?? null, isDefault: settings.fromNumber === num };
 }
 
-export async function dialerBalance(ctx: Ctx, d: AiCallDeps) {
-  const sp = await spekoFor(ctx, d);
-  if (!sp) return { provider: 'speko' as const, connected: false, balanceUsd: null, currency: 'USD', spentTodayUsd: 0, inFlight: 0, dailySpendCapUsd: null as number | null, updatedAt: null as string | null };
-  const [bal, spend] = await Promise.all([sp.client.balance().catch(() => ({ balanceUsd: null, currency: 'USD', updatedAt: null })), spekoSpendToday(ctx, ctx.clock.now())]);
-  return { provider: 'speko' as const, connected: true, balanceUsd: bal.balanceUsd, currency: bal.currency, spentTodayUsd: spend.spentUsd, inFlight: spend.inFlight, dailySpendCapUsd: sp.settings.dailySpendCapUsd, updatedAt: bal.updatedAt ?? null };
+/** Balance and spend for one AI dialer, or for the workspace's active one when `kind` is omitted. */
+export async function dialerBalance(ctx: Ctx, d: AiCallDeps, kind?: AiDialerKind) {
+  const sp = await aiDialerFor(ctx, d, kind);
+  if (!sp) return { provider: kind ?? null, connected: false, balanceUsd: null, currency: 'USD', spentTodayUsd: 0, inFlight: 0, dailySpendCapUsd: null as number | null, updatedAt: null as string | null };
+  const [bal, spend] = await Promise.all([sp.client.balance().catch(() => ({ balanceUsd: null, currency: 'USD', updatedAt: null })), aiSpendToday(ctx, ctx.clock.now(), sp.kind)]);
+  return { provider: sp.kind, connected: true, balanceUsd: bal.balanceUsd, currency: bal.currency, spentTodayUsd: spend.spentUsd, inFlight: spend.inFlight, dailySpendCapUsd: sp.settings.dailySpendCapUsd, updatedAt: bal.updatedAt ?? null };
+}
+
+/* ---------- Dial numbers ---------- */
+
+export async function dialNumbers(ctx: Ctx, d: AiCallDeps) {
+  const h = await dialFor(ctx, d);
+  if (!h) throw unprocessable('Connect Dial under Settings → Dialer first', { code: 'NO_DIAL' });
+  const list = await h.client.listNumbers();
+  return list.map((n) => {
+    const e164 = normalizePhone(n.number) ?? n.number;
+    return { id: n.id, e164, label: n.nickname ?? null, country: n.country ?? null, capabilities: n.capabilities ?? [], callingEnabled: n.callingEnabled ?? null, status: n.status ?? null, isDefault: (h.settings.fromNumber ?? h.row.fromNumbers[0]) === e164 };
+  });
 }
 
 /* ---------- webhook ---------- */

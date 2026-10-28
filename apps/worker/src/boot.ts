@@ -43,6 +43,8 @@ return {
   twilioEnv: env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN ? { accountSid: env.TWILIO_ACCOUNT_SID, authToken: env.TWILIO_AUTH_TOKEN, fromNumber: env.TWILIO_FROM_NUMBER, apiKeySid: env.TWILIO_API_KEY_SID, apiKeySecret: env.TWILIO_API_KEY_SECRET, twimlAppSid: env.TWILIO_TWIML_APP_SID } : undefined,
   spekoApiKey: env.SPEKO_API_KEY,
   spekoApiBase: env.SPEKO_API_BASE,
+  dialApiKey: env.DIAL_API_KEY,
+  dialApiBase: env.DIAL_API_BASE,
   inkboxApiBase: env.INKBOX_API_BASE,
   log: (msg: string, data?: Record<string, unknown>) => console.log(`[worker] ${msg}`, data ? JSON.stringify(data) : ''),
 };

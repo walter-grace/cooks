@@ -16,10 +16,10 @@ export function Dialer({ isAdmin }: { isAdmin: boolean }) {
   const dialer = useApi<{ data: any }>('/v1/workspace/dialer');
   const d = dialer.data?.data;
   if (!d) return null;
-  const pick = async (provider: 'twilio' | 'speko') => {
+  const pick = async (provider: 'twilio' | 'speko' | 'dial') => {
     try {
       await api('/v1/workspace/dialer/provider', { method: 'PUT', json: { data: { provider } } });
-      toast(`${provider === 'twilio' ? 'Twilio' : 'Speko'} is now the dialer`);
+      toast(`${{ twilio: 'Twilio', speko: 'Speko', dial: 'Dial' }[provider]} is now the dialer`);
       dialer.reload();
     } catch (e: any) {
       toast(e.message, 'error');
@@ -27,11 +27,12 @@ export function Dialer({ isAdmin }: { isAdmin: boolean }) {
   };
   return (
     <div className="grid gap-4 pt-2">
-      <div className="grid gap-3 md:grid-cols-2" data-testid="dialer-providers">
+      <div className="grid gap-3 md:grid-cols-3" data-testid="dialer-providers">
         {(
           [
             ['twilio', 'Twilio', 'Reps call from their phone or the browser. Recordings, transcripts and coaching.', d.twilio.status],
             ['speko', 'Speko', 'An AI voice agent places the call, follows your script and reports the outcome and transcript.', d.speko.status],
+            ['dial', 'Dial', 'A phone number for your agent in seconds: the Dial voice agent places the call from your script and brings back the transcript.', d.dial?.status ?? 'disconnected'],
           ] as const
         ).map(([key, name, blurb, status]) => (
           <div key={key} className={`flex items-start justify-between gap-3 rounded-lg border p-3 ${d.provider === key ? 'border-primary' : ''}`} data-testid={`provider-${key}`}>
@@ -52,9 +53,199 @@ export function Dialer({ isAdmin }: { isAdmin: boolean }) {
         ))}
       </div>
       <Speko isAdmin={isAdmin} data={d.speko} reload={dialer.reload} />
+      {d.dial && <DialCard isAdmin={isAdmin} data={d.dial} reload={dialer.reload} />}
       <Twilio isAdmin={isAdmin} t={d.twilio} reload={dialer.reload} />
       {d.twilio.status === 'connected' && <ParallelCompliance isAdmin={isAdmin} reload={dialer.reload} />}
     </div>
+  );
+}
+
+/** Dial (getdial.ai): an agent phone number with calls and texts. Same script and caps as Speko; no number buying here (the Dial dashboard does that). */
+function DialCard({ isAdmin, data: s, reload }: { isAdmin: boolean; data: any; reload: () => void }) {
+  const bal = useApi<{ data: any }>(s.status === 'connected' ? '/v1/workspace/telephony/dial/balance' : null, [s.status, s.updatedAt]);
+  const numbers = useApi<{ data: any[] }>(s.status === 'connected' ? '/v1/workspace/telephony/dial/numbers' : null, [s.status, s.updatedAt]);
+  const [apiKey, setApiKey] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [f, setF] = useState({ systemPrompt: '', firstMessage: '', maxDurationSeconds: 120, dailySpendCapUsd: 20, fromNumber: '', onMachine: 'leave_message', voice: '' });
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    if (s.status === 'connected' && !dirty) setF({ systemPrompt: s.settings.systemPrompt ?? '', firstMessage: s.settings.firstMessage ?? '', maxDurationSeconds: s.settings.maxDurationSeconds ?? 120, dailySpendCapUsd: s.settings.dailySpendCapUsd ?? 20, fromNumber: s.settings.fromNumber ?? '', onMachine: s.settings.onMachine ?? 'leave_message', voice: s.settings.voice ?? '' });
+  }, [s.updatedAt, s.status]);
+  const connect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api('/v1/workspace/telephony/dial', { method: 'PUT', json: { data: { apiKey: apiKey.trim() || undefined } } });
+      setApiKey('');
+      toast('Dial connected');
+      reload();
+    } catch (err: any) {
+      toast(err.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api('/v1/workspace/telephony/dial', { method: 'PATCH', json: { data: { ...f, fromNumber: f.fromNumber || null, voice: f.voice || null } } });
+      setDirty(false);
+      toast('Dial call settings saved');
+      reload();
+    } catch (err: any) {
+      toast(err.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const patch = async (p: Record<string, unknown>) => {
+    try {
+      await api('/v1/workspace/telephony/dial', { method: 'PATCH', json: { data: p } });
+      reload();
+    } catch (err: any) {
+      toast(err.message, 'error');
+    }
+  };
+  const set = (k: keyof typeof f, v: string | number) => {
+    setF({ ...f, [k]: v });
+    setDirty(true);
+  };
+  const b = bal.data?.data;
+  return (
+    <Card data-testid="dial-card">
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div className="grid gap-1">
+          <CardTitle>
+            Dial AI calls {s.status === 'connected' && <Badge className="ml-1">connected</Badge>}
+          </CardTitle>
+          <CardDescription>
+            {s.status === 'connected'
+              ? `Key ${s.keySource === 'server' ? 'from the server' : `…${s.keyLast4}`} · ${plural(s.fromNumbers.length, 'number')}${b ? `${b.balanceUsd === null ? '' : ` · balance ${fmtMoney(b.balanceUsd)}`} · spent today ${fmtMoney(b.spentTodayUsd)} of ${fmtMoney(b.dailySpendCapUsd)}` : ''}`
+              : 'Paste a Dial API key (getdial.ai → dashboard, or `dial auth rotate-key`). Dial gives the agent a real phone number; calls are placed by its voice agent and land here with the outcome and transcript. No recording.'}
+          </CardDescription>
+        </div>
+        {isAdmin && s.status === 'connected' && (
+          <Button variant="destructive" size="sm" onClick={() => api('/v1/workspace/telephony/dial', { method: 'DELETE' }).then(reload)} data-testid="dial-disconnect">
+            Disconnect
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {s.status === 'connected' && b && (
+          <div className="grid gap-3 md:grid-cols-4" data-testid="dial-balance">
+            <Stat k="Balance" v={fmtMoney(b.balanceUsd, 'USD', 'n/a')} />
+            <Stat k="Spent today" v={fmtMoney(b.spentTodayUsd)} />
+            <Stat k="Daily cap" v={fmtMoney(b.dailySpendCapUsd)} />
+            <Stat k="In flight" v={fmtInt(b.inFlight)} />
+          </div>
+        )}
+        {s.status === 'connected' && (
+          <div className="grid gap-3">
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="grid gap-2">
+                <Label>Caller id</Label>
+                <Select value={f.fromNumber || 'first'} onValueChange={(v) => set('fromNumber', v === 'first' ? '' : v)} disabled={!isAdmin}>
+                  <SelectTrigger className="w-full" data-testid="dial-from">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="first">First number</SelectItem>
+                    {s.fromNumbers.map((n: string) => (
+                      <SelectItem key={n} value={n}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Max length (seconds, {s.settings.minSeconds} to {s.settings.maxAllowedSeconds})</Label>
+                <Input type="number" min={s.settings.minSeconds} max={s.settings.maxAllowedSeconds} value={f.maxDurationSeconds} onChange={(e) => set('maxDurationSeconds', Number(e.target.value))} disabled={!isAdmin} data-testid="dial-max" />
+              </div>
+              <div className="grid gap-2">
+                <Label>Daily spend cap (USD)</Label>
+                <Input type="number" min={0} step={1} value={f.dailySpendCapUsd} onChange={(e) => set('dailySpendCapUsd', Number(e.target.value))} disabled={!isAdmin} data-testid="dial-cap" />
+              </div>
+              <div className="grid gap-2">
+                <Label>Voice</Label>
+                <Select value={f.voice || 'default'} onValueChange={(v) => set('voice', v === 'default' ? '' : v)} disabled={!isAdmin}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Dial default</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="male">Male</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Opening line</Label>
+              <Input value={f.firstMessage} onChange={(e) => set('firstMessage', e.target.value)} disabled={!isAdmin} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Default instructions for the agent</Label>
+              <Textarea rows={5} value={f.systemPrompt} onChange={(e) => set('systemPrompt', e.target.value)} disabled={!isAdmin} />
+              <p className="text-xs text-muted-foreground">Merge fields: {'{{ prospect.firstName }}'}, {'{{ prospect.title }}'}, {'{{ account.name }}'}, {'{{ owner.name }}'}, {'{{ workspace.name }}'}. Dial takes one prompt per call, so the opening line and the voicemail rule are folded into it.</p>
+            </div>
+            <div className="grid gap-2 md:grid-cols-3">
+              <div className="grid gap-2">
+                <Label>On voicemail</Label>
+                <Select value={f.onMachine} onValueChange={(v) => set('onMachine', v)} disabled={!isAdmin}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="leave_message">Leave a message</SelectItem>
+                    <SelectItem value="hangup">Hang up</SelectItem>
+                    <SelectItem value="agent_decides">Let the agent decide</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3 md:col-span-2">
+                <div>
+                  <div className="text-sm font-medium">AI coaching on AI calls</div>
+                  <div className="text-xs text-muted-foreground">Score the agent's transcript with the workspace AI provider</div>
+                </div>
+                <Switch checked={!!s.coach} disabled={!isAdmin} onCheckedChange={(v) => patch({ coach: v })} />
+              </div>
+            </div>
+            {isAdmin && (
+              <div>
+                <Button onClick={save} disabled={busy || !dirty} data-testid="dial-save">
+                  Save Dial call settings
+                </Button>
+              </div>
+            )}
+            <div className="grid gap-1 rounded-lg border p-3" data-testid="dial-numbers">
+              <div className="text-sm font-medium">Numbers on the account</div>
+              {numbers.data?.data.map((n) => (
+                <div key={n.id} className="flex items-center justify-between text-sm" data-testid="dial-number">
+                  <span>
+                    {n.e164} {n.label ? <span className="text-muted-foreground">· {n.label}</span> : null} {n.isDefault && <Badge variant="secondary">default</Badge>}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{(n.capabilities as string[]).join(', ')}{n.callingEnabled === false ? ' · calling off' : ''}</span>
+                </div>
+              ))}
+              {numbers.data && numbers.data.data.length === 0 && <p className="text-xs text-muted-foreground">No numbers yet. Add one in the Dial dashboard or with `dial number purchase`.</p>}
+              <p className="text-xs text-muted-foreground">Free Dial accounts are limited to two concurrent calls and five minutes a call until the first top-up.</p>
+            </div>
+          </div>
+        )}
+        <form className="grid gap-3 md:grid-cols-2" onSubmit={connect} data-testid="dial-form">
+          <div className="grid gap-2">
+            <Label>API key {s.serverKeyAvailable ? '(blank = use the server key)' : ''}</Label>
+            <Input type="password" placeholder="sk_live_…" value={apiKey} onChange={(e) => setApiKey(e.target.value)} data-testid="dial-key" />
+          </div>
+          <div className="flex items-end">
+            <Button type="submit" disabled={!isAdmin || busy || (!apiKey && !s.serverKeyAvailable && s.status !== 'connected')} data-testid="dial-connect">
+              {s.status === 'connected' ? 'Save credentials' : 'Connect Dial'}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -60,7 +60,7 @@ export interface AppDeps {
   /** HubSpot OAuth app (optional; private-app tokens work without it). */
   hubspotApp?: { clientId: string; clientSecret: string };
   /** Twilio: override the API base for mocks; `trustWebhookSignature: false` skips X-Twilio-Signature checks (tests only). */
-  telephony?: { apiBase?: string; trustWebhookSignature?: boolean; speko?: { apiKey?: string; apiBase?: string }; twilioEnv?: TwilioEnv; speech?: SpeechConfig; practice?: PracticeConfig };
+  telephony?: { apiBase?: string; trustWebhookSignature?: boolean; speko?: { apiKey?: string; apiBase?: string }; dial?: { apiKey?: string; apiBase?: string }; twilioEnv?: TwilioEnv; speech?: SpeechConfig; practice?: PracticeConfig };
   channels?: { inkboxApiBase?: string; trustWebhookSignature?: boolean };
   /** Directory with the built web UI (apps/web/dist). Served at /app with SPA fallback. */
   webDir?: string;
@@ -143,7 +143,7 @@ export function createApp(deps: AppDeps) {
 
   const brokers = deps.clerk ? clerkBrokers(deps.db, deps.clerk.gateway) : undefined;
   const reg: Registrar = { app, store, now: () => clock.now(), registry: [], crmDeps: { kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp, brokerHubspotToken: brokers?.brokerHubspotToken } };
-  const dialer = { kek: deps.kek, fetchImpl: deps.fetchImpl, apiBase: deps.telephony?.apiBase, speko: deps.telephony?.speko, twilioEnv: deps.telephony?.twilioEnv, speech: deps.telephony?.speech, publicUrl };
+  const dialer = { kek: deps.kek, fetchImpl: deps.fetchImpl, apiBase: deps.telephony?.apiBase, speko: deps.telephony?.speko, dial: deps.telephony?.dial, twilioEnv: deps.telephony?.twilioEnv, speech: deps.telephony?.speech, publicUrl };
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
   const channels = { kek: deps.kek, fetchImpl: deps.fetchImpl, inkbox: { apiBase: deps.channels?.inkboxApiBase }, publicUrl };
   mountRoutes(reg, { publicIps: deps.publicIps ?? [], kek: deps.kek, fetchImpl: deps.fetchImpl, keyPrefix: deps.keyPrefix, crm: { db: deps.db, publicUrl, now: () => clock.now(), kek: deps.kek, fetchImpl: deps.fetchImpl, hubspotApp: deps.hubspotApp, brokerHubspotToken: brokers?.brokerHubspotToken }, dialer, channels });

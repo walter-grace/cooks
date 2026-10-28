@@ -20,22 +20,28 @@ export function Calls() {
   const dialer = useApi<{ data: any }>('/v1/workspace/dialer');
   const [dial, setDial] = useState(false);
   const [aiCall, setAiCall] = useState(false);
+  const live = (data?.data ?? []).some((r) => ['initiated', 'queued', 'ringing', 'in_progress'].includes(r.status));
+  useEffect(() => {
+    if (!live) return;
+    const t = window.setInterval(() => reload(), 3000);
+    return () => window.clearInterval(t);
+  }, [live]);
   const dp = dialer.data?.data;
   const tw = dp?.twilio;
-  const desc = [tw?.status === 'connected' ? `Twilio · caller id ${tw.fromNumbers[0] ?? 'none'}${tw.softphone ? ' · browser calling on' : ''}` : null, dp?.speko?.status === 'connected' ? `Speko AI calls · ${dp.speko.fromNumbers[0] ?? 'no number'}` : null].filter(Boolean).join('  ·  ');
+  const desc = [tw?.status === 'connected' ? `Twilio · caller id ${tw.fromNumbers[0] ?? 'none'}${tw.softphone ? ' · browser calling on' : ''}` : null, dp?.speko?.status === 'connected' ? `Speko AI calls · ${dp.speko.fromNumbers[0] ?? 'no number'}` : null, dp?.dial?.status === 'connected' ? `Dial AI calls · ${dp.dial.fromNumbers[0] ?? 'no number'}` : null].filter(Boolean).join('  ·  ');
   return (
     <>
       <PageHeader
         title="Calls"
-        description={desc || 'Connect Twilio or Speko under Settings → Dialer to place calls from here. Calls made elsewhere can still be logged from a prospect.'}
+        description={desc || 'Connect Twilio, Speko or Dial under Settings → Dialer to place calls from here. Calls made elsewhere can still be logged from a prospect.'}
         actions={
           <div className="flex gap-2">
-            {dp?.speko?.status === 'connected' && (
-              <Button variant={dp.provider === 'speko' ? 'default' : 'outline'} onClick={() => setAiCall(true)} data-testid="calls-ai-call">
+            {(dp?.speko?.status === 'connected' || dp?.dial?.status === 'connected') && (
+              <Button variant={dp.provider === 'speko' || dp.provider === 'dial' ? 'default' : 'outline'} onClick={() => setAiCall(true)} data-testid="calls-ai-call">
                 <Sparkles className="size-4" /> AI call
               </Button>
             )}
-            <Button variant={dp?.provider === 'speko' ? 'outline' : 'default'} onClick={() => setDial(true)} disabled={tw?.status !== 'connected'} data-testid="calls-dial">
+            <Button variant={dp?.provider === 'speko' || dp?.provider === 'dial' ? 'outline' : 'default'} onClick={() => setDial(true)} disabled={tw?.status !== 'connected'} data-testid="calls-dial">
               <PhoneOutgoing className="size-4" /> New call
             </Button>
           </div>
@@ -74,7 +80,7 @@ export function Calls() {
                   <TableCell>
                     <StateBadge state={c.outcome ?? c.status} />
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{c.mode === 'practice' ? 'Practice' : c.mode === 'ai' ? 'AI · Speko' : c.provider === 'twilio' ? `Twilio · ${c.mode}` : 'logged'}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{c.mode === 'practice' ? 'Practice' : c.mode === 'ai' ? `AI · ${c.provider === 'dial' ? 'Dial' : 'Speko'}` : c.provider === 'twilio' ? `Twilio · ${c.mode}` : 'logged'}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtDuration(c.duration)}</TableCell>
                   <TableCell>{c.callDisposition?.name ? <Badge variant="outline">{c.callDisposition.name}</Badge> : c.loggedAt ? '' : <span className="text-xs text-muted-foreground">not logged</span>}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">
@@ -167,7 +173,7 @@ export function CallDetail({ id }: { id: string }) {
           <CardContent className="grid gap-2 text-sm">
             <Row k="Disposition" v={c.callDisposition?.name ?? (c.loggedAt ? '' : 'not logged')} />
             {c.outcome && <Row k="Outcome" v={String(c.outcome).replace(/_/g, ' ')} />}
-            {c.provider && <Row k="Via" v={c.mode === 'practice' ? 'Practice call · AI prospect' : c.mode === 'ai' ? 'Speko AI agent' : `${c.provider} · ${c.mode}`} />}
+            {c.provider && <Row k="Via" v={c.mode === 'practice' ? 'Practice call · AI prospect' : c.mode === 'ai' ? `${c.provider === 'dial' ? 'Dial' : 'Speko'} AI agent` : `${c.provider} · ${c.mode}`} />}
             {c.costUsd !== null && c.costUsd !== undefined && <Row k="Cost" v={fmtMoney(c.costUsd)} />}
             {c.endReason && <Row k="End reason" v={c.endReason} />}
             <Row k="Direction" v={c.direction} />
