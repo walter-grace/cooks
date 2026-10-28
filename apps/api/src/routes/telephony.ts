@@ -20,6 +20,9 @@ import {
   dialerBalance,
   dialerOverview,
   dialNumbers,
+  buyDialNumber,
+  buyTwilioNumber,
+  searchTwilioNumbers,
   disconnectDial,
   disconnectSpeko,
   handleSpekoWebhook,
@@ -133,6 +136,18 @@ export function mountTelephony(reg: Registrar, d: DialerDeps) {
       await disconnectTelephony(c.get('ctx'));
       return c.body(null, 204);
     },
+  );
+  register(
+    reg,
+    createRoute({ method: 'get', path: '/v1/workspace/telephony/numbers/available', operationId: 'searchTwilioNumbers', tags: ['Dialer'], summary: 'Search local Twilio numbers for sale, with the monthly price', request: { query: z.object({ country: z.string().length(2).optional(), areaCode: z.string().regex(/^\d{3}$/).optional(), contains: z.string().max(20).optional(), limit: z.coerce.number().int().min(1).max(30).optional() }) }, responses: { 200: jsonResponse(z.object({ data: z.array(z.record(z.string(), z.unknown())) }), 'Available'), ...errorResponses } }),
+    { scope: 'calls:read', rateClass: 'get', extension: true },
+    async (c) => c.json({ data: await searchTwilioNumbers(c.get('ctx'), d, c.req.valid('query')) }, 200),
+  );
+  register(
+    reg,
+    createRoute({ method: 'post', path: '/v1/workspace/telephony/numbers', operationId: 'buyTwilioNumber', tags: ['Dialer'], summary: 'Buy a Twilio number (PAID; admins; requires confirm: true)', request: { body: jsonBody(z.object({ data: z.object({ e164: z.string(), confirm: z.boolean().optional(), makeDefault: z.boolean().optional() }) })) }, responses: { 201: jsonResponse(dataOf(z.record(z.string(), z.unknown())), 'Bought'), ...errorResponses } }),
+    { scope: 'calls:write', rateClass: 'write', extension: true },
+    async (c) => c.json({ data: await buyTwilioNumber(c.get('ctx'), d, c.req.valid('json').data) }, 201),
   );
   register(
     reg,
@@ -305,6 +320,12 @@ export function mountTelephony(reg: Registrar, d: DialerDeps) {
     createRoute({ method: 'get', path: '/v1/workspace/telephony/dial/numbers', operationId: 'listDialNumbers', tags: ['Dialer'], summary: 'Phone numbers on the Dial account', responses: { 200: jsonResponse(z.object({ data: z.array(z.record(z.string(), z.unknown())) }), 'Numbers'), ...errorResponses } }),
     { scope: 'calls:read', rateClass: 'get', extension: true },
     async (c) => c.json({ data: await dialNumbers(c.get('ctx'), d) }, 200),
+  );
+  register(
+    reg,
+    createRoute({ method: 'post', path: '/v1/workspace/telephony/dial/numbers', operationId: 'buyDialNumber', tags: ['Dialer'], summary: 'Buy a Dial number (PAID; admins; requires confirm and consent)', description: 'Dial picks a US number, in `areaCode` when one is free. `consent: true` records that the account holder agreed to buying numbers programmatically (Dial stores the attestation on the number). The number joins the caller ids.', request: { body: jsonBody(z.object({ data: z.object({ areaCode: z.string().regex(/^\d{3}$/).optional(), confirm: z.boolean().optional(), consent: z.boolean().optional(), inboundInstruction: z.string().max(4000).optional(), makeDefault: z.boolean().optional() }) })) }, responses: { 201: jsonResponse(dataOf(z.record(z.string(), z.unknown())), 'Bought'), ...errorResponses } }),
+    { scope: 'calls:write', rateClass: 'write', extension: true },
+    async (c) => c.json({ data: await buyDialNumber(c.get('ctx'), d, c.req.valid('json').data) }, 201),
   );
   register(
     reg,

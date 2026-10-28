@@ -7,6 +7,7 @@ import { createTestApp, type TestApp } from './test/harness.js';
 /** In-memory Dial (api.getdial.ai). Calls advance one state per GET: Queued → Ringing → In-Progress → Terminated. */
 function fakeDial() {
   const placed: Array<{ body: Record<string, any>; headers: Record<string, string> }> = [];
+  const purchases: Array<Record<string, any>> = [];
   const callsById = new Map<string, { gets: number; stopped: boolean; to: string; createdAt: string }>();
   let n = 0;
   const fetchImpl: typeof fetch = async (input, init) => {
@@ -18,6 +19,11 @@ function fakeDial() {
       if (url.pathname === '/api/v1/account') return Response.json({ id: 'acct_1', email: 'owner@example.test', role: 'owner', maxCallDurationSeconds: null, limits: { maxCallDurationSeconds: 300, maxConcurrentCalls: 2 } });
       if (url.pathname === '/api/v1/billing') return Response.json({ ok: true, balanceCents: 200, numbers: [{ id: 'num_1', number: '+16815550100', mode: 'PAYG', ownershipCents: 300 }], pricing: { monthlyCents: 2000 } });
       if (url.pathname === '/api/v1/numbers' && m === 'GET') return Response.json({ numbers: [{ id: 'num_1', number: '+16815550100', nickname: null, capabilities: ['sms', 'call'], callingEnabled: true, country: 'US' }, { id: 'num_2', number: '+16815550199', nickname: 'texts only', capabilities: ['sms', 'call'], callingEnabled: false, country: 'US' }] });
+      if (url.pathname === '/api/v1/numbers' && m === 'POST') {
+        const body = JSON.parse(String(init?.body));
+        purchases.push(body);
+        return Response.json({ number: { id: 'num_3', number: `+1${body.areaCode ?? '681'}5550123`, nickname: null, capabilities: ['sms', 'call'], callingEnabled: true, country: 'US', status: 'active' } }, { status: 201 });
+      }
       if (url.pathname === '/api/v1/calls' && m === 'POST') {
         const body = JSON.parse(String(init?.body));
         placed.push({ body, headers });
@@ -57,7 +63,7 @@ function fakeDial() {
     }
     return Response.json({ message: `unhandled host ${url.hostname}` }, { status: 404 });
   };
-  return { fetchImpl, placed, callsById };
+  return { fetchImpl, placed, callsById, purchases };
 }
 
 let t: TestApp;
@@ -197,6 +203,23 @@ describe('AI call lifecycle on Dial', () => {
     const [failed] = await t.db.select().from(calls).where(eq(calls.toNumber, '+15550009999'));
     expect(failed).toMatchObject({ status: 'failed', provider: 'dial' });
     expect(failed!.notes).toMatch(/^Dial: /);
+  });
+  it('buys a Dial number only with confirm and consent, records who agreed, and makes it the default caller id', async () => {
+    const noConfirm = await t.request('/v1/workspace/telephony/dial/numbers', { method: 'POST', json: { data: { areaCode: '213', consent: true } } });
+    expect(noConfirm.json.error.details.code).toBe('CONFIRM_REQUIRED');
+    const noConsent = await t.request('/v1/workspace/telephony/dial/numbers', { method: 'POST', json: { data: { areaCode: '213', confirm: true } } });
+    expect(noConsent.json.error.details.code).toBe('CONSENT_REQUIRED');
+    expect(fake.purchases).toHaveLength(0);
+    const r = await t.request('/v1/workspace/telephony/dial/numbers', { method: 'POST', json: { data: { areaCode: '213', confirm: true, consent: true, makeDefault: true } } });
+    expect(r.status).toBe(201);
+    expect(r.json.data).toMatchObject({ provider: 'dial', id: 'num_3', e164: '+12135550123', isDefault: true });
+    const sent = fake.purchases[0]!;
+    expect(sent.areaCode).toBe('213');
+    expect(sent.inboundInstruction).toMatch(/sales line/);
+    expect(sent.explicitProgrammaticConsent).toMatch(/agreed to buy this number programmatically on 2026-03-03/);
+    const dial = (await t.request('/v1/workspace/dialer')).json.data.dial;
+    expect(dial.fromNumbers[0]).toBe('+12135550123');
+    expect(dial.settings.fromNumber).toBe('+12135550123');
   });
   it('disconnecting Dial clears the dialer choice', async () => {
     expect((await t.request('/v1/workspace/telephony/dial', { method: 'DELETE' })).status).toBe(204);

@@ -60,7 +60,7 @@ export function Dialer({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-/** Dial (getdial.ai): an agent phone number with calls and texts. Same script and caps as Speko; no number buying here (the Dial dashboard does that). */
+/** Dial (getdial.ai): an agent phone number with calls and texts. Same script and caps as Speko; numbers can be bought here. */
 function DialCard({ isAdmin, data: s, reload }: { isAdmin: boolean; data: any; reload: () => void }) {
   const bal = useApi<{ data: any }>(s.status === 'connected' ? '/v1/workspace/telephony/dial/balance' : null, [s.status, s.updatedAt]);
   const numbers = useApi<{ data: any[] }>(s.status === 'connected' ? '/v1/workspace/telephony/dial/numbers' : null, [s.status, s.updatedAt]);
@@ -228,7 +228,8 @@ function DialCard({ isAdmin, data: s, reload }: { isAdmin: boolean; data: any; r
                   <span className="text-xs text-muted-foreground">{(n.capabilities as string[]).join(', ')}{n.callingEnabled === false ? ' · calling off' : ''}</span>
                 </div>
               ))}
-              {numbers.data && numbers.data.data.length === 0 && <p className="text-xs text-muted-foreground">No numbers yet. Add one in the Dial dashboard or with `dial number purchase`.</p>}
+              {numbers.data && numbers.data.data.length === 0 && <p className="text-xs text-muted-foreground">No numbers yet. Buy one below.</p>}
+              <DialBuyNumber isAdmin={isAdmin} onBought={() => { reload(); numbers.reload(); }} />
               <p className="text-xs text-muted-foreground">Free Dial accounts are limited to two concurrent calls and five minutes a call until the first top-up.</p>
             </div>
           </div>
@@ -502,6 +503,144 @@ function Speko({ isAdmin, data: s, reload }: { isAdmin: boolean; data: any; relo
   );
 }
 
+/** Buy a Dial number: Dial picks a free US number, in the area code when it can. PAID, admins, explicit consent. */
+function DialBuyNumber({ isAdmin, onBought }: { isAdmin: boolean; onBought: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [areaCode, setAreaCode] = useState('');
+  const [consent, setConsent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!isAdmin) return null;
+  const buy = async () => {
+    setBusy(true);
+    try {
+      const r = await api('/v1/workspace/telephony/dial/numbers', { method: 'POST', json: { data: { areaCode: areaCode.trim() || undefined, confirm: true, consent: true, makeDefault: true } } });
+      toast(`Bought ${r.data.e164}`);
+      setOpen(false);
+      setConsent(false);
+      onBought();
+    } catch (err: any) {
+      toast(err.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <div className="mt-2 flex flex-wrap items-center gap-2 border-t pt-2">
+        <Input className="w-28" placeholder="Area code" inputMode="numeric" maxLength={3} value={areaCode} onChange={(e) => setAreaCode(e.target.value.replace(/\D/g, ''))} data-testid="dial-area" />
+        <Button size="sm" variant="outline" disabled={areaCode !== '' && areaCode.length !== 3} onClick={() => setOpen(true)} data-testid="dial-buy">
+          Get a number
+        </Button>
+        <span className="text-xs text-muted-foreground">US numbers only. Leave the area code blank for any.</span>
+      </div>
+      <Dialog open={open} onOpenChange={(o) => !o && setOpen(false)}>
+        <DialogContent className="sm:max-w-md" data-testid="dial-buy-dialog">
+          <DialogHeader>
+            <DialogTitle>Buy a Dial number{areaCode ? ` in ${areaCode}` : ''}?</DialogTitle>
+            <DialogDescription>
+              This is a paid action on your Dial account, billed by Dial each month at your plan&apos;s per-number rate until you release it. Dial picks the exact number{areaCode ? ' (in this area code when one is free)' : ''}. It becomes the default caller id, and inbound calls to it get a short take-a-message agent.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} data-testid="dial-consent" />
+            <span>I hold this Dial account (or am authorized to act for it) and agree to Cooks buying this number for it. Dial keeps this statement on the number.</span>
+          </label>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={buy} disabled={busy || !consent} data-testid="dial-buy-confirm">
+              {busy ? 'Buying…' : 'Buy number'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/** Buy a Twilio number: search local numbers with voice, see the monthly price, confirm. PAID, admins. */
+function TwilioBuyNumber({ isAdmin, onBought }: { isAdmin: boolean; onBought: () => void }) {
+  const [areaCode, setAreaCode] = useState('');
+  const [found, setFound] = useState<any[] | null>(null);
+  const [buying, setBuying] = useState<any | null>(null);
+  const [busy, setBusy] = useState(false);
+  const search = async () => {
+    try {
+      setFound((await api(`/v1/workspace/telephony/numbers/available?${areaCode ? `areaCode=${encodeURIComponent(areaCode)}&` : ''}limit=8`)).data);
+    } catch (err: any) {
+      toast(err.message, 'error');
+    }
+  };
+  const buy = async () => {
+    if (!buying) return;
+    setBusy(true);
+    try {
+      const r = await api('/v1/workspace/telephony/numbers', { method: 'POST', json: { data: { e164: buying.e164, confirm: true, makeDefault: true } } });
+      toast(`Bought ${r.data.e164}`);
+      setBuying(null);
+      setFound(null);
+      onBought();
+    } catch (err: any) {
+      toast(err.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const price = (a: any) => (a?.monthlyUsd == null ? 'Twilio\'s monthly rate' : `${fmtMoney(a.monthlyUsd)}/mo`);
+  return (
+    <Card data-testid="twilio-numbers">
+      <CardHeader>
+        <CardTitle className="text-base">Get a Twilio number</CardTitle>
+        <CardDescription>Search local US numbers that can place calls. A bought number is billed by Twilio every month and becomes the default caller id.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        {isAdmin ? (
+          <div className="flex flex-wrap gap-2">
+            <Input className="w-28" placeholder="Area code" inputMode="numeric" maxLength={3} value={areaCode} onChange={(e) => setAreaCode(e.target.value.replace(/\D/g, ''))} data-testid="twilio-area" />
+            <Button size="sm" variant="outline" disabled={areaCode !== '' && areaCode.length !== 3} onClick={search} data-testid="twilio-search">
+              Search
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Ask an admin to buy numbers.</p>
+        )}
+        {found && (
+          <div className="grid gap-1 border-t pt-2" data-testid="twilio-found">
+            {found.length === 0 && <p className="text-xs text-muted-foreground">Nothing available for that area code.</p>}
+            {found.map((a) => (
+              <div key={a.e164} className="flex items-center justify-between text-sm">
+                <span>
+                  {a.friendlyName ?? a.e164} <span className="text-xs text-muted-foreground">{[a.locality, a.region].filter(Boolean).join(', ')} · {price(a)}</span>
+                </span>
+                <Button size="sm" onClick={() => setBuying(a)} data-testid="twilio-buy">
+                  Buy
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+      <Dialog open={!!buying} onOpenChange={(o) => !o && setBuying(null)}>
+        <DialogContent className="sm:max-w-md" data-testid="twilio-buy-dialog">
+          <DialogHeader>
+            <DialogTitle>Buy {buying?.friendlyName ?? buying?.e164}?</DialogTitle>
+            <DialogDescription>This is a paid action on your Twilio account: {price(buying)} until you release the number in Twilio. It becomes the default caller id.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBuying(null)}>
+              Cancel
+            </Button>
+            <Button onClick={buy} disabled={busy} data-testid="twilio-buy-confirm">
+              {busy ? 'Buying…' : `Buy for ${price(buying)}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
 function Stat({ k, v }: { k: string; v: string }) {
   return (
     <div className="rounded-lg border p-3">
@@ -576,6 +715,7 @@ function Twilio({ isAdmin, t, reload }: { isAdmin: boolean; t: any; reload: () =
           </CardContent>
         </Card>
       )}
+      {t.status === 'connected' && <TwilioBuyNumber isAdmin={isAdmin} onBought={reload} />}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t.status === 'connected' ? 'Update Twilio credentials' : 'Connect Twilio'}</CardTitle>

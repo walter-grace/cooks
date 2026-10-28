@@ -12,7 +12,17 @@ export interface TwilioAuth {
 
 export interface TwilioClientOpts {
   apiBase?: string;
+  /** Twilio's Pricing API lives on its own host. */
+  pricingBase?: string;
   fetchImpl?: typeof fetch;
+}
+
+export interface TwilioAvailableNumber {
+  e164: string;
+  friendlyName: string | null;
+  locality: string | null;
+  region: string | null;
+  capabilities: string[];
 }
 
 export class TwilioError extends Error {
@@ -40,12 +50,14 @@ export interface AmdOptions {
 
 export class TwilioClient {
   private base: string;
+  private pricingBase: string;
   private f: typeof fetch;
   constructor(
     private auth: TwilioAuth,
     opts: TwilioClientOpts = {},
   ) {
     this.base = (opts.apiBase ?? 'https://api.twilio.com').replace(/\/+$/, '');
+    this.pricingBase = (opts.pricingBase ?? 'https://pricing.twilio.com').replace(/\/+$/, '');
     this.f = opts.fetchImpl ?? fetch;
   }
   private headers(extra: Record<string, string> = {}) {
@@ -72,6 +84,33 @@ export class TwilioClient {
     if (!res.ok) return [];
     const json = (await res.json().catch(() => ({}))) as { incoming_phone_numbers?: Array<{ phone_number: string }> };
     return (json.incoming_phone_numbers ?? []).map((n) => n.phone_number);
+  }
+  /** Local numbers for sale with voice, optionally in one area code or containing a pattern. */
+  async availableNumbers(q: { country?: string; areaCode?: string; contains?: string; limit?: number }): Promise<TwilioAvailableNumber[]> {
+    const params = new URLSearchParams({ VoiceEnabled: 'true', PageSize: String(q.limit ?? 10) });
+    if (q.areaCode) params.set('AreaCode', q.areaCode);
+    if (q.contains) params.set('Contains', q.contains);
+    const res = await this.f(`${this.base}/2010-04-01/Accounts/${this.auth.accountSid}/AvailablePhoneNumbers/${encodeURIComponent(q.country ?? 'US')}/Local.json?${params}`, { headers: this.headers() });
+    const json = (await res.json().catch(() => ({}))) as { available_phone_numbers?: Array<{ phone_number: string; friendly_name?: string; locality?: string; region?: string; capabilities?: Record<string, boolean> }>; code?: number; message?: string };
+    if (!res.ok) throw new TwilioError(res.status, json.code ?? null, json.message ?? `Twilio ${res.status}`);
+    return (json.available_phone_numbers ?? []).map((n) => ({ e164: n.phone_number, friendlyName: n.friendly_name ?? null, locality: n.locality ?? null, region: n.region ?? null, capabilities: Object.entries(n.capabilities ?? {}).filter(([, v]) => v).map(([k]) => k.toLowerCase()) }));
+  }
+  /** Monthly price of a local number in a country, or null when the Pricing API does not answer. */
+  async localNumberPrice(country = 'US'): Promise<{ monthlyUsd: number; currency: string } | null> {
+    try {
+      const res = await this.f(`${this.pricingBase}/v1/PhoneNumbers/Countries/${encodeURIComponent(country)}`, { headers: this.headers() });
+      if (!res.ok) return null;
+      const json = (await res.json()) as { price_unit?: string; phone_number_prices?: Array<{ number_type?: string; current_price?: string; base_price?: string }> };
+      const local = json.phone_number_prices?.find((p) => p.number_type === 'local');
+      const price = Number(local?.current_price ?? local?.base_price);
+      return Number.isFinite(price) ? { monthlyUsd: price, currency: (json.price_unit ?? 'USD').toUpperCase() } : null;
+    } catch {
+      return null;
+    }
+  }
+  /** PAID: buys the number on the account. */
+  buyNumber(e164: string, friendlyName = 'Cooks'): Promise<{ sid: string; phone_number: string; friendly_name?: string }> {
+    return this.form('/IncomingPhoneNumbers.json', { PhoneNumber: e164, FriendlyName: friendlyName });
   }
   /** Outbound call leg. `url` returns TwiML when the callee answers. */
   createCall(p: { to: string; from: string; url: string; statusCallback: string; machineDetection?: boolean; timeoutSeconds?: number }): Promise<{ sid: string; status: string }> {

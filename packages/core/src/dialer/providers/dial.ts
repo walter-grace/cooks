@@ -124,6 +124,11 @@ export class DialClient {
     const r = await this.req<{ numbers?: DialNumber[] } | DialNumber[]>('GET', '/api/v1/numbers');
     return Array.isArray(r.json) ? r.json : (r.json.numbers ?? []);
   }
+  /** PAID: provisions a new US number (Dial picks it, optionally in an area code). */
+  async purchaseNumber(body: { inboundInstruction: string; explicitProgrammaticConsent: string; areaCode?: string; inboundVoiceGender?: 'male' | 'female' }): Promise<DialNumber> {
+    const r = await this.req<{ number?: DialNumber } & DialNumber>('POST', '/api/v1/numbers', body);
+    return r.json.number ?? r.json;
+  }
   async placeCall(body: Json, idempotencyKey: string): Promise<DialCall> {
     const r = await this.req<{ call?: DialCall } & DialCall>('POST', '/api/v1/calls', body, { idempotencyKey });
     return r.json.call ?? r.json;

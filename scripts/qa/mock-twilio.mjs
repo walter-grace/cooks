@@ -277,7 +277,15 @@ http
     if (url.pathname === '/rec') { res.writeHead(200, { 'content-type': 'audio/wav' }); return res.end(stereoWav()); }
     if (!auth.endsWith(':qa-auth-token')) return json({ code: 20003, message: 'Authenticate' }, 401);
     if (/^\/2010-04-01\/Accounts\/[^/]+\.json$/.test(url.pathname)) return json({ sid: 'ACmock', friendly_name: 'Cooks QA', status: 'active' });
+    if (url.pathname.endsWith('/IncomingPhoneNumbers.json') && req.method === 'POST') {
+      const p = Object.fromEntries(new URLSearchParams(body.toString()));
+      return json({ sid: `PN${Date.now()}`, phone_number: p.PhoneNumber, friendly_name: p.FriendlyName }, 201);
+    }
     if (url.pathname.endsWith('/IncomingPhoneNumbers.json')) return json({ incoming_phone_numbers: [{ phone_number: '+15550001111' }, { phone_number: '+15550002222' }] });
+    if (/\/AvailablePhoneNumbers\/[A-Z]{2}\/Local\.json$/.test(url.pathname)) {
+      const area = url.searchParams.get('AreaCode') ?? '555';
+      return json({ available_phone_numbers: ['0142', '0187', '0199'].map((x) => ({ phone_number: `+1${area}555${x}`, friendly_name: `(${area}) 555-${x}`, locality: 'Mock City', region: 'CA', capabilities: { voice: true, SMS: true, MMS: false } })) });
+    }
     if (url.pathname.endsWith('/Calls.json')) {
       const p = Object.fromEntries(new URLSearchParams(body.toString()));
       const sid = newSid();
