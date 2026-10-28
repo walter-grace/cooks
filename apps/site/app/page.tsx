@@ -169,7 +169,7 @@ export default function Page() {
                 <li>Sequences and steps: build, edit, reorder, or draft a sequence from a brief.</li>
                 <li>Enrollments: enroll, pause, resume and finish, with the rules enforced.</li>
                 <li>Tasks: list, complete and skip what is due today.</li>
-                <li>Dialer: place a call, hand one to a Speko voice agent, fetch the transcript, log it.</li>
+                <li>Dialer: place a call, hand one to a Speko or Dial voice agent, fetch the transcript, log it.</li>
                 <li>Power dialer: start a session, dial the next batch, see who answered.</li>
                 <li>Inbox: read the unified inbox, send SMS and iMessage with consent checks.</li>
                 <li>Email: draft, send, and import mail that happened outside Cooks.</li>
@@ -218,7 +218,7 @@ export default function Page() {
             <div><h3>Mailboxes</h3><p>Gmail, Microsoft 365 or SMTP, with inbound sync for replies and bounces.</p></div>
             <div><h3>Inkbox channels</h3><p>An email address, an SMS number and an iMessage line per rep, with one inbox and STOP honored.</p></div>
             <div><h3>HubSpot</h3><p>Contact and company sync, auto-enroll from a list or deal stage, calls and email on the timeline.</p></div>
-            <div><h3>Voice agents</h3><p>A Speko agent places the call from a script and brings back the outcome, transcript and recording.</p></div>
+            <div><h3>Voice agents</h3><p>A Speko or Dial agent places the call from a script and brings back the outcome and transcript, plus the recording on Speko.</p></div>
             <div><h3>Compatible API</h3><p>Same paths, envelopes and paging as the commercial API it mirrors. Existing clients change one base URL.</p></div>
             <div><h3>Webhooks</h3><p>Signed, retried events for calls, emails, enrollments, tasks and prospects.</p></div>
             <div><h3>Sign-in</h3><p>API keys, OAuth 2.1 with PKCE, or Clerk SSO. Secrets are encrypted at rest with a key you hold.</p></div>
