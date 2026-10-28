@@ -267,12 +267,15 @@ export function LogCallDialog({ open, onOpenChange, prospectId, taskId, onLogged
 const OUTCOME_LABEL: Record<string, string> = { answered: 'Answered', voicemail: 'Voicemail', no_answer: 'No answer', failed: 'Failed' };
 
 /**
- * AI call through Speko: pick the number, tweak the script, place, then watch the call until
+ * AI call through Speko or Dial: pick the number, tweak the script, place, then watch the call until
  * the worker writes the outcome, summary and transcript.
  */
 export function AiCallDialog({ open, onOpenChange, target, onDone }: { open: boolean; onOpenChange: (o: boolean) => void; target: { prospectId?: string; name?: string | null; phone?: string | null; taskId?: string } | null; onDone?: () => void }) {
   const dialer = useApi<{ data: any }>(open ? '/v1/workspace/dialer' : null, [open]);
-  const sp = dialer.data?.data?.speko;
+  const dd = dialer.data?.data;
+  // The AI dialer: the chosen one when it is Speko or Dial, else whichever is connected.
+  const sp = dd ? (dd.provider === 'dial' && dd.dial?.status === 'connected' ? dd.dial : dd.speko?.status === 'connected' ? dd.speko : dd.dial?.status === 'connected' ? dd.dial : dd.speko) : undefined;
+  const providerName = sp?.provider === 'dial' ? 'Dial' : 'Speko';
   const [to, setTo] = useState('');
   const [from, setFrom] = useState('');
   const [firstMessage, setFirstMessage] = useState('');
@@ -282,13 +285,26 @@ export function AiCallDialog({ open, onOpenChange, target, onDone }: { open: boo
   const [call, setCall] = useState<any | null>(null);
   const [transcript, setTranscript] = useState<any | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const prospect = useApi<{ data: any }>(open && target?.prospectId ? `/v1/prospects/${target.prospectId}?includeCRMCustomFields=true` : null, [open, target?.prospectId]);
+  const own = prospect.data?.data?.crmCustomFields?.aiCallScript as { firstMessage?: string; systemPrompt?: string } | undefined;
   useEffect(() => {
     if (!sp) return;
     setFrom(sp.settings?.fromNumber ?? sp.fromNumbers?.[0] ?? '');
-    setFirstMessage(sp.settings?.firstMessage ?? '');
-    setSystemPrompt(sp.settings?.systemPrompt ?? '');
+    setFirstMessage(own?.firstMessage ?? sp.settings?.firstMessage ?? '');
+    setSystemPrompt(own?.systemPrompt ?? sp.settings?.systemPrompt ?? '');
     setMaxSeconds(sp.settings?.maxDurationSeconds ?? 120);
-  }, [sp]);
+  }, [sp, own]);
+  const saveForProspect = async () => {
+    const pr = prospect.data?.data;
+    if (!pr) return;
+    try {
+      await api(`/v1/prospects/${pr.id}`, { method: 'PATCH', json: { data: { crmCustomFields: { ...(pr.crmCustomFields ?? {}), aiCallScript: { firstMessage, systemPrompt } } } } });
+      prospect.reload();
+      toast(`Saved as ${pr.name ?? 'this prospect'}'s call script`, 'success');
+    } catch (e: any) {
+      toast(e.message, 'error');
+    }
+  };
   useEffect(() => {
     setTo(target?.phone ?? '');
     setCall(null);
@@ -337,7 +353,7 @@ export function AiCallDialog({ open, onOpenChange, target, onDone }: { open: boo
           <DialogTitle className="flex items-center gap-2">
             <Phone className="size-4" /> {target?.name ? `AI call to ${target.name}` : 'AI call'}
           </DialogTitle>
-          <DialogDescription>{sp?.status === 'connected' ? 'A Speko voice agent places the call, follows the script, and reports the outcome and transcript here. Calls only go out 08:00 to 21:00 in the prospect’s time zone.' : 'Connect Speko under Settings → Dialer to place AI calls.'}</DialogDescription>
+          <DialogDescription>{sp?.status === 'connected' ? `A ${providerName} voice agent places the call, follows the script, and reports the outcome and transcript here. Calls only go out 08:00 to 21:00 in the prospect’s time zone.` : 'Connect Speko or Dial under Settings → Dialer to place AI calls.'}</DialogDescription>
         </DialogHeader>
         {!call && sp?.status === 'connected' && (
           <div className="grid gap-3">
@@ -350,7 +366,7 @@ export function AiCallDialog({ open, onOpenChange, target, onDone }: { open: boo
                 <Label>Caller id</Label>
                 <Select value={from} onValueChange={setFrom}>
                   <SelectTrigger data-testid="ai-call-from">
-                    <SelectValue placeholder="Speko number" />
+                    <SelectValue placeholder="Caller id" />
                   </SelectTrigger>
                   <SelectContent>
                     {(sp.fromNumbers as string[]).map((n) => (
@@ -370,6 +386,14 @@ export function AiCallDialog({ open, onOpenChange, target, onDone }: { open: boo
               <Label>Instructions for the agent</Label>
               <Textarea rows={5} value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} data-testid="ai-call-prompt" />
               <p className="text-xs text-muted-foreground">Merge fields: {'{{ prospect.firstName }}'}, {'{{ account.name }}'}, {'{{ owner.name }}'}, {'{{ workspace.name }}'}</p>
+              {target?.prospectId && (
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span data-testid="ai-call-script-source">{own ? `Using ${prospect.data?.data?.name ?? 'this prospect'}'s own script` : 'Using the workspace default script'}</span>
+                  <Button type="button" variant="outline" size="sm" onClick={saveForProspect} data-testid="ai-call-save-script">
+                    Save for this prospect
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="grid gap-2">
               <Label>Maximum length: {maxSeconds}s</Label>

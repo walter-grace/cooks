@@ -1,9 +1,9 @@
 /**
- * Dialer provider abstraction. Twilio (human calls: bridge or softphone) and Speko (AI-voiced
+ * Dialer provider abstraction. Twilio (human calls: bridge or softphone), Speko and Dial (AI-voiced
  * calls) sit behind the same four verbs so the call row, polling job, UI and MCP tools do not
  * care who carries the audio.
  */
-export type DialerKind = 'twilio' | 'speko';
+export type DialerKind = 'twilio' | 'speko' | 'dial';
 
 /** Normalised result of a finished call. */
 export type CallOutcome = 'answered' | 'voicemail' | 'no_answer' | 'failed';

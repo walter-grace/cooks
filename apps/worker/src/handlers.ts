@@ -37,6 +37,9 @@ export interface WorkerDeps {
   /** Speko server key + base override (mock) */
   spekoApiKey?: string;
   spekoApiBase?: string;
+  /** Dial server key + base override (mock) */
+  dialApiKey?: string;
+  dialApiBase?: string;
   /** Inkbox base override (mock) */
   inkboxApiBase?: string;
   connectorApps: ConnectorApps;
@@ -187,7 +190,7 @@ export function registerHandlers(boss: PgBoss, deps: WorkerDeps) {
     if (!r.done) await deps.jobs.send('inkbox.call_poll', { callId: job.data.callId, workspaceId: job.data.workspaceId, attempt: attempt + 1 }, { startAfter: new Date(Date.now() + (r.nextDelaySeconds ?? 15) * 1000), singletonKey: `inkpoll:${job.data.callId}:${attempt + 1}` });
     return r;
   }, 5);
-  const aiCallDeps = { kek: deps.kek, apiBase: deps.telephonyApiBase, speko: { apiKey: deps.spekoApiKey, apiBase: deps.spekoApiBase }, publicUrl: deps.publicUrl };
+  const aiCallDeps = { kek: deps.kek, apiBase: deps.telephonyApiBase, speko: { apiKey: deps.spekoApiKey, apiBase: deps.spekoApiBase }, dial: { apiKey: deps.dialApiKey, apiBase: deps.dialApiBase }, publicUrl: deps.publicUrl };
   void work<{ callId: string; workspaceId: string; attempt?: number }>('telephony.ai_poll', async (job) => {
     const attempt = job.data.attempt ?? 1;
     const r = await pollAiCall(mkCtx(deps, job.data.workspaceId), job.data.callId, aiCallDeps, { attempt });

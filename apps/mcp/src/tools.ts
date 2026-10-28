@@ -646,7 +646,7 @@ export const TOOLS: ToolDef[] = [
   def({
     name: 'cooks_dialer_status',
     title: 'Dialer status',
-    description: 'Which dialers are connected (Twilio for rep calls, Speko for AI-voiced calls), which one the Call button uses, caller ids, the AI call defaults (script, max duration, daily spend cap), and the parallel dialer settings (compliance mode and whether an admin confirmed it, lines per batch, AMD tuning).',
+    description: 'Which dialers are connected (Twilio for rep calls; Speko or Dial for AI-voiced calls), which one the Call button uses, caller ids, the AI call defaults (script, max duration, daily spend cap), and the parallel dialer settings (compliance mode and whether an admin confirmed it, lines per batch, AMD tuning).',
     readOnly: true,
     input: {},
     run: (api) => api.call('GET', '/workspace/dialer'),
@@ -655,7 +655,7 @@ export const TOOLS: ToolDef[] = [
     name: 'cooks_place_ai_call',
     title: 'Place AI call',
     description:
-      'Place an AI-voiced outbound call through Speko to a prospect (or a number). A success means the call is QUEUED, not answered: poll cooks_get_call_transcript until status is completed, no_answer or failed. The worker stores outcome, transcript, summary, cost and recording, logs the disposition (closing a linked call task) and queues coaching. Refused when the prospect is on the do-not-call list, outside 08:00–21:00 in their time zone, over the daily spend cap, or when Speko reports INSUFFICIENT_CREDITS. systemPrompt and firstMessage accept {{ prospect.firstName }}, {{ account.name }}, {{ owner.name }}, {{ workspace.name }}.',
+      'Place an AI-voiced outbound call through the workspace\'s AI dialer (Speko or Dial) to a prospect (or a number). A success means the call is QUEUED, not answered: poll cooks_get_call_transcript until status is completed, no_answer or failed. The worker stores outcome, transcript, summary, cost and recording, logs the disposition (closing a linked call task) and queues coaching. Refused when the prospect is on the do-not-call list, outside 08:00–21:00 in their time zone, over the daily spend cap, or when the provider reports it is out of credit. systemPrompt and firstMessage accept {{ prospect.firstName }}, {{ account.name }}, {{ owner.name }}, {{ workspace.name }}.',
     input: {
       prospectId: uuid.optional(),
       to: z.string().optional().describe('E.164 number when no prospect is given'),
@@ -687,10 +687,10 @@ export const TOOLS: ToolDef[] = [
   def({
     name: 'cooks_dialer_balance',
     title: 'Dialer balance',
-    description: 'Speko prepaid balance in USD, what AI calls have spent today, calls in flight and the daily spend cap.',
+    description: 'Prepaid balance in USD on the AI dialer (Speko or Dial), what AI calls have spent today, calls in flight and the daily spend cap.',
     readOnly: true,
     input: {},
-    run: (api) => api.call('GET', '/workspace/telephony/speko/balance'),
+    run: (api) => api.call('GET', '/workspace/dialer/balance'),
   }),
   def({
     name: 'cooks_dial',

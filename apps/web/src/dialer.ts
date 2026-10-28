@@ -230,7 +230,7 @@ export const SESSION_LABEL: Record<string, string> = {
 
 export const STATUS_LABEL: Record<string, string> = {
   initiated: 'Starting',
-  queued: 'Queued at Speko',
+  queued: 'Queued at the provider',
   ringing_rep: 'Ringing your phone',
   ringing: 'Ringing prospect',
   in_progress: 'In progress',

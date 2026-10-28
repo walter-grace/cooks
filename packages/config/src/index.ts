@@ -95,6 +95,9 @@ const EnvSchema = z.object({
   /** Server-wide Speko key (workspaces can store their own instead). */
   SPEKO_API_KEY: z.string().optional(),
   SPEKO_API_BASE: z.string().optional(),
+  /** Server-wide Dial (getdial.ai) key (workspaces can store their own instead). */
+  DIAL_API_KEY: z.string().optional(),
+  DIAL_API_BASE: z.string().optional(),
   /** Inkbox base override (mocks); keys are per workspace. */
   INKBOX_API_BASE: z.string().optional(),
   /** OpenAI-compatible speech-to-text for call transcripts (any whisper server). */
