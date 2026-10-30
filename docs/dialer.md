@@ -233,8 +233,10 @@ agent places the call from your script and the transcript lands on the call reco
    Settings → Dialer → Dial. Cooks verifies it against the account, stores it encrypted with
    `COOKS_KEK` and lists the numbers that can place calls. `DIAL_API_KEY` on the server lets
    workspaces connect without pasting a key.
-2. Pick a caller id. Numbers are bought in the Dial dashboard or with `dial number purchase`;
-   Cooks never buys them.
+2. Pick a caller id, or click **Get a number** on the Dial card. Dial picks a free US number,
+   in the area code you give when it can. Buying is paid, admin-only, and needs an explicit
+   confirm plus the account holder's consent, which Dial stores on the number. Numbers bought in
+   the Dial dashboard or with `dial number purchase` show up too.
 3. Set the script, length and daily cap as for Speko. Dial takes one prompt per call, so the
    opening line and the voicemail rule are folded into the instruction. Calls run 60 to 600
    seconds (Dial's own floor is 60; free accounts are cut at 300 by Dial), and `voice` is
@@ -305,6 +307,9 @@ Not interested, Call back later, Do not call. Add more with `POST /v1/callDispos
 | GET | `/v1/workspace/dialer/balance` | Balance and spend on whichever AI dialer is active |
 | PUT/PATCH/DELETE | `/v1/workspace/telephony/dial` | Dial key, script, caps, caller id |
 | GET | `/v1/workspace/telephony/dial/balance`, `…/dial/numbers` | Dial credit, spend today, cap; numbers on the account |
+| POST | `/v1/workspace/telephony/dial/numbers` | Buy a Dial number, optional `areaCode` (admin, `confirm: true`, `consent: true`) |
+| GET | `/v1/workspace/telephony/numbers/available` | Local Twilio numbers for sale with the monthly price |
+| POST | `/v1/workspace/telephony/numbers` | Buy a Twilio number (admin, `confirm: true`) |
 | PUT/PATCH/DELETE | `/v1/workspace/telephony/speko` | Speko key, script, caps, caller id |
 | GET | `/v1/workspace/telephony/speko/balance` | Credits, spend today, cap |
 | GET/POST | `/v1/workspace/telephony/speko/numbers`, `…/numbers/available` | Owned numbers, search, buy (admin, `confirm: true`) |
@@ -314,6 +319,21 @@ Not interested, Call back later, Do not call. Add more with `POST /v1/callDispos
 | POST | `/telephony/speko/webhook?ws=` | Speko `call.*` events (Standard Webhooks signature) |
 
 Environment: `TWILIO_API_BASE` and `SPEKO_API_BASE` point the clients at `scripts/qa/mock-twilio.mjs` and `scripts/qa/mock-speko.mjs` for local QA; `SPEKO_API_KEY` is an optional server-wide key; `DIAL_API_KEY` and `DIAL_API_BASE` do the same for Dial.
+
+## Buying numbers
+
+Every provider can sell you a number from Settings → Dialer:
+
+- **Twilio**: the "Get a Twilio number" card searches local numbers that can place calls, by
+  area code, and shows Twilio's monthly price for a local number.
+- **Speko**: search by area code on the Speko card; the setup and monthly price come back with
+  each number.
+- **Dial**: "Get a number" on the Dial card; Dial chooses the number and bills it at your plan's
+  per-number rate.
+
+Buying is always paid, so only admins can do it and the API refuses without `confirm: true`. The
+new number joins the caller ids and becomes the default. The MCP server has no tool that buys
+numbers, so an assistant cannot spend money this way.
 
 ## Privacy
 

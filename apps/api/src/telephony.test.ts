@@ -7,12 +7,24 @@ import { createTestApp, type TestApp } from './test/harness.js';
 /** In-memory Twilio: verifies creds, lists numbers, records Calls.create, serves a recording. */
 function fakeTwilio() {
   const created: Array<Record<string, string>> = [];
+  const bought: Array<Record<string, string>> = [];
+  const searches: Array<Record<string, string>> = [];
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
     const auth = Buffer.from(((init?.headers as Record<string, string>)?.authorization ?? '').replace('Basic ', ''), 'base64').toString();
     if (!auth.endsWith(':good-token')) return Response.json({ code: 20003, message: 'Authenticate' }, { status: 401 });
     if (/\/Accounts\/AC[a-z0-9]+\.json$/.test(url.pathname)) return Response.json({ sid: 'ACtest', friendly_name: 'Cooks QA', status: 'active' });
+    if (url.pathname.endsWith('/IncomingPhoneNumbers.json') && init?.method === 'POST') {
+      const p = Object.fromEntries(new URLSearchParams(String(init?.body)));
+      bought.push(p);
+      return Response.json({ sid: 'PN1', phone_number: p.PhoneNumber, friendly_name: p.FriendlyName }, { status: 201 });
+    }
     if (url.pathname.endsWith('/IncomingPhoneNumbers.json')) return Response.json({ incoming_phone_numbers: [{ phone_number: '+15550001111' }] });
+    if (url.pathname.endsWith('/AvailablePhoneNumbers/US/Local.json')) {
+      searches.push(Object.fromEntries(url.searchParams));
+      return Response.json({ available_phone_numbers: [{ phone_number: '+12135550142', friendly_name: '(213) 555-0142', locality: 'Los Angeles', region: 'CA', capabilities: { voice: true, SMS: true, MMS: false } }] });
+    }
+    if (url.hostname === 'pricing.twilio.com' && url.pathname === '/v1/PhoneNumbers/Countries/US') return Response.json({ price_unit: 'usd', phone_number_prices: [{ number_type: 'local', base_price: '1.15', current_price: '1.15' }, { number_type: 'toll free', base_price: '2.15', current_price: '2.15' }] });
     if (url.pathname.endsWith('/Calls.json')) {
       const p = Object.fromEntries(new URLSearchParams(String(init?.body)));
       created.push(p);
@@ -21,7 +33,7 @@ function fakeTwilio() {
     if (/\/Recordings\/RE\w+\.mp3$/.test(url.pathname)) return new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'audio/mpeg' } });
     return Response.json({ message: `unhandled ${url.pathname}` }, { status: 404 });
   };
-  return { fetchImpl, created };
+  return { fetchImpl, created, bought, searches };
 }
 
 let t: TestApp;
@@ -197,5 +209,26 @@ describe('manual calls and dispositions', () => {
     const calls_ = await t.request(`/v1/calls?filter[prospect][id]=${prospectId}&filter[logged]=true&include=callDisposition`);
     expect(calls_.json.data.length).toBe(2);
     expect(calls_.json.data.every((c: any) => c.callDisposition?.name)).toBe(true);
+  });
+});
+
+describe('buying Twilio numbers', () => {
+  it('searches local voice numbers with the monthly price, refuses an unconfirmed buy, buys and makes it the default caller id', async () => {
+    const found = await t.request('/v1/workspace/telephony/numbers/available?areaCode=213&limit=5');
+    expect(found.status).toBe(200);
+    expect(found.json.data).toEqual([{ e164: '+12135550142', friendlyName: '(213) 555-0142', locality: 'Los Angeles', region: 'CA', capabilities: ['voice', 'sms'], monthlyUsd: 1.15, currency: 'USD' }]);
+    expect(tw.searches.at(-1)).toMatchObject({ AreaCode: '213', VoiceEnabled: 'true', PageSize: '5' });
+    const unconfirmed = await t.request('/v1/workspace/telephony/numbers', { method: 'POST', json: { data: { e164: '+12135550142' } } });
+    expect(unconfirmed.status).toBe(422);
+    expect(unconfirmed.json.error.details.code).toBe('CONFIRM_REQUIRED');
+    expect(tw.bought).toHaveLength(0);
+    const r = await t.request('/v1/workspace/telephony/numbers', { method: 'POST', json: { data: { e164: '(213) 555-0142', confirm: true, makeDefault: true } } });
+    expect(r.status).toBe(201);
+    expect(r.json.data).toMatchObject({ provider: 'twilio', id: 'PN1', e164: '+12135550142', isDefault: true });
+    expect(tw.bought).toEqual([{ PhoneNumber: '+12135550142', FriendlyName: 'Cooks' }]);
+    const ids = (await t.request('/v1/workspace/telephony')).json.data.fromNumbers as string[];
+    expect(ids[0]).toBe('+12135550142');
+    expect(ids).toContain('+15550001111');
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
